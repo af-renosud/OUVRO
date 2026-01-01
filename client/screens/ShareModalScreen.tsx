@@ -351,10 +351,9 @@ export default function ShareModalScreen() {
         ) : null}
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Share Via</ThemedText>
           <View style={styles.shareButtons}>
             <Pressable
-              style={[styles.shareButton, { backgroundColor: "#25D366" }]}
+              style={[styles.shareButton, { backgroundColor: BrandColors.success }]}
               onPress={handleShareWhatsApp}
             >
               <Feather name="message-circle" size={24} color="#FFFFFF" />
@@ -392,7 +391,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.lg,
-    paddingTop: Spacing.xl * 2,
+    paddingTop: Spacing.xl * 3,
   },
   section: {
     marginBottom: Spacing.xl,
