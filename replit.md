@@ -90,6 +90,12 @@ The app runs on port 8081 (Expo dev server) with Express backend on port 5000.
 Users can scan the QR code with Expo Go to test on physical devices.
 
 ## Recent Changes
+- January 1, 2026: Enhanced sharing with attachment picker and email support
+  - New ShareModal screen with attachment selection (choose which media to include)
+  - Contact lookup to match contractor names from device contacts
+  - Email sharing with expo-mail-composer and pre-filled recipient
+  - WhatsApp/SMS with file attachments via expo-sharing
+  - Updated Queue screen shows project name and attachment count
 - January 1, 2026: Connected to live ARCHIDOC API at https://archidoc.app
   - Projects are fetched from external ARCHIDOC system (read-only companion app)
   - Field mapping: projectName→name, clientName, address→location, status

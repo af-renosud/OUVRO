@@ -7,7 +7,17 @@ import VideoCaptureScreen from "@/screens/VideoCaptureScreen";
 import AudioCaptureScreen from "@/screens/AudioCaptureScreen";
 import ObservationDetailsScreen from "@/screens/ObservationDetailsScreen";
 import ProjectDetailScreen from "@/screens/ProjectDetailScreen";
+import ShareModalScreen from "@/screens/ShareModalScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+
+export type ShareObservation = {
+  id: number;
+  title: string;
+  description?: string;
+  transcription?: string;
+  translatedText?: string;
+  mediaItems?: MediaItem[];
+};
 
 export type RootStackParamList = {
   Main: undefined;
@@ -17,6 +27,7 @@ export type RootStackParamList = {
   AudioCapture: { projectId: number };
   ObservationDetails: { projectId: number; mediaItems?: MediaItem[] };
   ProjectDetail: { projectId: number };
+  ShareModal: { observation: ShareObservation; projectName: string; contractorName?: string };
 };
 
 export type MediaItem = {
@@ -82,6 +93,14 @@ export default function RootStackNavigator() {
         component={ProjectDetailScreen}
         options={{
           headerTitle: "Project",
+        }}
+      />
+      <Stack.Screen
+        name="ShareModal"
+        component={ShareModalScreen}
+        options={{
+          presentation: "modal",
+          headerTitle: "Share Observation",
         }}
       />
     </Stack.Navigator>

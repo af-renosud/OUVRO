@@ -11,23 +11,33 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import * as Linking from "expo-linking";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import { apiRequest } from "@/lib/query-client";
-import type { Observation } from "@shared/schema";
+import type { Observation, ObservationMedia } from "@shared/schema";
+import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNavigator";
+
+type ObservationWithMedia = Observation & {
+  media?: ObservationMedia[];
+  projectName?: string;
+  contractorName?: string | null;
+  contractorEmail?: string | null;
+};
 
 export default function QueueScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const queryClient = useQueryClient();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-  const { data: observations = [], isLoading, refetch, isRefetching } = useQuery<Observation[]>({
+  const { data: observations = [], isLoading, refetch, isRefetching } = useQuery<ObservationWithMedia[]>({
     queryKey: ["/api/observations/pending"],
   });
 
@@ -69,19 +79,24 @@ export default function QueueScreen() {
     ]);
   };
 
-  const handleShareWhatsApp = (observation: Observation) => {
-    const message = `Site Observation: ${observation.title}\n\n${observation.description || ""}\n\n${observation.translatedText || observation.transcription || ""}`;
-    const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
-    Linking.openURL(url).catch(() => {
-      Alert.alert("Error", "WhatsApp is not installed on this device");
-    });
-  };
-
-  const handleShareSMS = (observation: Observation) => {
-    const message = `Site Observation: ${observation.title}\n\n${observation.description || ""}\n\n${observation.translatedText || observation.transcription || ""}`;
-    const url = `sms:?body=${encodeURIComponent(message)}`;
-    Linking.openURL(url).catch(() => {
-      Alert.alert("Error", "Unable to open SMS app");
+  const handleShare = (observation: ObservationWithMedia) => {
+    const mediaItems: MediaItem[] = (observation.media || []).map((m) => ({
+      type: m.type as "photo" | "video" | "audio",
+      uri: m.localUri || m.remoteUrl || "",
+      duration: m.duration || undefined,
+    }));
+    
+    navigation.navigate("ShareModal", {
+      observation: {
+        id: observation.id,
+        title: observation.title,
+        description: observation.description || undefined,
+        transcription: observation.transcription || undefined,
+        translatedText: observation.translatedText || undefined,
+        mediaItems,
+      },
+      projectName: observation.projectName || "Project",
+      contractorName: observation.contractorName || undefined,
     });
   };
 
@@ -115,7 +130,7 @@ export default function QueueScreen() {
     }
   };
 
-  const renderObservation = ({ item }: { item: Observation }) => (
+  const renderObservation = ({ item }: { item: ObservationWithMedia }) => (
     <Card style={styles.observationCard}>
       <View style={styles.observationHeader}>
         <View style={styles.thumbnailPlaceholder}>
@@ -124,8 +139,13 @@ export default function QueueScreen() {
         <View style={styles.observationInfo}>
           <ThemedText style={styles.observationTitle}>{item.title}</ThemedText>
           <ThemedText style={[styles.observationDate, { color: theme.textSecondary }]}>
-            {new Date(item.createdAt).toLocaleDateString()}
+            {item.projectName} - {new Date(item.createdAt).toLocaleDateString()}
           </ThemedText>
+          {item.media && item.media.length > 0 ? (
+            <ThemedText style={[styles.mediaCount, { color: theme.textTertiary }]}>
+              {item.media.length} attachment{item.media.length > 1 ? "s" : ""}
+            </ThemedText>
+          ) : null}
         </View>
         <View style={[styles.syncBadge, { backgroundColor: getSyncStatusColor(item.syncStatus) }]}>
           <Feather name={getSyncStatusIcon(item.syncStatus)} size={14} color="#FFFFFF" />
@@ -140,18 +160,11 @@ export default function QueueScreen() {
 
       <View style={styles.actionButtons}>
         <Pressable
-          style={[styles.actionButton, { backgroundColor: "#25D366" }]}
-          onPress={() => handleShareWhatsApp(item)}
+          style={[styles.actionButton, { backgroundColor: BrandColors.secondary }]}
+          onPress={() => handleShare(item)}
         >
-          <Feather name="message-circle" size={16} color="#FFFFFF" />
-          <ThemedText style={styles.actionButtonText}>WhatsApp</ThemedText>
-        </Pressable>
-        <Pressable
-          style={[styles.actionButton, { backgroundColor: BrandColors.info }]}
-          onPress={() => handleShareSMS(item)}
-        >
-          <Feather name="message-square" size={16} color="#FFFFFF" />
-          <ThemedText style={styles.actionButtonText}>SMS</ThemedText>
+          <Feather name="share-2" size={16} color="#FFFFFF" />
+          <ThemedText style={styles.actionButtonText}>Share</ThemedText>
         </Pressable>
         <Pressable
           style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
@@ -277,6 +290,10 @@ const styles = StyleSheet.create({
   },
   observationDate: {
     ...Typography.bodySmall,
+  },
+  mediaCount: {
+    ...Typography.bodySmall,
+    marginTop: 2,
   },
   syncBadge: {
     width: 28,

@@ -44,6 +44,10 @@ export const observations = pgTable("observations", {
   transcription: text("transcription"),
   translatedText: text("translated_text"),
   syncStatus: text("sync_status").default("pending"),
+  archidocProjectId: text("archidoc_project_id"),
+  projectName: text("project_name"),
+  contractorName: text("contractor_name"),
+  contractorEmail: text("contractor_email"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   syncedAt: timestamp("synced_at"),
 });

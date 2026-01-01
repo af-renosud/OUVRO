@@ -70,7 +70,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/observations/pending", async (req: Request, res: Response) => {
     try {
       const observations = await storage.getPendingObservations();
-      res.json(observations);
+      const observationsWithMedia = await Promise.all(
+        observations.map(async (obs) => {
+          const media = await storage.getObservationMedia(obs.id);
+          const project = await storage.getProject(obs.projectId);
+          return {
+            ...obs,
+            media,
+            projectName: obs.projectName || project?.name || "Unknown Project",
+          };
+        })
+      );
+      res.json(observationsWithMedia);
     } catch (error) {
       console.error("Error fetching pending observations:", error);
       res.status(500).json({ error: "Failed to fetch pending observations" });
