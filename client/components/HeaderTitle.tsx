@@ -5,7 +5,7 @@ export function HeaderTitle() {
   return (
     <View style={styles.container}>
       <Image
-        source={require("../../assets/images/archidoc-logo.png")}
+        source={require("../../assets/images/ouvro-logo.jpg")}
         style={styles.logo}
         resizeMode="contain"
       />
@@ -20,11 +20,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   logo: {
-    width: 140,
-    height: 36,
-    borderWidth: 3,
-    borderColor: "#EA526F",
-    borderRadius: 8,
-    padding: 4,
+    width: 160,
+    height: 44,
   },
 });
