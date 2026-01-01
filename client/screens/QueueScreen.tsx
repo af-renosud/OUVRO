@@ -15,7 +15,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import * as FileSystem from "expo-file-system";
+import { File } from "expo-file-system";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
@@ -76,9 +76,8 @@ export default function QueueScreen() {
       console.log(`[Upload] Local URI: ${media.localUri}`);
 
       console.log(`[Upload] Reading file as base64...`);
-      const fileBase64 = await FileSystem.readAsStringAsync(media.localUri, {
-        encoding: "base64",
-      });
+      const file = new File(media.localUri);
+      const fileBase64 = await file.base64();
       console.log(`[Upload] File read, size: ${Math.round(fileBase64.length / 1024)}KB base64`);
 
       console.log(`[Upload] Uploading via proxy...`);
