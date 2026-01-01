@@ -15,7 +15,7 @@ import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
+import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
 import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
@@ -87,7 +87,7 @@ export default function ProjectsScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <BackgroundView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
         <HeaderTitle title="ARCHIDOC Field" subtitle="Architects-France" />
         <View style={[styles.searchContainer, { backgroundColor: theme.backgroundSecondary }]}>
@@ -140,7 +140,7 @@ export default function ProjectsScreen() {
           }
         />
       )}
-    </ThemedView>
+    </BackgroundView>
   );
 }
 

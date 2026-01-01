@@ -15,7 +15,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
+import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
@@ -185,7 +185,7 @@ export default function QueueScreen() {
   );
 
   return (
-    <ThemedView style={styles.container}>
+    <BackgroundView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
         <ThemedText style={styles.headerTitle}>Sync Queue</ThemedText>
         {observations.length > 0 ? (
@@ -229,7 +229,7 @@ export default function QueueScreen() {
           }
         />
       )}
-    </ThemedView>
+    </BackgroundView>
   );
 }
 

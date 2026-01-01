@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
+import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
@@ -172,7 +172,7 @@ export default function SettingsScreen() {
   );
 
   return (
-    <ThemedView style={styles.container}>
+    <BackgroundView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
         <ThemedText style={styles.headerTitle}>Settings</ThemedText>
       </View>
@@ -207,7 +207,7 @@ export default function SettingsScreen() {
           </View>
         ))}
       </ScrollView>
-    </ThemedView>
+    </BackgroundView>
   );
 }
 
