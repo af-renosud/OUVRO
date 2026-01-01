@@ -1,6 +1,5 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { ThemedText } from "@/components/ThemedText";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import CaptureModalScreen from "@/screens/CaptureModalScreen";
 import PhotoCaptureScreen from "@/screens/PhotoCaptureScreen";
@@ -52,61 +51,36 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="CaptureModal"
         component={CaptureModalScreen}
-        options={{
-          presentation: "modal",
-          headerTitle: () => (
-            <ThemedText style={{ fontSize: 18, fontWeight: "600", color: "#EA526F" }}>
-              ACTION
-            </ThemedText>
-          ),
-        }}
+        options={{ presentation: "modal" }}
       />
       <Stack.Screen
         name="PhotoCapture"
         component={PhotoCaptureScreen}
-        options={{
-          presentation: "fullScreenModal",
-          headerShown: false,
-        }}
+        options={{ presentation: "fullScreenModal" }}
       />
       <Stack.Screen
         name="VideoCapture"
         component={VideoCaptureScreen}
-        options={{
-          presentation: "fullScreenModal",
-          headerShown: false,
-        }}
+        options={{ presentation: "fullScreenModal" }}
       />
       <Stack.Screen
         name="AudioCapture"
         component={AudioCaptureScreen}
-        options={{
-          presentation: "modal",
-          headerTitle: "Record Narration",
-        }}
+        options={{ presentation: "modal" }}
       />
       <Stack.Screen
         name="ObservationDetails"
         component={ObservationDetailsScreen}
-        options={{
-          presentation: "modal",
-          headerTitle: "Observation Details",
-        }}
+        options={{ presentation: "modal" }}
       />
       <Stack.Screen
         name="ProjectDetail"
         component={ProjectDetailScreen}
-        options={{
-          headerTitle: "Project",
-        }}
       />
       <Stack.Screen
         name="ShareModal"
         component={ShareModalScreen}
-        options={{
-          presentation: "modal",
-          headerTitle: "Share Observation",
-        }}
+        options={{ presentation: "modal" }}
       />
     </Stack.Navigator>
   );
