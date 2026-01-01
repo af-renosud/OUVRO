@@ -1,12 +1,28 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
-import ModalScreen from "@/screens/ModalScreen";
+import CaptureModalScreen from "@/screens/CaptureModalScreen";
+import PhotoCaptureScreen from "@/screens/PhotoCaptureScreen";
+import VideoCaptureScreen from "@/screens/VideoCaptureScreen";
+import AudioCaptureScreen from "@/screens/AudioCaptureScreen";
+import ObservationDetailsScreen from "@/screens/ObservationDetailsScreen";
+import ProjectDetailScreen from "@/screens/ProjectDetailScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type RootStackParamList = {
   Main: undefined;
-  Modal: undefined;
+  CaptureModal: undefined;
+  PhotoCapture: { projectId: number };
+  VideoCapture: { projectId: number };
+  AudioCapture: { projectId: number };
+  ObservationDetails: { projectId: number; mediaItems?: MediaItem[] };
+  ProjectDetail: { projectId: number };
+};
+
+export type MediaItem = {
+  type: "photo" | "video" | "audio";
+  uri: string;
+  duration?: number;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -22,11 +38,50 @@ export default function RootStackNavigator() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="Modal"
-        component={ModalScreen}
+        name="CaptureModal"
+        component={CaptureModalScreen}
         options={{
           presentation: "modal",
-          headerTitle: "Modal",
+          headerTitle: "New Observation",
+        }}
+      />
+      <Stack.Screen
+        name="PhotoCapture"
+        component={PhotoCaptureScreen}
+        options={{
+          presentation: "fullScreenModal",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="VideoCapture"
+        component={VideoCaptureScreen}
+        options={{
+          presentation: "fullScreenModal",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="AudioCapture"
+        component={AudioCaptureScreen}
+        options={{
+          presentation: "modal",
+          headerTitle: "Record Narration",
+        }}
+      />
+      <Stack.Screen
+        name="ObservationDetails"
+        component={ObservationDetailsScreen}
+        options={{
+          presentation: "modal",
+          headerTitle: "Observation Details",
+        }}
+      />
+      <Stack.Screen
+        name="ProjectDetail"
+        component={ProjectDetailScreen}
+        options={{
+          headerTitle: "Project",
         }}
       />
     </Stack.Navigator>

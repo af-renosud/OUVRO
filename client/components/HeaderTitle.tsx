@@ -2,13 +2,17 @@ import React from "react";
 import { View, StyleSheet, Image } from "react-native";
 
 import { ThemedText } from "@/components/ThemedText";
-import { Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/useTheme";
+import { Spacing, Typography, BrandColors } from "@/constants/theme";
 
 interface HeaderTitleProps {
   title: string;
+  subtitle?: string;
 }
 
-export function HeaderTitle({ title }: HeaderTitleProps) {
+export function HeaderTitle({ title, subtitle }: HeaderTitleProps) {
+  const { theme } = useTheme();
+
   return (
     <View style={styles.container}>
       <Image
@@ -16,7 +20,14 @@ export function HeaderTitle({ title }: HeaderTitleProps) {
         style={styles.icon}
         resizeMode="contain"
       />
-      <ThemedText style={styles.title}>{title}</ThemedText>
+      <View style={styles.textContainer}>
+        <ThemedText style={styles.title}>{title}</ThemedText>
+        {subtitle ? (
+          <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
+            {subtitle}
+          </ThemedText>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -28,12 +39,19 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   icon: {
-    width: 28,
-    height: 28,
+    width: 36,
+    height: 36,
     marginRight: Spacing.sm,
+    borderRadius: 8,
+  },
+  textContainer: {
+    flexDirection: "column",
   },
   title: {
-    fontSize: 17,
-    fontWeight: "600",
+    ...Typography.h3,
+  },
+  subtitle: {
+    ...Typography.label,
+    marginTop: -2,
   },
 });
