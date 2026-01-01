@@ -115,7 +115,7 @@ export default function SettingsScreen() {
     {
       title: "About",
       items: [
-        { icon: "info", label: "Version", value: "1.0.0" },
+        { icon: "info", label: "Version", value: "1.0.1" },
         { icon: "file-text", label: "Terms of Service", onPress: () => {} },
         { icon: "shield", label: "Privacy Policy", onPress: () => {} },
       ],
