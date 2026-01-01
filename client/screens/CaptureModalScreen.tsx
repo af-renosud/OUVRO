@@ -7,7 +7,6 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -81,24 +80,13 @@ export default function CaptureModalScreen() {
       key={item.type}
       style={({ pressed }) => [
         styles.mediaCardWrapper,
-        isPhone ? styles.mediaCardWrapperPhone : styles.mediaCardWrapperTablet,
         pressed ? styles.pressed : null,
       ]}
       onPress={() => handleMediaTypeSelect(item.type)}
     >
-      <Card style={isPhone ? { ...styles.mediaCard, ...styles.mediaCardPhone } : styles.mediaCard}>
-        <View style={[styles.iconCircle, { backgroundColor: "#E6FFFA" }]}>
-          <Feather name={item.icon} size={isPhone ? 28 : 32} color={BrandColors.accent} />
-        </View>
-        <View style={isPhone ? styles.mediaTextPhone : undefined}>
-          <ThemedText style={[styles.mediaTitle, isPhone && styles.mediaTitlePhone]}>
-            {item.title}
-          </ThemedText>
-          <ThemedText style={[styles.mediaDescription, { color: theme.textSecondary }]}>
-            {item.description}
-          </ThemedText>
-        </View>
-      </Card>
+      <View style={[styles.iconCircle, { backgroundColor: "#E6FFFA" }]}>
+        <Feather name={item.icon} size={48} color={BrandColors.accent} />
+      </View>
     </Pressable>
   );
 
@@ -151,7 +139,7 @@ export default function CaptureModalScreen() {
 
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Capture Media</ThemedText>
-          <View style={[styles.mediaGrid, isPhone && styles.mediaGridPhone]}>
+          <View style={styles.mediaGrid}>
             {mediaOptions.map(renderMediaOption)}
           </View>
         </View>
@@ -193,53 +181,18 @@ const styles = StyleSheet.create({
   },
   mediaGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.md,
-  },
-  mediaGridPhone: {
-    flexDirection: "column",
+    justifyContent: "center",
+    gap: Spacing.xl,
   },
   mediaCardWrapper: {
-    minWidth: 140,
-  },
-  mediaCardWrapperPhone: {
-    width: "100%",
-  },
-  mediaCardWrapperTablet: {
-    width: "48%",
-  },
-  mediaCard: {
-    padding: Spacing.lg,
     alignItems: "center",
-  },
-  mediaCardPhone: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
   },
   iconCircle: {
-    width: 72,
-    height: 72,
+    width: 100,
+    height: 100,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.md,
-  },
-  mediaTextPhone: {
-    flex: 1,
-    marginLeft: Spacing.md,
-    marginBottom: 0,
-  },
-  mediaTitle: {
-    ...Typography.h3,
-    marginBottom: Spacing.xs,
-  },
-  mediaTitlePhone: {
-    marginBottom: 2,
-  },
-  mediaDescription: {
-    ...Typography.bodySmall,
-    textAlign: "center",
   },
   pressed: {
     opacity: 0.9,
