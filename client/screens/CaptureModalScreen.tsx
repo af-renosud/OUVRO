@@ -111,16 +111,16 @@ export default function CaptureModalScreen() {
           onPress={() => setShowProjectPicker(true)}
         >
           {projectsLoading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <ActivityIndicator size="small" color={BrandColors.primary} />
           ) : (
             <>
               <View style={styles.projectInfo}>
                 <ThemedText style={styles.projectLabel}>Project:</ThemedText>
                 <ThemedText style={styles.projectName} numberOfLines={1}>
-                  {selectedProject?.name || "Select a project"}
+                  {selectedProject?.name || "Tap to select a project"}
                 </ThemedText>
               </View>
-              <Feather name="chevron-down" size={20} color="#FFFFFF" />
+              <Feather name="chevron-down" size={20} color={BrandColors.primary} />
             </>
           )}
         </Pressable>
@@ -249,11 +249,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
+    borderWidth: 2,
+    borderColor: BrandColors.accent,
   },
   projectInfo: {
     flex: 1,
@@ -261,13 +263,13 @@ const styles = StyleSheet.create({
   },
   projectLabel: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.7)",
+    color: BrandColors.primary,
     marginBottom: 2,
   },
   projectName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: BrandColors.primary,
   },
   modalOverlay: {
     flex: 1,
