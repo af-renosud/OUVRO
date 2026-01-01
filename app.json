@@ -10,7 +10,12 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ouvro.field"
+      "bundleIdentifier": "com.ouvro.field",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "OUVRO needs microphone access to record audio observations on site",
+        "NSCameraUsageDescription": "OUVRO needs camera access to capture photos and videos of site observations",
+        "NSPhotoLibraryUsageDescription": "OUVRO needs photo library access to save and select observation media"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -38,6 +43,12 @@
           "dark": {
             "backgroundColor": "#1A202C"
           }
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "OUVRO needs microphone access to record audio observations on site"
         }
       ],
       "expo-web-browser"
