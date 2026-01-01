@@ -163,33 +163,38 @@ The app has 4 distinct feature areas with a primary capture action:
 ## Design System
 
 ### Color Palette
-**Primary (ARCHIDOC Brand):**
-- Primary: #2563EB (Blue - professional, trustworthy)
-- Primary Dark: #1E40AF
-- Primary Light: #60A5FA
+**Primary:**
+- Primary: #4299E1 (Blue - professional, modern)
+- Primary Dark: #3182CE
+- Primary Light: #63B3ED
 
-**Secondary (Architects-France Accent):**
-- Secondary: #059669 (Green - construction, growth)
-- Secondary Dark: #047857
+**Secondary:**
+- Secondary: #63B3ED (Light Blue - airy, approachable)
+- Secondary Dark: #4299E1
+
+**Accent:**
+- Accent: #319795 (Teal - action, highlight)
+- Accent Light: #4FD1C5
 
 **Neutrals:**
-- Background: #FFFFFF
-- Surface: #F9FAFB
-- Border: #E5E7EB
-- Text Primary: #111827
-- Text Secondary: #6B7280
-- Text Tertiary: #9CA3AF
+- Neutral: #4A5568 (Gray)
+- Background: #F7FAFC (Off-White)
+- Surface: #FFFFFF
+- Border: #E2E8F0
+- Text Primary: #2D3748 (Dark Gray)
+- Text Secondary: #4A5568
+- Text Tertiary: #718096
 
 **Semantic:**
-- Success: #10B981 (synced)
-- Warning: #F59E0B (pending)
-- Error: #EF4444 (failed)
-- Info: #3B82F6 (syncing)
+- Success: #38A169 (synced)
+- Warning: #DD6B20 (pending)
+- Error: #E53E3E (failed)
+- Info: #4299E1 (syncing)
 
 **Annotation Tools:**
-- Red: #EF4444 (markup pen)
-- Yellow: #FBBF24 (highlighter)
-- Black: #111827 (text)
+- Red: #E53E3E (markup pen)
+- Yellow: #ECC94B (highlighter)
+- Black: #2D3748 (text)
 
 ### Typography
 **System Font: San Francisco (iOS/iPadOS default)**
