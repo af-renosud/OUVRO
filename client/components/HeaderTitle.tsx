@@ -22,5 +22,9 @@ const styles = StyleSheet.create({
   logo: {
     width: 140,
     height: 36,
+    borderWidth: 3,
+    borderColor: "#0B2545",
+    borderRadius: 8,
+    padding: 4,
   },
 });
