@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View, Pressable } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useNavigationState } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import ProjectsScreen from "@/screens/ProjectsScreen";
 import QueueScreen from "@/screens/QueueScreen";
@@ -25,6 +25,19 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 function CaptureButton() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { isDark } = useTheme();
+  
+  const currentRoute = useNavigationState((state) => {
+    const mainRoute = state?.routes?.find((r) => r.name === "Main");
+    if (mainRoute?.state?.routes) {
+      const index = mainRoute.state.index ?? 0;
+      return mainRoute.state.routes[index]?.name;
+    }
+    return null;
+  });
+
+  if (currentRoute === "SettingsTab") {
+    return null;
+  }
 
   return (
     <View style={styles.fabContainer}>
