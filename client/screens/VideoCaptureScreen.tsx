@@ -53,7 +53,10 @@ export default function VideoCaptureScreen() {
       }, 1000);
       
       try {
-        const video = await cameraRef.current.recordAsync();
+        const video = await cameraRef.current.recordAsync({
+          maxDuration: 120,
+          maxFileSize: 50 * 1024 * 1024,
+        });
         if (video) {
           navigation.navigate("ObservationDetails", {
             projectId,
@@ -138,6 +141,7 @@ export default function VideoCaptureScreen() {
           style={styles.camera}
           facing={facing}
           mode="video"
+          videoQuality="720p"
         />
       )}
 
