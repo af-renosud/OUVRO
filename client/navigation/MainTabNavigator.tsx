@@ -106,8 +106,8 @@ export default function MainTabNavigator() {
           component={QueueScreen}
           options={{
             title: "Queue",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="cloud" size={size} color={color} />
+            tabBarIcon: ({ size }) => (
+              <Feather name="cloud" size={size} color="#F59E0B" />
             ),
           }}
         />
