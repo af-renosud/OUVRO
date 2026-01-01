@@ -72,6 +72,9 @@ export default function QueueScreen() {
       const fileName = media.localUri.split("/").pop() || `${assetType}_${Date.now()}`;
       const contentType = getMimeType(assetType);
 
+      console.log(`[Upload] Starting upload for ${assetType}: ${fileName}`);
+      console.log(`[Upload] Local URI: ${media.localUri}`);
+
       const uploadUrlRes = await apiRequest("POST", "/api/archidoc/upload-url", {
         fileName,
         contentType,
@@ -79,12 +82,16 @@ export default function QueueScreen() {
       });
       
       if (!uploadUrlRes.ok) {
-        console.error("Failed to get upload URL");
+        const errorText = await uploadUrlRes.text().catch(() => "Unknown error");
+        console.error(`[Upload] Failed to get upload URL: ${uploadUrlRes.status} - ${errorText}`);
         return false;
       }
       
-      const { uploadURL, objectPath } = await uploadUrlRes.json();
+      const urlData = await uploadUrlRes.json();
+      const { uploadURL, objectPath } = urlData;
+      console.log(`[Upload] Got upload URL, objectPath: ${objectPath}`);
 
+      console.log(`[Upload] Uploading file to signed URL...`);
       const uploadResult = await FileSystem.uploadAsync(uploadURL, media.localUri, {
         httpMethod: "PUT",
         headers: {
@@ -92,11 +99,13 @@ export default function QueueScreen() {
         },
       });
 
+      console.log(`[Upload] Upload result: status=${uploadResult.status}`);
       if (uploadResult.status !== 200 && uploadResult.status !== 201) {
-        console.error("Failed to upload file:", uploadResult.status, uploadResult.body);
+        console.error(`[Upload] File upload failed: ${uploadResult.status} - ${uploadResult.body}`);
         return false;
       }
 
+      console.log(`[Upload] Registering asset in ARCHIDOC...`);
       const registerRes = await apiRequest("POST", "/api/archidoc/register-asset", {
         observationId: archidocObservationId,
         assetType,
@@ -106,14 +115,15 @@ export default function QueueScreen() {
       });
 
       if (!registerRes.ok) {
-        console.error("Failed to register asset");
+        const errorText = await registerRes.text().catch(() => "Unknown error");
+        console.error(`[Upload] Failed to register asset: ${registerRes.status} - ${errorText}`);
         return false;
       }
 
-      console.log(`Asset uploaded and registered: ${fileName}`);
+      console.log(`[Upload] Asset uploaded and registered: ${fileName}`);
       return true;
     } catch (error) {
-      console.error("Error uploading media:", error);
+      console.error("[Upload] Exception during upload:", error);
       return false;
     }
   };
