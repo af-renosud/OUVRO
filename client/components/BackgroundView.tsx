@@ -9,7 +9,7 @@ export type BackgroundViewProps = ViewProps & {
 
 export function BackgroundView({
   style,
-  showTexture = true,
+  showTexture = false,
   children,
   ...otherProps
 }: BackgroundViewProps) {
