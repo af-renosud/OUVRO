@@ -243,6 +243,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/archidoc/upload-url", async (req: Request, res: Response) => {
+    try {
+      const { fileName, contentType, assetType } = req.body;
+      
+      const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
+      if (!archidocApiUrl) {
+        return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
+      }
+
+      const response = await fetch(`${archidocApiUrl}/api/field-observations/upload-url`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ fileName, contentType, assetType }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Failed to get upload URL:", errorText);
+        return res.status(response.status).json({ error: "Failed to get upload URL from ARCHIDOC" });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Error getting upload URL:", error);
+      res.status(500).json({ error: "Failed to get upload URL" });
+    }
+  });
+
+  app.post("/api/archidoc/register-asset", async (req: Request, res: Response) => {
+    try {
+      const { observationId, assetType, objectPath, fileName, mimeType } = req.body;
+      
+      const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
+      if (!archidocApiUrl) {
+        return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
+      }
+
+      const response = await fetch(`${archidocApiUrl}/api/field-observations/${observationId}/assets`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ assetType, objectPath, fileName, mimeType }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Failed to register asset:", errorText);
+        return res.status(response.status).json({ error: "Failed to register asset in ARCHIDOC" });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Error registering asset:", error);
+      res.status(500).json({ error: "Failed to register asset" });
+    }
+  });
+
   app.post("/api/sync-observation/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
@@ -285,66 +347,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!archidocResponse.ok) {
           const errorText = await archidocResponse.text();
           console.error("ARCHIDOC sync failed:", errorText);
-          console.log("Marking as synced locally (ARCHIDOC endpoint not available)");
-        } else {
-          const archidocResult = await archidocResponse.json();
-          archidocObservationId = archidocResult.id;
-          console.log("Successfully synced to ARCHIDOC, observation ID:", archidocObservationId);
-
-          const mediaItems = await storage.getObservationMedia(id);
-          
-          for (const media of mediaItems) {
-            try {
-              const assetType = media.type as "photo" | "video" | "audio";
-              const fileName = media.localUri?.split("/").pop() || `${assetType}_${Date.now()}`;
-              const mimeTypes: Record<string, string> = {
-                photo: "image/jpeg",
-                video: "video/mp4",
-                audio: "audio/m4a",
-              };
-
-              const assetPayload = {
-                assetType,
-                objectPath: `/objects/field-observations/${assetType}/${archidocObservationId}/${fileName}`,
-                fileName,
-                mimeType: mimeTypes[assetType] || "application/octet-stream",
-              };
-
-              const assetResponse = await fetch(
-                `${archidocApiUrl}/api/field-observations/${archidocObservationId}/assets`,
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify(assetPayload),
-                }
-              );
-
-              if (assetResponse.ok) {
-                console.log(`Asset linked successfully: ${assetType} - ${fileName}`);
-              } else {
-                const errorText = await assetResponse.text();
-                console.error(`Failed to link asset ${fileName}:`, errorText);
-              }
-            } catch (assetError) {
-              console.error("Error linking asset:", assetError);
-            }
-          }
+          return res.status(500).json({ error: "Failed to create observation in ARCHIDOC" });
         }
+        
+        const archidocResult = await archidocResponse.json();
+        archidocObservationId = archidocResult.id;
+        console.log("Successfully created observation in ARCHIDOC, ID:", archidocObservationId);
       } catch (fetchError) {
         console.error("ARCHIDOC API unreachable:", fetchError);
-        console.log("Marking as synced locally (ARCHIDOC API unreachable)");
+        return res.status(500).json({ error: "ARCHIDOC API unreachable" });
       }
 
-      const updatedObservation = await storage.updateObservation(id, {
-        syncStatus: "synced",
+      res.json({ 
+        localId: id,
+        archidocObservationId,
+        observation 
       });
-
-      res.json(updatedObservation);
     } catch (error) {
       console.error("Error syncing observation:", error);
       res.status(500).json({ error: "Failed to sync observation" });
+    }
+  });
+
+  app.post("/api/mark-synced/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updatedObservation = await storage.updateObservation(id, {
+        syncStatus: "synced",
+      });
+      res.json(updatedObservation);
+    } catch (error) {
+      console.error("Error marking observation as synced:", error);
+      res.status(500).json({ error: "Failed to mark observation as synced" });
     }
   });
 
