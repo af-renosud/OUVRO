@@ -127,7 +127,7 @@ export default function MainTabNavigator() {
 const styles = StyleSheet.create({
   fabContainer: {
     position: "absolute",
-    bottom: Platform.OS === "ios" ? 44 : 20,
+    bottom: Platform.OS === "ios" ? 100 : 76,
     left: 0,
     right: 0,
     alignItems: "center",
