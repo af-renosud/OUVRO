@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
-    marginTop: Spacing.md,
+    marginTop: Spacing.lg,
     gap: Spacing.sm,
   },
   searchInput: {
