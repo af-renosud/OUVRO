@@ -141,7 +141,7 @@ export default function VideoCaptureScreen() {
           style={styles.camera}
           facing={facing}
           mode="video"
-          videoQuality="720p"
+          videoQuality="480p"
         />
       )}
 
