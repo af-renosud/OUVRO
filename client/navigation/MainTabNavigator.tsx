@@ -49,7 +49,7 @@ function CaptureButton() {
         ]}
         onPress={() => navigation.navigate("CaptureModal")}
       >
-        <Feather name="camera" size={28} color="#FFFFFF" />
+        <Feather name="camera" size={34} color="#FFFFFF" />
       </Pressable>
     </View>
   );
@@ -147,8 +147,8 @@ const styles = StyleSheet.create({
     pointerEvents: "box-none",
   },
   fab: {
-    width: 64,
-    height: 64,
+    width: 77,
+    height: 77,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
