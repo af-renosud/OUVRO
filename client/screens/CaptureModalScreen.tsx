@@ -1,13 +1,10 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Pressable, Alert, useWindowDimensions } from "react-native";
+import { View, StyleSheet, Pressable, Alert, useWindowDimensions, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
-import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
@@ -43,7 +40,6 @@ const mediaOptions: MediaOption[] = [
 ];
 
 export default function CaptureModalScreen() {
-  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -76,7 +72,7 @@ export default function CaptureModalScreen() {
   const buttonSize = Math.min((height - 200) / 3.5, 140);
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: "#0B2545" }]}>
       <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
         <View style={styles.projectSection}>
           <View style={styles.projectList}>
@@ -88,29 +84,29 @@ export default function CaptureModalScreen() {
                   {
                     backgroundColor:
                       selectedProject?.id === project.id
-                        ? BrandColors.primary
-                        : theme.backgroundSecondary,
+                        ? BrandColors.coralRed
+                        : "#1a4070",
                   },
                 ]}
                 onPress={() => setSelectedProject(project)}
               >
-                <ThemedText
+                <Text
                   style={[
                     styles.projectChipText,
                     {
                       color:
-                        selectedProject?.id === project.id ? "#FFFFFF" : theme.text,
+                        selectedProject?.id === project.id ? "#FFFFFF" : "#FFFFFF",
                     },
                   ]}
                 >
                   {project.name}
-                </ThemedText>
+                </Text>
               </Pressable>
             ))}
             {projects.length === 0 ? (
-              <ThemedText style={[styles.noProjects, { color: theme.textSecondary }]}>
+              <Text style={[styles.noProjects, { color: "#A0AEC0" }]}>
                 No projects available.
-              </ThemedText>
+              </Text>
             ) : null}
           </View>
         </View>
@@ -132,7 +128,7 @@ export default function CaptureModalScreen() {
           ))}
         </View>
       </View>
-    </ThemedView>
+    </View>
   );
 }
 
