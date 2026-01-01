@@ -77,7 +77,7 @@ export default function CaptureModalScreen() {
     }
   };
 
-  const buttonSize = Math.min((height - 200) / 3.5, 140);
+  const buttonSize = Math.min((height - 200) / 3.5, 140) * 0.8;
 
   return (
     <View style={styles.container}>
