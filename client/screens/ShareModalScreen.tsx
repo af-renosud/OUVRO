@@ -239,7 +239,6 @@ export default function ShareModalScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.xl }]}
       >
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Observation</ThemedText>
           <Card style={styles.observationCard}>
             <ThemedText style={styles.observationTitle}>{observation.title}</ThemedText>
             <ThemedText style={[styles.projectName, { color: theme.textSecondary }]}>
@@ -391,7 +390,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.lg,
-    paddingTop: Spacing.xl * 3,
+    paddingTop: Spacing.xl * 5,
   },
   section: {
     marginBottom: Spacing.xl,
