@@ -451,9 +451,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   emptyContainer: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: Spacing.xl * 3,
     gap: Spacing.md,
   },
   emptyTitle: {
