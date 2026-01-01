@@ -316,7 +316,7 @@ export default function AudioCaptureScreen() {
             </View>
           )}
 
-          <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
+          <ThemedText style={[styles.hint, { color: "#6B7280" }]}>
             {isRecording
               ? "Tap to stop recording"
               : recordingUri
@@ -368,7 +368,7 @@ export default function AudioCaptureScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0B2545",
+    backgroundColor: "#FFFFFF",
   },
   headerBackground: {
     backgroundColor: "#FFFFFF",
@@ -428,6 +428,7 @@ const styles = StyleSheet.create({
     ...Typography.hero,
     marginTop: Spacing.lg,
     fontVariant: ["tabular-nums"],
+    color: "#0B2545",
   },
   durationTextPhone: {
     fontSize: 36,
@@ -513,7 +514,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: Spacing.md,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F3F4F6",
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     marginHorizontal: Spacing.lg,
