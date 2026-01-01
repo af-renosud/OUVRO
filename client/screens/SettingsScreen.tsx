@@ -225,8 +225,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xl,
   },
   logo: {
-    width: 207,
-    height: 64,
+    width: 180,
+    height: 56,
   },
   settingsGroup: {
     marginBottom: Spacing.lg,

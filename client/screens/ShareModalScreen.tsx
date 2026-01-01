@@ -417,8 +417,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerLogo: {
-    width: 160,
-    height: 50,
+    width: 180,
+    height: 56,
   },
   headerSpacer: {
     width: 40,
