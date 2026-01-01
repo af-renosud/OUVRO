@@ -89,7 +89,7 @@ export default function ProjectsScreen() {
   return (
     <BackgroundView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <HeaderTitle title="ARCHIDOC Field" subtitle="Architects-France" />
+        <HeaderTitle />
         <View style={[styles.searchContainer, { backgroundColor: theme.backgroundSecondary }]}>
           <Feather name="search" size={20} color={theme.textTertiary} />
           <TextInput

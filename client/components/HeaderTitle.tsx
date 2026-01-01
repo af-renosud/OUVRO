@@ -1,18 +1,7 @@
 import React from "react";
 import { View, StyleSheet, Image } from "react-native";
 
-import { ThemedText } from "@/components/ThemedText";
-import { useTheme } from "@/hooks/useTheme";
-import { Spacing, Typography, BrandColors } from "@/constants/theme";
-
-interface HeaderTitleProps {
-  title: string;
-  subtitle?: string;
-}
-
-export function HeaderTitle({ title, subtitle }: HeaderTitleProps) {
-  const { theme } = useTheme();
-
+export function HeaderTitle() {
   return (
     <View style={styles.container}>
       <Image
@@ -20,31 +9,18 @@ export function HeaderTitle({ title, subtitle }: HeaderTitleProps) {
         style={styles.logo}
         resizeMode="contain"
       />
-      {subtitle ? (
-        <View style={styles.subtitleContainer}>
-          <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {subtitle}
-          </ThemedText>
-        </View>
-      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
+    flex: 1,
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "center",
   },
   logo: {
-    width: 120,
-    height: 32,
-  },
-  subtitleContainer: {
-    marginLeft: Spacing.sm,
-  },
-  subtitle: {
-    ...Typography.label,
+    width: 140,
+    height: 36,
   },
 });
