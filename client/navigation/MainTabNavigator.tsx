@@ -121,7 +121,7 @@ export default function MainTabNavigator() {
           options={{
             title: "Files",
             tabBarIcon: () => (
-              <Feather name="folder" size={28} color="#10B981" />
+              <Feather name="folder" size={28} color="#F59E0B" />
             ),
           }}
         />
