@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Pressable, ScrollView, Alert, useWindowDimensions } from "react-native";
+import { View, StyleSheet, Pressable, Alert, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -45,11 +45,9 @@ const mediaOptions: MediaOption[] = [
 export default function CaptureModalScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [selectedProject, setSelectedProject] = useState<MappedProject | null>(null);
-
-  const isPhone = width < 500;
 
   const { data: projects = [] } = useQuery<MappedProject[]>({
     queryKey: ["archidoc-projects"],
@@ -75,32 +73,12 @@ export default function CaptureModalScreen() {
     }
   };
 
-  const renderMediaOption = (item: MediaOption) => (
-    <Pressable
-      key={item.type}
-      style={({ pressed }) => [
-        styles.mediaCardWrapper,
-        pressed ? styles.pressed : null,
-      ]}
-      onPress={() => handleMediaTypeSelect(item.type)}
-    >
-      <View style={styles.iconCircle}>
-        <Feather name={item.icon} size={48} color={BrandColors.accent} />
-      </View>
-    </Pressable>
-  );
+  const buttonSize = Math.min((height - 200) / 3.5, 140);
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: insets.bottom + Spacing.xl },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Select Project</ThemedText>
+      <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
+        <View style={styles.projectSection}>
           <View style={styles.projectList}>
             {projects.slice(0, 5).map((project) => (
               <Pressable
@@ -131,19 +109,29 @@ export default function CaptureModalScreen() {
             ))}
             {projects.length === 0 ? (
               <ThemedText style={[styles.noProjects, { color: theme.textSecondary }]}>
-                No projects available. Create one first.
+                No projects available.
               </ThemedText>
             ) : null}
           </View>
         </View>
 
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Capture Media</ThemedText>
-          <View style={styles.mediaGrid}>
-            {mediaOptions.map(renderMediaOption)}
-          </View>
+        <View style={styles.mediaGrid}>
+          {mediaOptions.map((item) => (
+            <Pressable
+              key={item.type}
+              style={({ pressed }) => [
+                styles.mediaCardWrapper,
+                pressed ? styles.pressed : null,
+              ]}
+              onPress={() => handleMediaTypeSelect(item.type)}
+            >
+              <View style={[styles.iconCircle, { width: buttonSize, height: buttonSize }]}>
+                <Feather name={item.icon} size={buttonSize * 0.45} color={BrandColors.accent} />
+              </View>
+            </Pressable>
+          ))}
         </View>
-      </ScrollView>
+      </View>
     </ThemedView>
   );
 }
@@ -153,14 +141,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    flex: 1,
     padding: Spacing.lg,
   },
-  section: {
-    marginBottom: Spacing.xl,
-  },
-  sectionTitle: {
-    ...Typography.h3,
-    marginBottom: Spacing.md,
+  projectSection: {
+    marginBottom: Spacing.lg,
   },
   projectList: {
     flexDirection: "row",
@@ -180,17 +165,16 @@ const styles = StyleSheet.create({
     ...Typography.body,
   },
   mediaGrid: {
+    flex: 1,
     flexDirection: "column",
     alignItems: "center",
-    gap: Spacing.lg,
+    justifyContent: "space-evenly",
   },
   mediaCardWrapper: {
     alignItems: "center",
   },
   iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: BorderRadius.full,
+    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#E6FFFA",
