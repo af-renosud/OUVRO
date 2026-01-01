@@ -27,7 +27,7 @@ export default function PhotoCaptureScreen() {
 
   const isLandscape = width > height;
   const isPhone = width < 500;
-  const buttonSize = isPhone ? 64 : 80;
+  const buttonSize = isPhone ? 80 : 100;
   const smallButtonSize = isPhone ? 48 : 56;
 
   const handleCapture = async () => {
