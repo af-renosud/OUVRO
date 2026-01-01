@@ -73,8 +73,9 @@ export default function MainTabNavigator() {
             }),
             borderTopWidth: 0,
             elevation: 0,
-            height: Platform.OS === "ios" ? 88 : 64,
-            paddingBottom: Platform.OS === "ios" ? 28 : 8,
+            height: Platform.OS === "ios" ? 105 : 77,
+            paddingBottom: Platform.OS === "ios" ? 32 : 10,
+            paddingTop: 8,
           },
           tabBarBackground: () =>
             Platform.OS === "ios" ? (
@@ -86,8 +87,11 @@ export default function MainTabNavigator() {
             ) : null,
           headerShown: false,
           tabBarLabelStyle: {
-            fontSize: 11,
-            fontWeight: "500",
+            fontSize: 13,
+            fontWeight: "600",
+          },
+          tabBarIconStyle: {
+            marginBottom: 2,
           },
         }}
       >
@@ -96,8 +100,8 @@ export default function MainTabNavigator() {
           component={ProjectsScreen}
           options={{
             title: "Projects",
-            tabBarIcon: ({ size }) => (
-              <Feather name="home" size={size} color="#F59E0B" />
+            tabBarIcon: () => (
+              <Feather name="home" size={28} color="#F59E0B" />
             ),
           }}
         />
@@ -106,8 +110,8 @@ export default function MainTabNavigator() {
           component={QueueScreen}
           options={{
             title: "Queue",
-            tabBarIcon: ({ size }) => (
-              <Feather name="cloud" size={size} color="#F59E0B" />
+            tabBarIcon: () => (
+              <Feather name="cloud" size={28} color="#F59E0B" />
             ),
           }}
         />
@@ -116,8 +120,8 @@ export default function MainTabNavigator() {
           component={FilesScreen}
           options={{
             title: "Files",
-            tabBarIcon: ({ size }) => (
-              <Feather name="folder" size={size} color="#10B981" />
+            tabBarIcon: () => (
+              <Feather name="folder" size={28} color="#10B981" />
             ),
           }}
         />
@@ -126,8 +130,8 @@ export default function MainTabNavigator() {
           component={SettingsScreen}
           options={{
             title: "Settings",
-            tabBarIcon: ({ size }) => (
-              <Feather name="settings" size={size} color="#F59E0B" />
+            tabBarIcon: () => (
+              <Feather name="settings" size={28} color="#F59E0B" />
             ),
           }}
         />
@@ -140,7 +144,7 @@ export default function MainTabNavigator() {
 const styles = StyleSheet.create({
   fabContainer: {
     position: "absolute",
-    bottom: Platform.OS === "ios" ? 100 : 76,
+    bottom: Platform.OS === "ios" ? 117 : 89,
     left: 0,
     right: 0,
     alignItems: "center",
