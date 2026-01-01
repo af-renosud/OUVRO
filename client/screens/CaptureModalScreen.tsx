@@ -87,8 +87,8 @@ export default function CaptureModalScreen() {
       onPress={() => handleMediaTypeSelect(item.type)}
     >
       <Card style={isPhone ? { ...styles.mediaCard, ...styles.mediaCardPhone } : styles.mediaCard}>
-        <View style={[styles.iconCircle, { backgroundColor: "#EFF6FF" }]}>
-          <Feather name={item.icon} size={isPhone ? 28 : 32} color={BrandColors.primary} />
+        <View style={[styles.iconCircle, { backgroundColor: "#E6FFFA" }]}>
+          <Feather name={item.icon} size={isPhone ? 28 : 32} color={BrandColors.accent} />
         </View>
         <View style={isPhone ? styles.mediaTextPhone : undefined}>
           <ThemedText style={[styles.mediaTitle, isPhone && styles.mediaTitlePhone]}>
