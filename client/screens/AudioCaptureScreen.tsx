@@ -149,8 +149,8 @@ export default function AudioCaptureScreen() {
   if (permissionStatus === "loading") {
     return (
       <View style={styles.container}>
-        <View style={styles.headerBackground}>
-          <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.lg }]}>
+        <View style={[styles.headerBackground, { paddingTop: insets.top + Spacing.lg }]}>
+          <View style={styles.headerBar}>
             <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
               <Image
                 source={require("../../assets/images/back-button.png")}
@@ -176,8 +176,8 @@ export default function AudioCaptureScreen() {
   if (permissionStatus === "denied") {
     return (
       <View style={styles.container}>
-        <View style={styles.headerBackground}>
-          <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.lg }]}>
+        <View style={[styles.headerBackground, { paddingTop: insets.top + Spacing.lg }]}>
+          <View style={styles.headerBar}>
             <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
               <Image
                 source={require("../../assets/images/back-button.png")}
@@ -214,8 +214,8 @@ export default function AudioCaptureScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerBackground}>
-        <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.lg }]}>
+      <View style={[styles.headerBackground, { paddingTop: insets.top + Spacing.lg }]}>
+        <View style={styles.headerBar}>
           <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
             <Image
               source={require("../../assets/images/back-button.png")}
@@ -372,13 +372,13 @@ const styles = StyleSheet.create({
   },
   headerBackground: {
     backgroundColor: "#FFFFFF",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xl,
   },
   headerBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingBottom: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
   },
   backButton: {
     width: 44,
