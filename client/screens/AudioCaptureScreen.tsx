@@ -50,10 +50,11 @@ export default function AudioCaptureScreen() {
       }
     } else {
       try {
-        const { AudioModule } = await import("expo-audio");
-        const status = await AudioModule.requestRecordingPermissionsAsync();
-        setPermissionStatus(status.granted ? "granted" : "denied");
-      } catch {
+        const { Audio } = await import("expo-av");
+        const { status } = await Audio.requestPermissionsAsync();
+        setPermissionStatus(status === "granted" ? "granted" : "denied");
+      } catch (error) {
+        console.error("Permission error:", error);
         setPermissionStatus("denied");
       }
     }
@@ -77,10 +78,10 @@ export default function AudioCaptureScreen() {
     }
 
     try {
-      const { AudioModule } = await import("expo-audio");
-      await AudioModule.setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
+      const { Audio } = await import("expo-av");
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
       });
 
       setIsRecording(true);
@@ -107,12 +108,12 @@ export default function AudioCaptureScreen() {
     }
 
     try {
-      const { AudioModule } = await import("expo-audio");
+      const { Audio } = await import("expo-av");
       setIsRecording(false);
       setRecordingUri("file://recording.m4a");
 
-      await AudioModule.setAudioModeAsync({
-        allowsRecording: false,
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
       });
     } catch (error) {
       console.error("Failed to stop recording:", error);
