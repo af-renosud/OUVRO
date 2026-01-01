@@ -139,6 +139,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: Spacing.lg,
+    paddingTop: Spacing.lg + 40,
   },
   projectSection: {
     marginBottom: Spacing.lg,
