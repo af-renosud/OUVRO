@@ -83,7 +83,11 @@ export default function CaptureModalScreen() {
     <View style={styles.container}>
       <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.lg }]}>
         <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Feather name="arrow-left" size={24} color={BrandColors.primary} />
+          <Image
+            source={require("../../assets/images/back-button.png")}
+            style={styles.backButtonImage}
+            contentFit="contain"
+          />
         </Pressable>
         <Image
           source={require("../../assets/images/ouvro-logo.png")}
@@ -132,6 +136,10 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: "center",
     justifyContent: "center",
+  },
+  backButtonImage: {
+    width: 28,
+    height: 28,
   },
   logo: {
     width: 180,
