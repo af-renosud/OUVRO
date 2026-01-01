@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   FlatList,
@@ -15,12 +15,13 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import * as FileSystem from "expo-file-system";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 import type { Observation, ObservationMedia } from "@shared/schema";
 import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNavigator";
 
@@ -37,18 +38,100 @@ export default function QueueScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const queryClient = useQueryClient();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [syncingIds, setSyncingIds] = useState<Set<number>>(new Set());
 
   const { data: observations = [], isLoading, refetch, isRefetching } = useQuery<ObservationWithMedia[]>({
     queryKey: ["/api/observations/pending"],
   });
 
+  const getMimeType = (type: string): string => {
+    switch (type) {
+      case "photo": return "image/jpeg";
+      case "video": return "video/mp4";
+      case "audio": return "audio/m4a";
+      default: return "application/octet-stream";
+    }
+  };
+
+  const uploadMediaToArchidoc = async (
+    archidocObservationId: number,
+    media: ObservationMedia
+  ): Promise<boolean> => {
+    try {
+      const assetType = media.type as "photo" | "video" | "audio";
+      const fileName = media.localUri?.split("/").pop() || `${assetType}_${Date.now()}`;
+      const contentType = getMimeType(assetType);
+
+      const uploadUrlRes = await apiRequest("POST", "/api/archidoc/upload-url", {
+        fileName,
+        contentType,
+        assetType,
+      });
+      const { uploadURL, objectPath } = await uploadUrlRes.json();
+
+      if (media.localUri && !media.localUri.startsWith("mock://") && !media.localUri.startsWith("file://recording")) {
+        const uploadResult = await FileSystem.uploadAsync(uploadURL, media.localUri, {
+          httpMethod: "PUT",
+          headers: {
+            "Content-Type": contentType,
+          },
+        });
+
+        if (uploadResult.status !== 200) {
+          console.error("Failed to upload file:", uploadResult);
+          return false;
+        }
+      }
+
+      await apiRequest("POST", "/api/archidoc/register-asset", {
+        observationId: archidocObservationId,
+        assetType,
+        objectPath,
+        fileName,
+        mimeType: contentType,
+      });
+
+      console.log(`Asset uploaded and registered: ${fileName}`);
+      return true;
+    } catch (error) {
+      console.error("Error uploading media:", error);
+      return false;
+    }
+  };
+
   const syncMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/sync-observation/${id}`);
-      return res.json();
+    mutationFn: async (observation: ObservationWithMedia) => {
+      setSyncingIds((prev) => new Set(prev).add(observation.id));
+      
+      const syncRes = await apiRequest("POST", `/api/sync-observation/${observation.id}`);
+      const { archidocObservationId } = await syncRes.json();
+
+      if (!archidocObservationId) {
+        throw new Error("Failed to get ARCHIDOC observation ID");
+      }
+
+      const mediaItems = observation.media || [];
+      for (const media of mediaItems) {
+        await uploadMediaToArchidoc(archidocObservationId, media);
+      }
+
+      await apiRequest("POST", `/api/mark-synced/${observation.id}`);
+      
+      return { localId: observation.id, archidocObservationId };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/observations/pending"] });
+    },
+    onSettled: (_, __, observation) => {
+      setSyncingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(observation.id);
+        return next;
+      });
+    },
+    onError: (error) => {
+      console.error("Sync failed:", error);
+      Alert.alert("Sync Failed", "Failed to sync observation. Please try again.");
     },
   });
 
@@ -61,14 +144,14 @@ export default function QueueScreen() {
     },
   });
 
-  const handleSync = (id: number) => {
-    syncMutation.mutate(id);
+  const handleSync = (observation: ObservationWithMedia) => {
+    syncMutation.mutate(observation);
   };
 
   const handleSyncAll = () => {
     observations.forEach((obs) => {
       if (obs.syncStatus === "pending") {
-        syncMutation.mutate(obs.id);
+        syncMutation.mutate(obs);
       }
     });
   };
@@ -169,11 +252,17 @@ export default function QueueScreen() {
         </Pressable>
         <Pressable
           style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
-          onPress={() => handleSync(item.id)}
-          disabled={syncMutation.isPending}
+          onPress={() => handleSync(item)}
+          disabled={syncingIds.has(item.id)}
         >
-          <Feather name="upload-cloud" size={16} color="#FFFFFF" />
-          <ThemedText style={styles.actionButtonText}>Sync</ThemedText>
+          {syncingIds.has(item.id) ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Feather name="upload-cloud" size={16} color="#FFFFFF" />
+          )}
+          <ThemedText style={styles.actionButtonText}>
+            {syncingIds.has(item.id) ? "Syncing..." : "Sync"}
+          </ThemedText>
         </Pressable>
         <Pressable
           style={[styles.actionButtonIcon, { backgroundColor: theme.backgroundSecondary }]}
