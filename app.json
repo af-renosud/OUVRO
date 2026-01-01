@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "ARCHIDOC Field",
-    "slug": "archidoc-field",
+    "name": "OUVRO",
+    "slug": "ouvro",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
-    "scheme": "archidoc-field",
+    "scheme": "ouvro",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.architectsfrance.archidocfield"
+      "bundleIdentifier": "com.ouvro.field"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +19,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "package": "com.architectsfrance.archidocfield",
+      "package": "com.ouvro.field",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
@@ -31,7 +31,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/archidoc-logo.png",
+          "image": "./assets/images/ouvro-logo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#F7FAFC",
