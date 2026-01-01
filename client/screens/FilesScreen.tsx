@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
@@ -83,10 +84,15 @@ export default function FilesScreen() {
   return (
     <BackgroundView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText style={styles.headerTitle}>Files</ThemedText>
         <Pressable style={[styles.downloadButton, { backgroundColor: theme.backgroundSecondary }]}>
           <Feather name="download" size={20} color={BrandColors.primary} />
         </Pressable>
+        <Image
+          source={require("../../assets/images/ouvro-logo.png")}
+          style={styles.headerLogo}
+          contentFit="contain"
+        />
+        <View style={styles.headerSpacer} />
       </View>
 
       <View style={styles.filterContainer}>
@@ -157,8 +163,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.md,
   },
-  headerTitle: {
-    ...Typography.h1,
+  headerLogo: {
+    width: 180,
+    height: 56,
+  },
+  headerSpacer: {
+    width: 44,
   },
   downloadButton: {
     padding: Spacing.sm,
