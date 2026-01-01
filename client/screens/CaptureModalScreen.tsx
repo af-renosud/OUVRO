@@ -88,20 +88,22 @@ export default function CaptureModalScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.lg }]}>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+      <View style={styles.headerBackground}>
+        <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.lg }]}>
+          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Image
+              source={require("../../assets/images/back-button.png")}
+              style={styles.backButtonImage}
+              contentFit="contain"
+            />
+          </Pressable>
           <Image
-            source={require("../../assets/images/back-button.png")}
-            style={styles.backButtonImage}
+            source={require("../../assets/images/ouvro-logo.png")}
+            style={styles.logo}
             contentFit="contain"
           />
-        </Pressable>
-        <Image
-          source={require("../../assets/images/ouvro-logo.png")}
-          style={styles.logo}
-          contentFit="contain"
-        />
-        <View style={styles.backButton} />
+          <View style={styles.backButton} />
+        </View>
       </View>
       <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
         <Pressable
@@ -193,8 +195,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0B2545",
   },
-  headerBar: {
+  headerBackground: {
     backgroundColor: "#FFFFFF",
+  },
+  headerBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
