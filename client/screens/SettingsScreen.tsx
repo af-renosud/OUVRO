@@ -187,7 +187,7 @@ export default function SettingsScreen() {
       >
         <View style={styles.brandingContainer}>
           <Image
-            source={require("@assets/images/ouvro-logo.png")}
+            source={require("../../assets/images/ouvro-logo.png")}
             style={styles.logo}
             contentFit="contain"
           />

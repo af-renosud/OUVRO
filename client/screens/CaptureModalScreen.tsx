@@ -83,7 +83,7 @@ export default function CaptureModalScreen() {
     <View style={styles.container}>
       <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.lg }]}>
         <Image
-          source={require("@assets/images/ouvro-logo.png")}
+          source={require("../../assets/images/ouvro-logo.png")}
           style={styles.logo}
           contentFit="contain"
         />
