@@ -96,8 +96,8 @@ export default function MainTabNavigator() {
           component={ProjectsScreen}
           options={{
             title: "Projects",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="home" size={size} color={color} />
+            tabBarIcon: ({ size }) => (
+              <Feather name="home" size={size} color="#F59E0B" />
             ),
           }}
         />
