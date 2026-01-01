@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, Pressable, Alert, useWindowDimensions } from "react-native";
+import { View, StyleSheet, Pressable, Alert, useWindowDimensions, Modal, FlatList, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { Spacing, BrandColors } from "@/constants/theme";
+import { Spacing, BrandColors, BorderRadius } from "@/constants/theme";
+import { ThemedText } from "@/components/ThemedText";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
 
@@ -45,8 +46,9 @@ export default function CaptureModalScreen() {
   const { height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [selectedProject, setSelectedProject] = useState<MappedProject | null>(null);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
 
-  const { data: projects = [] } = useQuery<MappedProject[]>({
+  const { data: projects = [], isLoading: projectsLoading } = useQuery<MappedProject[]>({
     queryKey: ["archidoc-projects"],
     queryFn: fetchArchidocProjects,
   });
@@ -56,6 +58,11 @@ export default function CaptureModalScreen() {
       setSelectedProject(projects[0]);
     }
   }, [projects, selectedProject]);
+
+  const handleSelectProject = (project: MappedProject) => {
+    setSelectedProject(project);
+    setShowProjectPicker(false);
+  };
 
   const handleMediaTypeSelect = (type: MediaType) => {
     const project = selectedProject || projects[0];
@@ -97,6 +104,25 @@ export default function CaptureModalScreen() {
         <View style={styles.backButton} />
       </View>
       <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
+        <Pressable
+          style={styles.projectSelector}
+          onPress={() => setShowProjectPicker(true)}
+        >
+          {projectsLoading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <View style={styles.projectInfo}>
+                <ThemedText style={styles.projectLabel}>Project:</ThemedText>
+                <ThemedText style={styles.projectName} numberOfLines={1}>
+                  {selectedProject?.name || "Select a project"}
+                </ThemedText>
+              </View>
+              <Feather name="chevron-down" size={20} color="#FFFFFF" />
+            </>
+          )}
+        </Pressable>
+
         <View style={styles.mediaGrid}>
           {mediaOptions.map((item) => (
             <Pressable
@@ -114,6 +140,50 @@ export default function CaptureModalScreen() {
           ))}
         </View>
       </View>
+
+      <Modal
+        visible={showProjectPicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowProjectPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + Spacing.lg }]}>
+            <View style={styles.modalHeader}>
+              <ThemedText style={styles.modalTitle}>Select Project</ThemedText>
+              <Pressable onPress={() => setShowProjectPicker(false)}>
+                <Feather name="x" size={24} color={BrandColors.primary} />
+              </Pressable>
+            </View>
+            <FlatList
+              data={projects}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={[
+                    styles.projectItem,
+                    selectedProject?.id === item.id && styles.projectItemSelected,
+                  ]}
+                  onPress={() => handleSelectProject(item)}
+                >
+                  <View style={styles.projectItemContent}>
+                    <ThemedText style={styles.projectItemName}>{item.name}</ThemedText>
+                    {item.clientName ? (
+                      <ThemedText style={styles.projectItemClient}>{item.clientName}</ThemedText>
+                    ) : null}
+                  </View>
+                  {selectedProject?.id === item.id ? (
+                    <Feather name="check" size={20} color={BrandColors.accent} />
+                  ) : null}
+                </Pressable>
+              )}
+              ListEmptyComponent={
+                <ThemedText style={styles.emptyText}>No projects available</ThemedText>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -170,5 +240,87 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.9,
     transform: [{ scale: 0.98 }],
+  },
+  projectSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.lg,
+  },
+  projectInfo: {
+    flex: 1,
+    marginRight: Spacing.md,
+  },
+  projectLabel: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+    marginBottom: 2,
+  },
+  projectName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    maxHeight: "70%",
+    paddingTop: Spacing.lg,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: BrandColors.primary,
+  },
+  projectItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  projectItemSelected: {
+    backgroundColor: "#F0FDF4",
+  },
+  projectItemContent: {
+    flex: 1,
+    marginRight: Spacing.md,
+  },
+  projectItemName: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#1F2937",
+  },
+  projectItemClient: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#6B7280",
+    textAlign: "center",
+    paddingVertical: Spacing.xl,
   },
 });
