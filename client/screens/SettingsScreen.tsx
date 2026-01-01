@@ -174,14 +174,10 @@ export default function SettingsScreen() {
 
   return (
     <BackgroundView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText style={styles.headerTitle}>Settings</ThemedText>
-      </View>
-
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: Math.max(tabBarHeight, 80) + 160 },
+          { paddingTop: insets.top + Spacing.lg, paddingBottom: Math.max(tabBarHeight, 80) + 160 },
         ]}
         showsVerticalScrollIndicator={false}
       >
