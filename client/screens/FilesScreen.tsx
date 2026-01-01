@@ -83,7 +83,7 @@ export default function FilesScreen() {
   return (
     <BackgroundView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText style={styles.headerTitle}>Project Files</ThemedText>
+        <ThemedText style={styles.headerTitle}>Files</ThemedText>
         <Pressable style={[styles.downloadButton, { backgroundColor: theme.backgroundSecondary }]}>
           <Feather name="download" size={20} color={BrandColors.primary} />
         </Pressable>
