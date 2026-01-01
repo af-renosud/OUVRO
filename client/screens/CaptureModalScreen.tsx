@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, StyleSheet, Pressable, Alert, useWindowDimensions, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
+import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
 
@@ -41,7 +41,7 @@ const mediaOptions: MediaOption[] = [
 
 export default function CaptureModalScreen() {
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [selectedProject, setSelectedProject] = useState<MappedProject | null>(null);
 
@@ -50,21 +50,28 @@ export default function CaptureModalScreen() {
     queryFn: fetchArchidocProjects,
   });
 
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProject) {
+      setSelectedProject(projects[0]);
+    }
+  }, [projects, selectedProject]);
+
   const handleMediaTypeSelect = (type: MediaType) => {
-    if (!selectedProject) {
-      Alert.alert("Select Project", "Please select a project first");
+    const project = selectedProject || projects[0];
+    if (!project) {
+      Alert.alert("No Project", "Please wait for projects to load");
       return;
     }
 
     switch (type) {
       case "photo":
-        navigation.navigate("PhotoCapture", { projectId: selectedProject.id });
+        navigation.navigate("PhotoCapture", { projectId: project.id });
         break;
       case "video":
-        navigation.navigate("VideoCapture", { projectId: selectedProject.id });
+        navigation.navigate("VideoCapture", { projectId: project.id });
         break;
       case "audio":
-        navigation.navigate("AudioCapture", { projectId: selectedProject.id });
+        navigation.navigate("AudioCapture", { projectId: project.id });
         break;
     }
   };
@@ -74,43 +81,6 @@ export default function CaptureModalScreen() {
   return (
     <View style={[styles.container, { backgroundColor: "#0B2545" }]}>
       <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
-        <View style={styles.projectSection}>
-          <View style={styles.projectList}>
-            {projects.slice(0, 5).map((project) => (
-              <Pressable
-                key={project.id}
-                style={[
-                  styles.projectChip,
-                  {
-                    backgroundColor:
-                      selectedProject?.id === project.id
-                        ? BrandColors.coralRed
-                        : "#1a4070",
-                  },
-                ]}
-                onPress={() => setSelectedProject(project)}
-              >
-                <Text
-                  style={[
-                    styles.projectChipText,
-                    {
-                      color:
-                        selectedProject?.id === project.id ? "#FFFFFF" : "#FFFFFF",
-                    },
-                  ]}
-                >
-                  {project.name}
-                </Text>
-              </Pressable>
-            ))}
-            {projects.length === 0 ? (
-              <Text style={[styles.noProjects, { color: "#A0AEC0" }]}>
-                No projects available.
-              </Text>
-            ) : null}
-          </View>
-        </View>
-
         <View style={styles.mediaGrid}>
           {mediaOptions.map((item) => (
             <Pressable
@@ -140,26 +110,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
     paddingTop: Spacing.lg + 40,
-  },
-  projectSection: {
-    marginBottom: Spacing.lg,
-  },
-  projectList: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
-  },
-  projectChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-  },
-  projectChipText: {
-    ...Typography.bodySmall,
-    fontWeight: "500",
-  },
-  noProjects: {
-    ...Typography.body,
   },
   mediaGrid: {
     flex: 1,
