@@ -1,5 +1,6 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { ThemedText } from "@/components/ThemedText";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import CaptureModalScreen from "@/screens/CaptureModalScreen";
 import PhotoCaptureScreen from "@/screens/PhotoCaptureScreen";
@@ -53,7 +54,11 @@ export default function RootStackNavigator() {
         component={CaptureModalScreen}
         options={{
           presentation: "modal",
-          headerTitle: "New Observation",
+          headerTitle: () => (
+            <ThemedText style={{ fontSize: 18, fontWeight: "600", color: "#EA526F" }}>
+              ACTION
+            </ThemedText>
+          ),
         }}
       />
       <Stack.Screen
