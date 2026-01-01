@@ -113,8 +113,8 @@ export default function MainTabNavigator() {
           component={SettingsScreen}
           options={{
             title: "Settings",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="settings" size={size} color={color} />
+            tabBarIcon: ({ size }) => (
+              <Feather name="settings" size={size} color="#F59E0B" />
             ),
           }}
         />
