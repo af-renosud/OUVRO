@@ -392,6 +392,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.lg,
+    paddingTop: Spacing.xl + Spacing.md,
   },
   section: {
     marginBottom: Spacing.xl,
@@ -494,15 +495,16 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   shareButtons: {
-    flexDirection: "row",
+    flexDirection: "column",
     gap: Spacing.md,
   },
   shareButton: {
-    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing.xs,
+    gap: Spacing.md,
     paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.md,
   },
   shareButtonText: {
