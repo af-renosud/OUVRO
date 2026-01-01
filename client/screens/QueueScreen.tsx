@@ -188,20 +188,23 @@ export default function QueueScreen() {
   return (
     <BackgroundView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+        <View style={styles.headerSpacer}>
+          {observations.length > 0 ? (
+            <Pressable
+              style={[styles.syncAllButton, { backgroundColor: BrandColors.primary }]}
+              onPress={handleSyncAll}
+            >
+              <Feather name="upload-cloud" size={18} color="#FFFFFF" />
+              <ThemedText style={styles.syncAllText}>Sync All</ThemedText>
+            </Pressable>
+          ) : null}
+        </View>
         <Image
           source={require("../../assets/images/ouvro-logo.png")}
           style={styles.headerLogo}
           contentFit="contain"
         />
-        {observations.length > 0 ? (
-          <Pressable
-            style={[styles.syncAllButton, { backgroundColor: BrandColors.primary }]}
-            onPress={handleSyncAll}
-          >
-            <Feather name="upload-cloud" size={18} color="#FFFFFF" />
-            <ThemedText style={styles.syncAllText}>Sync All</ThemedText>
-          </Pressable>
-        ) : null}
+        <View style={styles.headerSpacer} />
       </View>
 
       {isLoading ? (
@@ -250,8 +253,12 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
   },
   headerLogo: {
-    width: 140,
-    height: 44,
+    width: 180,
+    height: 56,
+  },
+  headerSpacer: {
+    width: 100,
+    alignItems: "flex-start",
   },
   syncAllButton: {
     flexDirection: "row",
