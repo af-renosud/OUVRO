@@ -167,7 +167,7 @@ export default function VideoCaptureScreen() {
           styles.bottomControls,
           {
             paddingBottom: Math.max(insets.bottom, 20) + Spacing.lg,
-            backgroundColor: "rgba(0,0,0,0.4)",
+            backgroundColor: "#000000",
           },
         ]}
       >

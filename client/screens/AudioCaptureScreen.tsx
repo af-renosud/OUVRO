@@ -177,7 +177,7 @@ export default function AudioCaptureScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: insets.bottom + Spacing.xl },
+          { paddingBottom: Math.max(insets.bottom, 20) + Spacing.xl },
         ]}
       >
         <View style={styles.waveformContainer}>

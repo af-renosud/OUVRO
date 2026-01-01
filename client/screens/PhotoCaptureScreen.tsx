@@ -121,7 +121,7 @@ export default function PhotoCaptureScreen() {
             styles.previewControls,
             {
               paddingBottom: Math.max(insets.bottom, 20) + Spacing.lg,
-              backgroundColor: "rgba(0,0,0,0.5)",
+              backgroundColor: "#000000",
             },
           ]}
         >
@@ -185,7 +185,7 @@ export default function PhotoCaptureScreen() {
           styles.bottomControls,
           {
             paddingBottom: Math.max(insets.bottom, 20) + Spacing.lg,
-            backgroundColor: "rgba(0,0,0,0.4)",
+            backgroundColor: "#000000",
           },
         ]}
       >
