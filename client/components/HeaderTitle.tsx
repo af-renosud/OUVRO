@@ -5,7 +5,7 @@ export function HeaderTitle() {
   return (
     <View style={styles.container}>
       <Image
-        source={require("../../assets/images/ouvro-logo.jpg")}
+        source={require("../../assets/images/ouvro-logo.png")}
         style={styles.logo}
         resizeMode="contain"
       />
