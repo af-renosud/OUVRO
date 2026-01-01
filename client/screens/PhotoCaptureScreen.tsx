@@ -153,7 +153,7 @@ export default function PhotoCaptureScreen() {
             styles.previewControls,
             {
               paddingBottom: Math.max(insets.bottom, 20) + Spacing.lg,
-              backgroundColor: "#000000",
+              backgroundColor: "#0B2545",
             },
           ]}
         >
@@ -271,7 +271,7 @@ export default function PhotoCaptureScreen() {
           styles.bottomControls,
           {
             paddingBottom: Math.max(insets.bottom, 20) + Spacing.lg,
-            backgroundColor: "#000000",
+            backgroundColor: "#0B2545",
           },
         ]}
       >
@@ -300,12 +300,12 @@ export default function PhotoCaptureScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: "#0B2545",
   },
   landscapeContainer: {
     flex: 1,
     flexDirection: "row",
-    backgroundColor: "#000000",
+    backgroundColor: "#0B2545",
   },
   landscapeTopBar: {
     position: "absolute",
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   },
   landscapeSideControls: {
     width: 100,
-    backgroundColor: "#000000",
+    backgroundColor: "#0B2545",
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.xl,
