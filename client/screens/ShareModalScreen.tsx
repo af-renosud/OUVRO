@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.lg,
-    paddingTop: Spacing.xl + Spacing.md,
+    paddingTop: Spacing.xl * 2,
   },
   section: {
     marginBottom: Spacing.xl,
