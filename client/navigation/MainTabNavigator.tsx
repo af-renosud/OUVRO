@@ -103,8 +103,8 @@ export default function MainTabNavigator() {
           component={FilesScreen}
           options={{
             title: "Files",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="folder" size={size} color={color} />
+            tabBarIcon: ({ size }) => (
+              <Feather name="folder" size={size} color="#10B981" />
             ),
           }}
         />
