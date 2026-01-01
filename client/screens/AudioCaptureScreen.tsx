@@ -50,9 +50,9 @@ export default function AudioCaptureScreen() {
       }
     } else {
       try {
-        const { Audio } = await import("expo-av");
-        const { status } = await Audio.requestPermissionsAsync();
-        setPermissionStatus(status === "granted" ? "granted" : "denied");
+        const { requestRecordingPermissionsAsync } = await import("expo-audio");
+        const permissionResponse = await requestRecordingPermissionsAsync();
+        setPermissionStatus(permissionResponse.granted ? "granted" : "denied");
       } catch (error) {
         console.error("Permission error:", error);
         setPermissionStatus("denied");
