@@ -35,7 +35,7 @@ function CaptureButton() {
     return null;
   });
 
-  if (currentRoute === "SettingsTab" || currentRoute === "ProjectsTab") {
+  if (currentRoute === "SettingsTab") {
     return null;
   }
 
