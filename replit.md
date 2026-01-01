@@ -59,16 +59,25 @@ shared/
 6. **Share Options**: WhatsApp and SMS sharing of observations
 7. **Sync Queue**: Manual sync control with WiFi/cellular preferences
 
-## API Endpoints
-- `GET /api/projects` - List all projects
-- `POST /api/projects` - Create new project
-- `GET /api/projects/:id` - Get project details
+## External API Integration
+The app connects to the live ARCHIDOC system at https://archidoc.app to fetch project data. The ARCHIDOC API URL is configurable via the `EXPO_PUBLIC_ARCHIDOC_API_URL` environment variable.
+
+### ARCHIDOC API (External)
+- `GET /api/projects` - Fetch projects from ARCHIDOC (projectName, clientName, address, status)
+
+### Local API Endpoints
 - `GET /api/observations/pending` - Get pending sync queue
 - `POST /api/observations` - Create observation
 - `POST /api/sync-observation/:id` - Sync observation
 - `DELETE /api/observations/:id` - Delete observation
 - `POST /api/transcribe` - Transcribe audio (Gemini AI)
 - `POST /api/translate` - Translate text (Gemini AI)
+
+### Field Mapping (ARCHIDOC → Field App)
+- `projectName` → `name`
+- `clientName` → `clientName`
+- `address` → `location`
+- `status` → `status`
 
 ## Design System
 - **Primary Color**: #2563EB (ARCHIDOC Blue)
@@ -81,6 +90,11 @@ The app runs on port 8081 (Expo dev server) with Express backend on port 5000.
 Users can scan the QR code with Expo Go to test on physical devices.
 
 ## Recent Changes
+- January 1, 2026: Connected to live ARCHIDOC API at https://archidoc.app
+  - Projects are fetched from external ARCHIDOC system (read-only companion app)
+  - Field mapping: projectName→name, clientName, address→location, status
+  - Centralized API configuration in `client/lib/archidoc-api.ts`
+  - Environment variable: `EXPO_PUBLIC_ARCHIDOC_API_URL`
 - January 1, 2026: Initial implementation of all core screens and navigation
 - Complete media capture workflow with camera/microphone permissions
 - Gemini AI integration for transcription and translation

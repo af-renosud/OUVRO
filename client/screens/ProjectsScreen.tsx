@@ -8,7 +8,7 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
@@ -20,37 +20,27 @@ import { Card } from "@/components/Card";
 import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
-import { apiRequest } from "@/lib/query-client";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
-import type { Project } from "@shared/schema";
+import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
 
 export default function ProjectsScreen() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: projects = [], isLoading, refetch, isRefetching } = useQuery<Project[]>({
-    queryKey: ["/api/projects"],
-  });
-
-  const createProjectMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const res = await apiRequest("POST", "/api/projects", { name, location: "New Location", status: "active" });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-    },
+  const { data: projects = [], isLoading, refetch, isRefetching } = useQuery<MappedProject[]>({
+    queryKey: ["archidoc-projects"],
+    queryFn: fetchArchidocProjects,
   });
 
   const filteredProjects = projects.filter((project) =>
-    project.name.toLowerCase().includes(searchQuery.toLowerCase())
+    project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    project.clientName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const renderProject = ({ item }: { item: Project }) => (
+  const renderProject = ({ item }: { item: MappedProject }) => (
     <Pressable
       style={({ pressed }) => [pressed && styles.pressed]}
       onPress={() => navigation.navigate("ProjectDetail", { projectId: item.id })}
@@ -61,8 +51,13 @@ export default function ProjectsScreen() {
         </View>
         <View style={styles.projectInfo}>
           <ThemedText style={styles.projectName}>{item.name}</ThemedText>
+          {item.clientName ? (
+            <ThemedText style={[styles.clientName, { color: theme.textSecondary }]}>
+              {item.clientName}
+            </ThemedText>
+          ) : null}
           {item.location ? (
-            <ThemedText style={[styles.projectLocation, { color: theme.textSecondary }]}>
+            <ThemedText style={[styles.projectLocation, { color: theme.textTertiary }]} numberOfLines={1}>
               {item.location}
             </ThemedText>
           ) : null}
@@ -78,16 +73,17 @@ export default function ProjectsScreen() {
   );
 
   const getStatusColor = (status: string | null) => {
-    switch (status) {
-      case "active":
-        return BrandColors.success;
-      case "pending":
-        return BrandColors.warning;
-      case "completed":
-        return theme.textTertiary;
-      default:
-        return BrandColors.success;
+    const s = status?.toUpperCase() || "";
+    if (s.includes("PREPARATION") || s.includes("PENDING")) {
+      return BrandColors.warning;
     }
+    if (s.includes("COMPLETE") || s.includes("FINISHED")) {
+      return theme.textTertiary;
+    }
+    if (s.includes("ACTIVE") || s.includes("PROGRESS")) {
+      return BrandColors.success;
+    }
+    return BrandColors.info;
   };
 
   return (
@@ -194,7 +190,11 @@ const styles = StyleSheet.create({
   },
   projectName: {
     ...Typography.h3,
-    marginBottom: Spacing.xs,
+    marginBottom: 2,
+  },
+  clientName: {
+    ...Typography.body,
+    marginBottom: 2,
   },
   projectLocation: {
     ...Typography.bodySmall,
