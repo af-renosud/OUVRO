@@ -14,6 +14,7 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
@@ -160,7 +161,7 @@ export default function QueueScreen() {
 
       <View style={styles.actionButtons}>
         <Pressable
-          style={[styles.actionButton, { backgroundColor: BrandColors.secondary }]}
+          style={[styles.actionButton, { backgroundColor: BrandColors.mediumBlue }]}
           onPress={() => handleShare(item)}
         >
           <Feather name="share-2" size={16} color="#FFFFFF" />
@@ -187,7 +188,11 @@ export default function QueueScreen() {
   return (
     <BackgroundView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText style={styles.headerTitle}>Sync Queue</ThemedText>
+        <Image
+          source={require("../../assets/images/ouvro-logo.png")}
+          style={styles.headerLogo}
+          contentFit="contain"
+        />
         {observations.length > 0 ? (
           <Pressable
             style={[styles.syncAllButton, { backgroundColor: BrandColors.primary }]}
@@ -244,8 +249,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.md,
   },
-  headerTitle: {
-    ...Typography.h1,
+  headerLogo: {
+    width: 140,
+    height: 44,
   },
   syncAllButton: {
     flexDirection: "row",
