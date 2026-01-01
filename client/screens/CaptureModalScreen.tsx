@@ -82,11 +82,15 @@ export default function CaptureModalScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.lg }]}>
+        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Feather name="arrow-left" size={24} color={BrandColors.primary} />
+        </Pressable>
         <Image
           source={require("../../assets/images/ouvro-logo.png")}
           style={styles.logo}
           contentFit="contain"
         />
+        <View style={styles.backButton} />
       </View>
       <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
         <View style={styles.mediaGrid}>
@@ -117,10 +121,17 @@ const styles = StyleSheet.create({
   },
   headerBar: {
     backgroundColor: "#FFFFFF",
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
     paddingBottom: Spacing.xl,
     paddingHorizontal: Spacing.lg,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
   logo: {
     width: 180,
