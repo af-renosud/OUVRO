@@ -26,10 +26,7 @@ export default function FilesScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const [activeFilter, setActiveFilter] = useState<FileFilter>("all");
 
-  const { data: files = [], isLoading } = useQuery<ProjectFile[]>({
-    queryKey: ["/api/projects/1/files"],
-    enabled: false,
-  });
+  const isComingSoon = true;
 
   const filterTabs: { key: FileFilter; label: string }[] = [
     { key: "all", label: "All" },
@@ -119,35 +116,15 @@ export default function FilesScreen() {
         ))}
       </View>
 
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={BrandColors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={files}
-          renderItem={renderFile}
-          keyExtractor={(item) => item.id.toString()}
-          numColumns={2}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: tabBarHeight + Spacing.xl + 80 },
-          ]}
-          columnWrapperStyle={styles.row}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Feather name="folder" size={64} color={theme.textTertiary} />
-              <ThemedText style={[styles.emptyTitle, { color: theme.text }]}>
-                No files downloaded
-              </ThemedText>
-              <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
-                Download files from your projects to annotate them on-site
-              </ThemedText>
-            </View>
-          }
-        />
-      )}
+      <View style={styles.emptyContainer}>
+        <Feather name="folder" size={64} color={theme.textTertiary} />
+        <ThemedText style={[styles.emptyTitle, { color: theme.text }]}>
+          Coming Soon
+        </ThemedText>
+        <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
+          File downloads and annotations will be available in a future update
+        </ThemedText>
+      </View>
     </BackgroundView>
   );
 }
