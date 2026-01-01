@@ -81,7 +81,7 @@ export default function CaptureModalScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.md }]}>
+      <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.lg }]}>
         <Image
           source={require("@assets/images/ouvro-logo.png")}
           style={styles.logo}
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    paddingBottom: Spacing.lg,
+    paddingBottom: Spacing.xl,
     paddingHorizontal: Spacing.lg,
   },
   logo: {
