@@ -80,7 +80,7 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="ShareModal"
         component={ShareModalScreen}
-        options={{ presentation: "modal" }}
+        options={{ presentation: "modal", headerShown: false }}
       />
     </Stack.Navigator>
   );

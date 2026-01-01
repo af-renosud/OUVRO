@@ -234,6 +234,17 @@ export default function ShareModalScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Feather name="arrow-left" size={24} color={BrandColors.primary} />
+        </Pressable>
+        <Image
+          source={require("../../assets/images/ouvro-logo.png")}
+          style={styles.headerLogo}
+          resizeMode="contain"
+        />
+        <View style={styles.headerSpacer} />
+      </View>
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.xl }]}
@@ -390,7 +401,27 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.lg,
-    paddingTop: Spacing.xl * 5,
+    paddingTop: Spacing.lg,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerLogo: {
+    width: 160,
+    height: 50,
+  },
+  headerSpacer: {
+    width: 40,
   },
   section: {
     marginBottom: Spacing.xl,
