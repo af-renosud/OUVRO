@@ -58,12 +58,12 @@ export default function QueueScreen() {
     media: ObservationMedia
   ): Promise<boolean> => {
     if (!media.localUri) {
-      console.log("Skipping media with no localUri");
+      console.log("[Upload] Skipping media with no localUri");
       return true;
     }
 
     if (media.localUri.startsWith("mock://") || media.localUri.startsWith("file://recording")) {
-      console.log("Skipping mock/placeholder media:", media.localUri);
+      console.log("[Upload] Skipping mock/placeholder media:", media.localUri);
       return true;
     }
 
@@ -75,52 +75,29 @@ export default function QueueScreen() {
       console.log(`[Upload] Starting upload for ${assetType}: ${fileName}`);
       console.log(`[Upload] Local URI: ${media.localUri}`);
 
-      const uploadUrlRes = await apiRequest("POST", "/api/archidoc/upload-url", {
+      console.log(`[Upload] Reading file as base64...`);
+      const fileBase64 = await FileSystem.readAsStringAsync(media.localUri, {
+        encoding: "base64",
+      });
+      console.log(`[Upload] File read, size: ${Math.round(fileBase64.length / 1024)}KB base64`);
+
+      console.log(`[Upload] Uploading via proxy...`);
+      const uploadRes = await apiRequest("POST", "/api/archidoc/proxy-upload", {
+        observationId: archidocObservationId,
         fileName,
         contentType,
         assetType,
+        fileBase64,
       });
       
-      if (!uploadUrlRes.ok) {
-        const errorText = await uploadUrlRes.text().catch(() => "Unknown error");
-        console.error(`[Upload] Failed to get upload URL: ${uploadUrlRes.status} - ${errorText}`);
-        return false;
-      }
-      
-      const urlData = await uploadUrlRes.json();
-      const { uploadURL, objectPath } = urlData;
-      console.log(`[Upload] Got upload URL, objectPath: ${objectPath}`);
-
-      console.log(`[Upload] Uploading file to signed URL...`);
-      const uploadResult = await FileSystem.uploadAsync(uploadURL, media.localUri, {
-        httpMethod: "PUT",
-        headers: {
-          "Content-Type": contentType,
-        },
-      });
-
-      console.log(`[Upload] Upload result: status=${uploadResult.status}`);
-      if (uploadResult.status !== 200 && uploadResult.status !== 201) {
-        console.error(`[Upload] File upload failed: ${uploadResult.status} - ${uploadResult.body}`);
+      if (!uploadRes.ok) {
+        const errorData = await uploadRes.json().catch(() => ({ error: "Unknown error" }));
+        console.error(`[Upload] Proxy upload failed: ${uploadRes.status} - ${errorData.error}`);
         return false;
       }
 
-      console.log(`[Upload] Registering asset in ARCHIDOC...`);
-      const registerRes = await apiRequest("POST", "/api/archidoc/register-asset", {
-        observationId: archidocObservationId,
-        assetType,
-        objectPath,
-        fileName,
-        mimeType: contentType,
-      });
-
-      if (!registerRes.ok) {
-        const errorText = await registerRes.text().catch(() => "Unknown error");
-        console.error(`[Upload] Failed to register asset: ${registerRes.status} - ${errorText}`);
-        return false;
-      }
-
-      console.log(`[Upload] Asset uploaded and registered: ${fileName}`);
+      const result = await uploadRes.json();
+      console.log(`[Upload] Asset uploaded and registered: ${fileName}, path: ${result.objectPath}`);
       return true;
     } catch (error) {
       console.error("[Upload] Exception during upload:", error);

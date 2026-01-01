@@ -274,6 +274,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/archidoc/proxy-upload", async (req: Request, res: Response) => {
+    try {
+      const { observationId, fileName, contentType, assetType, fileBase64 } = req.body;
+      
+      const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
+      if (!archidocApiUrl) {
+        return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
+      }
+
+      console.log(`[Proxy Upload] Starting upload for ${assetType}: ${fileName}`);
+
+      const urlResponse = await fetch(`${archidocApiUrl}/api/field-observations/upload-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName, contentType, assetType }),
+      });
+
+      if (!urlResponse.ok) {
+        const errorText = await urlResponse.text();
+        console.error("[Proxy Upload] Failed to get upload URL:", errorText);
+        return res.status(500).json({ error: "Failed to get upload URL from ARCHIDOC" });
+      }
+
+      const { uploadURL, objectPath } = await urlResponse.json();
+      console.log(`[Proxy Upload] Got upload URL, objectPath: ${objectPath}`);
+
+      const fileBuffer = Buffer.from(fileBase64, "base64");
+      console.log(`[Proxy Upload] Uploading ${fileBuffer.length} bytes to storage...`);
+
+      const uploadResponse = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": contentType },
+        body: fileBuffer,
+      });
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error("[Proxy Upload] Failed to upload to storage:", uploadResponse.status, errorText);
+        return res.status(500).json({ error: "Failed to upload file to storage" });
+      }
+
+      console.log(`[Proxy Upload] Upload successful, registering asset...`);
+
+      const registerResponse = await fetch(`${archidocApiUrl}/api/field-observations/${observationId}/assets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assetType, objectPath, fileName, mimeType: contentType }),
+      });
+
+      if (!registerResponse.ok) {
+        const errorText = await registerResponse.text();
+        console.error("[Proxy Upload] Failed to register asset:", errorText);
+        return res.status(500).json({ error: "Failed to register asset in ARCHIDOC" });
+      }
+
+      const assetData = await registerResponse.json();
+      console.log(`[Proxy Upload] Asset registered successfully: ${fileName}`);
+      
+      res.json({ success: true, asset: assetData, objectPath });
+    } catch (error) {
+      console.error("[Proxy Upload] Exception:", error);
+      res.status(500).json({ error: "Failed to upload file" });
+    }
+  });
+
   app.post("/api/archidoc/register-asset", async (req: Request, res: Response) => {
     try {
       const { observationId, assetType, objectPath, fileName, mimeType } = req.body;
