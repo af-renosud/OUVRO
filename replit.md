@@ -1,7 +1,7 @@
-# ARCHIDOC Field - Mobile Companion App
+# OUVRO - Mobile Companion App
 
 ## Overview
-ARCHIDOC Field is an iPad-optimized mobile companion app for the ARCHIDOC project management system. Built with Expo and React Native, it enables architects and project managers to capture media-rich site observations with annotation capabilities, automatic transcription, and translation features.
+OUVRO is a responsive mobile companion app (iOS/Android) for site observations with media capture. Built with Expo and React Native, it enables architects and project managers to capture media-rich site observations with annotation capabilities, automatic transcription, and translation features. Features dual branding (OUVRO + Architects-France).
 
 ## Current State
 The app is functional with the following features implemented:
@@ -97,6 +97,11 @@ The app runs on port 8081 (Expo dev server) with Express backend on port 5000.
 Users can scan the QR code with Expo Go to test on physical devices.
 
 ## Recent Changes
+- January 1, 2026: Pre-deployment audit fixes
+  - Files tab shows "Coming Soon" message (backend not yet implemented)
+  - API configuration properly handles missing EXPO_PUBLIC_ARCHIDOC_API_URL
+  - Settings screen has placeholder alerts for Terms of Service and Privacy Policy
+  - Cleaned up unused code and imports for production readiness
 - January 1, 2026: Responsive design and dual branding improvements
   - Added Architects France logo to header alongside ARCHIDOC branding
   - All capture screens now use useWindowDimensions for responsive layouts (phones/tablets)
