@@ -116,8 +116,8 @@ export default function SettingsScreen() {
       title: "About",
       items: [
         { icon: "info", label: "Version", value: "1.0.1" },
-        { icon: "file-text", label: "Terms of Service", onPress: () => {} },
-        { icon: "shield", label: "Privacy Policy", onPress: () => {} },
+        { icon: "file-text", label: "Terms of Service", onPress: () => Alert.alert("Terms of Service", "Terms of Service will be available at ouvro.com/terms") },
+        { icon: "shield", label: "Privacy Policy", onPress: () => Alert.alert("Privacy Policy", "Privacy Policy will be available at ouvro.com/privacy") },
       ],
     },
     {

@@ -1,22 +1,17 @@
 import React, { useState } from "react";
 import {
   View,
-  FlatList,
   StyleSheet,
   Pressable,
-  ActivityIndicator,
 } from "react-native";
-import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
-import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
-import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
-import type { ProjectFile } from "@shared/schema";
+import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 
 type FileFilter = "all" | "plans" | "photos" | "documents";
 
@@ -26,57 +21,12 @@ export default function FilesScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const [activeFilter, setActiveFilter] = useState<FileFilter>("all");
 
-  const isComingSoon = true;
-
   const filterTabs: { key: FileFilter; label: string }[] = [
     { key: "all", label: "All" },
     { key: "plans", label: "Plans" },
     { key: "photos", label: "Photos" },
     { key: "documents", label: "Documents" },
   ];
-
-  const getFileIcon = (type: string): keyof typeof Feather.glyphMap => {
-    switch (type) {
-      case "plan":
-        return "map";
-      case "photo":
-        return "image";
-      case "document":
-        return "file-text";
-      default:
-        return "file";
-    }
-  };
-
-  const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return "";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const renderFile = ({ item }: { item: ProjectFile }) => (
-    <Pressable style={({ pressed }) => [styles.fileCard, pressed && styles.pressed]}>
-      <Card style={styles.fileCardInner}>
-        <View style={[styles.fileThumbnail, { backgroundColor: theme.backgroundSecondary }]}>
-          <Feather name={getFileIcon(item.type)} size={32} color={BrandColors.primary} />
-        </View>
-        <ThemedText style={styles.fileName} numberOfLines={2}>
-          {item.name}
-        </ThemedText>
-        <View style={styles.fileInfo}>
-          <ThemedText style={[styles.fileSize, { color: theme.textSecondary }]}>
-            {formatFileSize(item.fileSize)}
-          </ThemedText>
-          {item.isDownloaded ? (
-            <Feather name="check-circle" size={16} color={BrandColors.success} />
-          ) : (
-            <Feather name="download-cloud" size={16} color={theme.textTertiary} />
-          )}
-        </View>
-      </Card>
-    </Pressable>
-  );
 
   return (
     <BackgroundView style={styles.container}>
