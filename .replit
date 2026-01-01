@@ -1,5 +1,5 @@
 entrypoint = "README.md"
-modules = ["nodejs-22"]
+modules = ["nodejs-22", "postgresql-16"]
 
 [nix]
 channel = "stable-24_05"
@@ -59,4 +59,4 @@ ensurePreviewReachable = "/status"
 [userenv]
 
 [userenv.shared]
-EXPO_PUBLIC_ARCHIDOC_API_URL = "https://archidoc.app"
+EXPO_PUBLIC_ARCHIDOC_API_URL = "https://archidoc-architects-france-technical.replit.app"

@@ -246,13 +246,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/sync-observation/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
-      const observation = await storage.updateObservation(id, {
-        syncStatus: "synced",
-      });
+      const observation = await storage.getObservation(id);
       if (!observation) {
         return res.status(404).json({ error: "Observation not found" });
       }
-      res.json(observation);
+
+      const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
+      if (!archidocApiUrl) {
+        return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
+      }
+
+      if (!observation.archidocProjectId) {
+        return res.status(400).json({ error: "No ARCHIDOC project ID associated with this observation" });
+      }
+
+      const archidocPayload = {
+        projectId: observation.archidocProjectId,
+        observedBy: "OUVRO Field User",
+        summary: observation.title + (observation.description ? `: ${observation.description}` : ""),
+        observedAt: observation.createdAt?.toISOString() || new Date().toISOString(),
+        classification: "general",
+        status: "pending",
+        priority: "normal",
+        location: observation.translatedText ? `French: ${observation.translatedText}` : undefined,
+      };
+
+      const archidocResponse = await fetch(`${archidocApiUrl}/api/field-observations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(archidocPayload),
+      });
+
+      if (!archidocResponse.ok) {
+        const errorText = await archidocResponse.text();
+        console.error("ARCHIDOC sync failed:", errorText);
+        return res.status(archidocResponse.status).json({ 
+          error: "Failed to sync with ARCHIDOC", 
+          details: errorText 
+        });
+      }
+
+      const updatedObservation = await storage.updateObservation(id, {
+        syncStatus: "synced",
+      });
+
+      res.json(updatedObservation);
     } catch (error) {
       console.error("Error syncing observation:", error);
       res.status(500).json({ error: "Failed to sync observation" });

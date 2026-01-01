@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -25,6 +26,7 @@ import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNaviga
 export default function ObservationDetailsScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "ObservationDetails">>();
   const { projectId, mediaItems = [] } = route.params;
@@ -40,7 +42,8 @@ export default function ObservationDetailsScreen() {
   const createObservationMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/observations", {
-        projectId,
+        projectId: 1,
+        archidocProjectId: projectId,
         title: title || "Untitled Observation",
         description,
         transcription,
@@ -153,7 +156,10 @@ export default function ObservationDetailsScreen() {
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: insets.bottom + Spacing.xl },
+          { 
+            paddingTop: headerHeight + Spacing.lg,
+            paddingBottom: insets.bottom + Spacing.xl,
+          },
         ]}
       >
         <View style={styles.section}>
@@ -258,7 +264,7 @@ export default function ObservationDetailsScreen() {
           <View style={styles.sectionHeader}>
             <ThemedText style={styles.label}>French Translation</ThemedText>
             <Pressable
-              style={[styles.actionButton, { backgroundColor: BrandColors.secondary }]}
+              style={[styles.actionButton, { backgroundColor: BrandColors.accent }]}
               onPress={handleTranslate}
               disabled={isTranslating || (!transcription && !description)}
             >
