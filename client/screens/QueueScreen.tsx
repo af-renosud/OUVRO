@@ -161,7 +161,7 @@ export default function QueueScreen() {
 
       <View style={styles.actionButtons}>
         <Pressable
-          style={[styles.actionButton, { backgroundColor: BrandColors.mediumBlue }]}
+          style={[styles.actionButton, { backgroundColor: "#10B981" }]}
           onPress={() => handleShare(item)}
         >
           <Feather name="share-2" size={16} color="#FFFFFF" />
