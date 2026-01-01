@@ -59,4 +59,4 @@ ensurePreviewReachable = "/status"
 [userenv]
 
 [userenv.shared]
-EXPO_PUBLIC_ARCHIDOC_API_URL = "https://archidoc-architects-france-technical.replit.app"
+EXPO_PUBLIC_ARCHIDOC_API_URL = "https://archidoc-app-ARCHIDOC.replit.app"
