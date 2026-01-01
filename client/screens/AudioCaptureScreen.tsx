@@ -29,7 +29,7 @@ export default function AudioCaptureScreen() {
 
   const isPhone = width < 500;
   const waveformSize = isPhone ? 120 : 160;
-  const buttonSize = isPhone ? 64 : 80;
+  const buttonSize = isPhone ? 96 : 120;
 
   useEffect(() => {
     checkPermission();
