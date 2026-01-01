@@ -10,11 +10,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
-import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
+import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 
 type SettingsItem = {
   icon: keyof typeof Feather.glyphMap;
@@ -185,13 +186,11 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.brandingContainer}>
-          <View style={styles.logoPlaceholder}>
-            <Feather name="briefcase" size={40} color={BrandColors.primary} />
-          </View>
-          <ThemedText style={styles.appName}>ARCHIDOC Field</ThemedText>
-          <ThemedText style={[styles.brandSubtitle, { color: theme.textSecondary }]}>
-            by Architects-France
-          </ThemedText>
+          <Image
+            source={require("@assets/images/ouvro-logo.png")}
+            style={styles.logo}
+            contentFit="contain"
+          />
         </View>
 
         {settingsGroups.map((group, groupIndex) => (
@@ -229,21 +228,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.xl,
   },
-  logoPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.md,
-  },
-  appName: {
-    ...Typography.h2,
-  },
-  brandSubtitle: {
-    ...Typography.bodySmall,
-    marginTop: Spacing.xs,
+  logo: {
+    width: 180,
+    height: 56,
   },
   settingsGroup: {
     marginBottom: Spacing.lg,
