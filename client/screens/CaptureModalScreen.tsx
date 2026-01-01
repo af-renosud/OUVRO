@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Pressable, FlatList, Alert } from "react-native";
+import { View, StyleSheet, Pressable, ScrollView, Alert, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -46,8 +46,11 @@ const mediaOptions: MediaOption[] = [
 export default function CaptureModalScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [selectedProject, setSelectedProject] = useState<MappedProject | null>(null);
+
+  const isPhone = width < 500;
 
   const { data: projects = [] } = useQuery<MappedProject[]>({
     queryKey: ["archidoc-projects"],
@@ -73,26 +76,41 @@ export default function CaptureModalScreen() {
     }
   };
 
-  const renderMediaOption = ({ item }: { item: MediaOption }) => (
+  const renderMediaOption = (item: MediaOption) => (
     <Pressable
-      style={({ pressed }) => [pressed && styles.pressed]}
+      key={item.type}
+      style={({ pressed }) => [
+        styles.mediaCardWrapper,
+        isPhone ? styles.mediaCardWrapperPhone : styles.mediaCardWrapperTablet,
+        pressed ? styles.pressed : null,
+      ]}
       onPress={() => handleMediaTypeSelect(item.type)}
     >
-      <Card style={styles.mediaCard}>
+      <Card style={isPhone ? { ...styles.mediaCard, ...styles.mediaCardPhone } : styles.mediaCard}>
         <View style={[styles.iconCircle, { backgroundColor: "#EFF6FF" }]}>
-          <Feather name={item.icon} size={32} color={BrandColors.primary} />
+          <Feather name={item.icon} size={isPhone ? 28 : 32} color={BrandColors.primary} />
         </View>
-        <ThemedText style={styles.mediaTitle}>{item.title}</ThemedText>
-        <ThemedText style={[styles.mediaDescription, { color: theme.textSecondary }]}>
-          {item.description}
-        </ThemedText>
+        <View style={isPhone ? styles.mediaTextPhone : undefined}>
+          <ThemedText style={[styles.mediaTitle, isPhone && styles.mediaTitlePhone]}>
+            {item.title}
+          </ThemedText>
+          <ThemedText style={[styles.mediaDescription, { color: theme.textSecondary }]}>
+            {item.description}
+          </ThemedText>
+        </View>
       </Card>
     </Pressable>
   );
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.lg }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: insets.bottom + Spacing.xl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Select Project</ThemedText>
           <View style={styles.projectList}>
@@ -133,16 +151,11 @@ export default function CaptureModalScreen() {
 
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Capture Media</ThemedText>
-          <FlatList
-            data={mediaOptions}
-            renderItem={renderMediaOption}
-            keyExtractor={(item) => item.type}
-            numColumns={2}
-            columnWrapperStyle={styles.mediaRow}
-            scrollEnabled={false}
-          />
+          <View style={[styles.mediaGrid, isPhone && styles.mediaGridPhone]}>
+            {mediaOptions.map(renderMediaOption)}
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </ThemedView>
   );
 }
@@ -152,7 +165,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
     padding: Spacing.lg,
   },
   section: {
@@ -179,14 +191,31 @@ const styles = StyleSheet.create({
   noProjects: {
     ...Typography.body,
   },
-  mediaRow: {
-    justifyContent: "space-between",
-    marginBottom: Spacing.md,
+  mediaGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.md,
+  },
+  mediaGridPhone: {
+    flexDirection: "column",
+  },
+  mediaCardWrapper: {
+    minWidth: 140,
+  },
+  mediaCardWrapperPhone: {
+    width: "100%",
+  },
+  mediaCardWrapperTablet: {
+    width: "48%",
   },
   mediaCard: {
-    width: "48%",
     padding: Spacing.lg,
     alignItems: "center",
+  },
+  mediaCardPhone: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
   },
   iconCircle: {
     width: 72,
@@ -196,9 +225,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: Spacing.md,
   },
+  mediaTextPhone: {
+    flex: 1,
+    marginLeft: Spacing.md,
+    marginBottom: 0,
+  },
   mediaTitle: {
     ...Typography.h3,
     marginBottom: Spacing.xs,
+  },
+  mediaTitlePhone: {
+    marginBottom: 2,
   },
   mediaDescription: {
     ...Typography.bodySmall,

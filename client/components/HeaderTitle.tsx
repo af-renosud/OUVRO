@@ -23,9 +23,16 @@ export function HeaderTitle({ title, subtitle }: HeaderTitleProps) {
       <View style={styles.textContainer}>
         <ThemedText style={styles.title}>{title}</ThemedText>
         {subtitle ? (
-          <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {subtitle}
-          </ThemedText>
+          <View style={styles.subtitleRow}>
+            <Image
+              source={require("../assets/af-logo.png")}
+              style={styles.afLogo}
+              resizeMode="contain"
+            />
+            <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
+              {subtitle}
+            </ThemedText>
+          </View>
         ) : null}
       </View>
     </View>
@@ -50,8 +57,18 @@ const styles = StyleSheet.create({
   title: {
     ...Typography.h3,
   },
+  subtitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: -2,
+  },
+  afLogo: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginRight: 4,
+  },
   subtitle: {
     ...Typography.label,
-    marginTop: -2,
   },
 });

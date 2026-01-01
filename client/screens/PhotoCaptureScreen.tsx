@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { View, StyleSheet, Pressable, Platform, Image } from "react-native";
+import { View, StyleSheet, Pressable, Platform, Image, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -15,6 +15,7 @@ import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 export default function PhotoCaptureScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "PhotoCapture">>();
   const { projectId } = route.params;
@@ -23,6 +24,10 @@ export default function PhotoCaptureScreen() {
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [facing, setFacing] = useState<"front" | "back">("back");
   const cameraRef = useRef<CameraView>(null);
+
+  const isPhone = width < 500;
+  const buttonSize = isPhone ? 64 : 80;
+  const smallButtonSize = isPhone ? 48 : 56;
 
   const handleCapture = async () => {
     if (cameraRef.current) {
@@ -111,20 +116,28 @@ export default function PhotoCaptureScreen() {
             <Feather name="x" size={28} color="#FFFFFF" />
           </Pressable>
         </View>
-        <View style={[styles.previewControls, { paddingBottom: insets.bottom + Spacing.lg }]}>
+        <View
+          style={[
+            styles.previewControls,
+            {
+              paddingBottom: Math.max(insets.bottom, 20) + Spacing.lg,
+              backgroundColor: "rgba(0,0,0,0.5)",
+            },
+          ]}
+        >
           <Pressable
-            style={[styles.retakeButton, { backgroundColor: "rgba(255,255,255,0.2)" }]}
+            style={[styles.actionButton, { backgroundColor: "rgba(255,255,255,0.2)" }]}
             onPress={handleRetake}
           >
-            <Feather name="refresh-cw" size={24} color="#FFFFFF" />
-            <ThemedText style={styles.retakeText}>Retake</ThemedText>
+            <Feather name="refresh-cw" size={22} color="#FFFFFF" />
+            <ThemedText style={styles.actionButtonText}>Retake</ThemedText>
           </Pressable>
           <Pressable
-            style={[styles.doneButton, { backgroundColor: BrandColors.primary }]}
+            style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
             onPress={handleDone}
           >
-            <Feather name="check" size={24} color="#FFFFFF" />
-            <ThemedText style={styles.doneText}>Use Photo</ThemedText>
+            <Feather name="check" size={22} color="#FFFFFF" />
+            <ThemedText style={styles.actionButtonText}>Use Photo</ThemedText>
           </Pressable>
         </View>
       </View>
@@ -167,20 +180,32 @@ export default function PhotoCaptureScreen() {
         </Pressable>
       </View>
 
-      <View style={[styles.bottomControls, { paddingBottom: insets.bottom + Spacing.lg }]}>
-        <Pressable style={styles.galleryButton} onPress={handlePickImage}>
-          <Feather name="image" size={28} color="#FFFFFF" />
+      <View
+        style={[
+          styles.bottomControls,
+          {
+            paddingBottom: Math.max(insets.bottom, 20) + Spacing.lg,
+            backgroundColor: "rgba(0,0,0,0.4)",
+          },
+        ]}
+      >
+        <Pressable
+          style={[styles.galleryButton, { width: smallButtonSize, height: smallButtonSize }]}
+          onPress={handlePickImage}
+        >
+          <Feather name="image" size={isPhone ? 24 : 28} color="#FFFFFF" />
         </Pressable>
         <Pressable
           style={({ pressed }) => [
             styles.captureButton,
+            { width: buttonSize, height: buttonSize },
             pressed && styles.captureButtonPressed,
           ]}
           onPress={handleCapture}
         >
           <View style={styles.captureInner} />
         </Pressable>
-        <View style={styles.placeholder} />
+        <View style={{ width: smallButtonSize }} />
       </View>
     </View>
   );
@@ -252,18 +277,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-around",
     paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
   },
   galleryButton: {
-    width: 56,
-    height: 56,
     borderRadius: BorderRadius.full,
     backgroundColor: "rgba(0,0,0,0.4)",
     alignItems: "center",
     justifyContent: "center",
   },
   captureButton: {
-    width: 80,
-    height: 80,
     borderRadius: BorderRadius.full,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
@@ -280,9 +302,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderWidth: 3,
     borderColor: "#000000",
-  },
-  placeholder: {
-    width: 56,
   },
   previewImage: {
     flex: 1,
@@ -302,30 +321,21 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: "row",
     justifyContent: "center",
-    gap: Spacing.lg,
+    gap: Spacing.md,
     paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
   },
-  retakeButton: {
+  actionButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
+    minWidth: 120,
+    justifyContent: "center",
   },
-  retakeText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  doneButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
-  doneText: {
+  actionButtonText: {
     color: "#FFFFFF",
     fontWeight: "600",
   },

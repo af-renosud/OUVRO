@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, StyleSheet, Pressable, ScrollView, ActivityIndicator, Platform } from "react-native";
+import { View, StyleSheet, Pressable, ScrollView, ActivityIndicator, Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -8,12 +8,13 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
-import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
+import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 export default function AudioCaptureScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "AudioCapture">>();
   const { projectId } = route.params;
@@ -24,8 +25,10 @@ export default function AudioCaptureScreen() {
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recorderRef = useRef<any>(null);
-  const playerRef = useRef<any>(null);
+
+  const isPhone = width < 500;
+  const waveformSize = isPhone ? 160 : 200;
+  const buttonSize = isPhone ? 80 : 96;
 
   useEffect(() => {
     checkPermission();
@@ -47,7 +50,7 @@ export default function AudioCaptureScreen() {
       }
     } else {
       try {
-        const { useAudioRecorder, AudioModule } = await import("expo-audio");
+        const { AudioModule } = await import("expo-audio");
         const status = await AudioModule.requestRecordingPermissionsAsync();
         setPermissionStatus(status.granted ? "granted" : "denied");
       } catch {
@@ -74,7 +77,7 @@ export default function AudioCaptureScreen() {
     }
 
     try {
-      const { useAudioRecorder, RecordingPresets, AudioModule } = await import("expo-audio");
+      const { AudioModule } = await import("expo-audio");
       await AudioModule.setAudioModeAsync({
         allowsRecording: true,
         playsInSilentMode: true,
@@ -178,17 +181,26 @@ export default function AudioCaptureScreen() {
         ]}
       >
         <View style={styles.waveformContainer}>
-          <View style={[styles.waveformPlaceholder, { backgroundColor: theme.backgroundSecondary }]}>
+          <View
+            style={[
+              styles.waveformPlaceholder,
+              {
+                backgroundColor: theme.backgroundSecondary,
+                width: waveformSize,
+                height: waveformSize,
+              },
+            ]}
+          >
             {isRecording ? (
               <View style={styles.recordingWave}>
-                {[...Array(20)].map((_, i) => (
+                {[...Array(isPhone ? 15 : 20)].map((_, i) => (
                   <View
                     key={i}
                     style={[
                       styles.waveBar,
                       {
                         backgroundColor: BrandColors.primary,
-                        height: 20 + Math.random() * 60,
+                        height: 20 + Math.random() * (isPhone ? 40 : 60),
                       },
                     ]}
                   />
@@ -197,12 +209,12 @@ export default function AudioCaptureScreen() {
             ) : (
               <Feather
                 name="mic"
-                size={48}
+                size={isPhone ? 40 : 48}
                 color={recordingUri ? BrandColors.success : theme.textTertiary}
               />
             )}
           </View>
-          <ThemedText style={styles.durationText}>
+          <ThemedText style={[styles.durationText, isPhone && styles.durationTextPhone]}>
             {formatDuration(recordingDuration)}
           </ThemedText>
         </View>
@@ -212,6 +224,7 @@ export default function AudioCaptureScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.recordButton,
+                { width: buttonSize, height: buttonSize },
                 isRecording && styles.recordButtonRecording,
                 pressed && styles.recordButtonPressed,
               ]}
@@ -227,12 +240,19 @@ export default function AudioCaptureScreen() {
           ) : (
             <View style={styles.playbackControls}>
               <Pressable
-                style={[styles.playButton, { backgroundColor: BrandColors.primary }]}
+                style={[
+                  styles.playButton,
+                  {
+                    backgroundColor: BrandColors.primary,
+                    width: isPhone ? 64 : 80,
+                    height: isPhone ? 64 : 80,
+                  },
+                ]}
                 onPress={handlePlayPause}
               >
                 <Feather
                   name={isPlaying ? "pause" : "play"}
-                  size={32}
+                  size={isPhone ? 28 : 32}
                   color="#FFFFFF"
                 />
               </Pressable>
@@ -249,9 +269,13 @@ export default function AudioCaptureScreen() {
         </View>
 
         {recordingUri ? (
-          <View style={styles.actionButtons}>
+          <View style={[styles.actionButtons, isPhone && styles.actionButtonsPhone]}>
             <Pressable
-              style={[styles.discardButton, { backgroundColor: theme.backgroundSecondary }]}
+              style={[
+                styles.discardButton,
+                { backgroundColor: theme.backgroundSecondary },
+                isPhone && styles.actionButtonPhone,
+              ]}
               onPress={handleDiscard}
             >
               <Feather name="trash-2" size={20} color={BrandColors.error} />
@@ -260,7 +284,11 @@ export default function AudioCaptureScreen() {
               </ThemedText>
             </Pressable>
             <Pressable
-              style={[styles.doneButton, { backgroundColor: BrandColors.primary }]}
+              style={[
+                styles.doneButton,
+                { backgroundColor: BrandColors.primary },
+                isPhone && styles.actionButtonPhone,
+              ]}
               onPress={handleDone}
             >
               <Feather name="check" size={20} color="#FFFFFF" />
@@ -298,8 +326,6 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.xl,
   },
   waveformPlaceholder: {
-    width: 200,
-    height: 200,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
@@ -321,13 +347,14 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
     fontVariant: ["tabular-nums"],
   },
+  durationTextPhone: {
+    fontSize: 36,
+  },
   controlsContainer: {
     alignItems: "center",
     marginVertical: Spacing.xl,
   },
   recordButton: {
-    width: 96,
-    height: 96,
     borderRadius: BorderRadius.full,
     backgroundColor: "#FEE2E2",
     alignItems: "center",
@@ -357,8 +384,6 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   playButton: {
-    width: 80,
-    height: 80,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
@@ -371,6 +396,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.md,
     marginVertical: Spacing.lg,
+  },
+  actionButtonsPhone: {
+    width: "100%",
+  },
+  actionButtonPhone: {
+    flex: 1,
+    justifyContent: "center",
   },
   discardButton: {
     flexDirection: "row",

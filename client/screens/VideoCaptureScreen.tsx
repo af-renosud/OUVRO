@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, StyleSheet, Pressable, Platform } from "react-native";
+import { View, StyleSheet, Pressable, Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -14,6 +14,7 @@ import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 export default function VideoCaptureScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "VideoCapture">>();
   const { projectId } = route.params;
@@ -25,6 +26,9 @@ export default function VideoCaptureScreen() {
   const [facing, setFacing] = useState<"front" | "back">("back");
   const cameraRef = useRef<CameraView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const isPhone = width < 500;
+  const buttonSize = isPhone ? 64 : 80;
 
   useEffect(() => {
     return () => {
@@ -158,11 +162,20 @@ export default function VideoCaptureScreen() {
         )}
       </View>
 
-      <View style={[styles.bottomControls, { paddingBottom: insets.bottom + Spacing.lg }]}>
-        <View style={styles.placeholder} />
+      <View
+        style={[
+          styles.bottomControls,
+          {
+            paddingBottom: Math.max(insets.bottom, 20) + Spacing.lg,
+            backgroundColor: "rgba(0,0,0,0.4)",
+          },
+        ]}
+      >
+        <View style={{ width: isPhone ? 48 : 56 }} />
         <Pressable
           style={({ pressed }) => [
             styles.recordButton,
+            { width: buttonSize, height: buttonSize },
             isRecording && styles.recordButtonRecording,
             pressed && styles.recordButtonPressed,
           ]}
@@ -175,7 +188,7 @@ export default function VideoCaptureScreen() {
             ]}
           />
         </Pressable>
-        <View style={styles.placeholder} />
+        <View style={{ width: isPhone ? 48 : 56 }} />
       </View>
     </View>
   );
@@ -265,10 +278,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-around",
     paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
   },
   recordButton: {
-    width: 80,
-    height: 80,
     borderRadius: BorderRadius.full,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
@@ -291,9 +303,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     width: 32,
     height: 32,
-  },
-  placeholder: {
-    width: 56,
   },
   permissionContainer: {
     flex: 1,
