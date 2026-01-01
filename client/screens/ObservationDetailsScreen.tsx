@@ -64,8 +64,9 @@ export default function ObservationDetailsScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/observations/pending"] });
-      navigation.popToTop();
-      navigation.goBack();
+      if (navigation.canGoBack()) {
+        navigation.popToTop();
+      }
     },
     onError: (error) => {
       Alert.alert("Error", "Failed to save observation. Please try again.");
