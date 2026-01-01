@@ -28,8 +28,8 @@ export default function AudioCaptureScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isPhone = width < 500;
-  const waveformSize = isPhone ? 160 : 200;
-  const buttonSize = isPhone ? 80 : 96;
+  const waveformSize = isPhone ? 120 : 160;
+  const buttonSize = isPhone ? 64 : 80;
 
   useEffect(() => {
     checkPermission();
@@ -354,12 +354,12 @@ export default function AudioCaptureScreen() {
           </View>
         ) : null}
 
-        <Card style={styles.infoCard}>
+        <View style={styles.infoCard}>
           <Feather name="info" size={20} color={BrandColors.info} />
-          <ThemedText style={[styles.infoText, { color: theme.textSecondary }]}>
+          <ThemedText style={styles.infoText}>
             Your audio will be automatically transcribed to English text. You can then translate it to French before sending to contractors.
           </ThemedText>
-        </Card>
+        </View>
       </ScrollView>
     </View>
   );
@@ -513,12 +513,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: Spacing.md,
+    backgroundColor: "#FFFFFF",
     padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginHorizontal: Spacing.lg,
     marginTop: Spacing.lg,
   },
   infoText: {
     ...Typography.bodySmall,
     flex: 1,
+    color: "#2D3748",
   },
   permissionContainer: {
     flex: 1,
