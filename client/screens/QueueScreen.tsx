@@ -336,7 +336,7 @@ export default function QueueScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Feather name="check-circle" size={64} color={BrandColors.success} />
+              <Feather name="check-circle" size={64} color={BrandColors.primary} />
               <ThemedText style={[styles.emptyTitle, { color: theme.text }]}>
                 All synced!
               </ThemedText>
