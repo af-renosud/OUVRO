@@ -16,25 +16,17 @@ export function HeaderTitle({ title, subtitle }: HeaderTitleProps) {
   return (
     <View style={styles.container}>
       <Image
-        source={require("../../assets/images/icon.png")}
-        style={styles.icon}
+        source={require("../../assets/images/archidoc-logo.png")}
+        style={styles.logo}
         resizeMode="contain"
       />
-      <View style={styles.textContainer}>
-        <ThemedText style={styles.title}>{title}</ThemedText>
-        {subtitle ? (
-          <View style={styles.subtitleRow}>
-            <Image
-              source={require("../assets/af-logo.png")}
-              style={styles.afLogo}
-              resizeMode="contain"
-            />
-            <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-              {subtitle}
-            </ThemedText>
-          </View>
-        ) : null}
-      </View>
+      {subtitle ? (
+        <View style={styles.subtitleContainer}>
+          <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
+            {subtitle}
+          </ThemedText>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -45,28 +37,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-start",
   },
-  icon: {
-    width: 36,
-    height: 36,
-    marginRight: Spacing.sm,
-    borderRadius: 8,
+  logo: {
+    width: 120,
+    height: 32,
   },
-  textContainer: {
-    flexDirection: "column",
-  },
-  title: {
-    ...Typography.h3,
-  },
-  subtitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: -2,
-  },
-  afLogo: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginRight: 4,
+  subtitleContainer: {
+    marginLeft: Spacing.sm,
   },
   subtitle: {
     ...Typography.label,

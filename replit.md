@@ -80,10 +80,14 @@ The app connects to the live ARCHIDOC system at https://archidoc.app to fetch pr
 - `status` → `status`
 
 ## Design System
-- **Primary Color**: #2563EB (ARCHIDOC Blue)
-- **Secondary Color**: #059669 (Architects-France Green)
+- **Primary Color**: #4299E1 (Blue)
+- **Secondary Color**: #63B3ED (Light Blue)
+- **Accent Color**: #319795 (Teal)
+- **Background**: #F7FAFC (Off-White)
+- **Text**: #2D3748 (Dark Gray)
 - **Touch Targets**: 48-56pt minimum for field use
 - **Style**: iOS 26 Liquid Glass effect
+- **App Logo**: assets/images/archidoc-logo.png
 
 ## Running the App
 The app runs on port 8081 (Expo dev server) with Express backend on port 5000.
