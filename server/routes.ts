@@ -271,6 +271,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         location: observation.translatedText ? `French: ${observation.translatedText}` : undefined,
       };
 
+      let archidocObservationId: number | null = null;
+
       try {
         const archidocResponse = await fetch(`${archidocApiUrl}/api/field-observations`, {
           method: "POST",
@@ -285,7 +287,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error("ARCHIDOC sync failed:", errorText);
           console.log("Marking as synced locally (ARCHIDOC endpoint not available)");
         } else {
-          console.log("Successfully synced to ARCHIDOC");
+          const archidocResult = await archidocResponse.json();
+          archidocObservationId = archidocResult.id;
+          console.log("Successfully synced to ARCHIDOC, observation ID:", archidocObservationId);
+
+          const mediaItems = await storage.getObservationMedia(id);
+          
+          for (const media of mediaItems) {
+            try {
+              const assetType = media.type as "photo" | "video" | "audio";
+              const fileName = media.localUri?.split("/").pop() || `${assetType}_${Date.now()}`;
+              const mimeTypes: Record<string, string> = {
+                photo: "image/jpeg",
+                video: "video/mp4",
+                audio: "audio/m4a",
+              };
+
+              const assetPayload = {
+                assetType,
+                objectPath: `/objects/field-observations/${assetType}/${archidocObservationId}/${fileName}`,
+                fileName,
+                mimeType: mimeTypes[assetType] || "application/octet-stream",
+              };
+
+              const assetResponse = await fetch(
+                `${archidocApiUrl}/api/field-observations/${archidocObservationId}/assets`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(assetPayload),
+                }
+              );
+
+              if (assetResponse.ok) {
+                console.log(`Asset linked successfully: ${assetType} - ${fileName}`);
+              } else {
+                const errorText = await assetResponse.text();
+                console.error(`Failed to link asset ${fileName}:`, errorText);
+              }
+            } catch (assetError) {
+              console.error("Error linking asset:", assetError);
+            }
+          }
         }
       } catch (fetchError) {
         console.error("ARCHIDOC API unreachable:", fetchError);
