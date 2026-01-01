@@ -191,6 +191,7 @@ const styles = StyleSheet.create({
   projectName: {
     ...Typography.h3,
     marginBottom: 2,
+    color: "#0B2545",
   },
   clientName: {
     ...Typography.body,
