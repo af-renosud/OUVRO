@@ -328,7 +328,7 @@ export default function QueueScreen() {
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: tabBarHeight + Spacing.xl + 80 },
+            { paddingBottom: tabBarHeight + Spacing.xl + 80, flexGrow: 1 },
           ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
