@@ -84,7 +84,7 @@ export default function CaptureModalScreen() {
       ]}
       onPress={() => handleMediaTypeSelect(item.type)}
     >
-      <View style={[styles.iconCircle, { backgroundColor: "#E6FFFA" }]}>
+      <View style={styles.iconCircle}>
         <Feather name={item.icon} size={48} color={BrandColors.accent} />
       </View>
     </Pressable>
@@ -180,9 +180,9 @@ const styles = StyleSheet.create({
     ...Typography.body,
   },
   mediaGrid: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: Spacing.xl,
+    flexDirection: "column",
+    alignItems: "center",
+    gap: Spacing.lg,
   },
   mediaCardWrapper: {
     alignItems: "center",
@@ -193,6 +193,9 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#E6FFFA",
+    borderWidth: 3,
+    borderColor: "#0B2545",
   },
   pressed: {
     opacity: 0.9,
