@@ -5,7 +5,6 @@ import {
   Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
@@ -18,7 +17,6 @@ type FileFilter = "all" | "plans" | "photos" | "documents";
 export default function FilesScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
   const [activeFilter, setActiveFilter] = useState<FileFilter>("all");
 
   const filterTabs: { key: FileFilter; label: string }[] = [
@@ -115,52 +113,6 @@ const styles = StyleSheet.create({
   filterText: {
     ...Typography.bodySmall,
     fontWeight: "600",
-  },
-  listContent: {
-    paddingHorizontal: Spacing.md,
-  },
-  row: {
-    justifyContent: "flex-start",
-    gap: Spacing.md,
-  },
-  fileCard: {
-    flex: 1,
-    maxWidth: "48%",
-    marginBottom: Spacing.md,
-  },
-  fileCardInner: {
-    padding: Spacing.md,
-    alignItems: "center",
-  },
-  fileThumbnail: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.sm,
-  },
-  fileName: {
-    ...Typography.bodySmall,
-    textAlign: "center",
-    marginBottom: Spacing.xs,
-  },
-  fileInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  fileSize: {
-    ...Typography.label,
-  },
-  pressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.98 }],
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
   },
   emptyContainer: {
     alignItems: "center",
