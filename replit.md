@@ -97,6 +97,13 @@ The app runs on port 8081 (Expo dev server) with Express backend on port 5000.
 Users can scan the QR code with Expo Go to test on physical devices.
 
 ## Recent Changes
+- January 1, 2026: Pre-deployment audit completed
+  - All LSP diagnostics clear, no TypeScript errors
+  - Database schema verified: 7 tables (users, projects, observations, observation_media, project_files, conversations, messages)
+  - Security audit passed: No exposed secrets in client code
+  - All API endpoints have proper error handling
+  - Audio recording now properly saves M4A files using expo-av Recording API
+  - Video and photo capture verified working with real file URIs
 - January 1, 2026: ARCHIDOC sync integration and layout fixes
   - Fixed ObservationDetailsScreen padding to prevent text overlapping with header (uses useHeaderHeight)
   - Updated sync endpoint to POST observations to ARCHIDOC /api/field-observations endpoint
