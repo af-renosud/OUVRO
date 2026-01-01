@@ -18,7 +18,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 8,
+    paddingTop: 20,
   },
   logo: {
     width: 200,
