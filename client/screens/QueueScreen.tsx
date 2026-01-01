@@ -57,9 +57,19 @@ export default function QueueScreen() {
     archidocObservationId: number,
     media: ObservationMedia
   ): Promise<boolean> => {
+    if (!media.localUri) {
+      console.log("Skipping media with no localUri");
+      return true;
+    }
+
+    if (media.localUri.startsWith("mock://") || media.localUri.startsWith("file://recording")) {
+      console.log("Skipping mock/placeholder media:", media.localUri);
+      return true;
+    }
+
     try {
       const assetType = media.type as "photo" | "video" | "audio";
-      const fileName = media.localUri?.split("/").pop() || `${assetType}_${Date.now()}`;
+      const fileName = media.localUri.split("/").pop() || `${assetType}_${Date.now()}`;
       const contentType = getMimeType(assetType);
 
       const uploadUrlRes = await apiRequest("POST", "/api/archidoc/upload-url", {
@@ -67,29 +77,38 @@ export default function QueueScreen() {
         contentType,
         assetType,
       });
+      
+      if (!uploadUrlRes.ok) {
+        console.error("Failed to get upload URL");
+        return false;
+      }
+      
       const { uploadURL, objectPath } = await uploadUrlRes.json();
 
-      if (media.localUri && !media.localUri.startsWith("mock://") && !media.localUri.startsWith("file://recording")) {
-        const uploadResult = await FileSystem.uploadAsync(uploadURL, media.localUri, {
-          httpMethod: "PUT",
-          headers: {
-            "Content-Type": contentType,
-          },
-        });
+      const uploadResult = await FileSystem.uploadAsync(uploadURL, media.localUri, {
+        httpMethod: "PUT",
+        headers: {
+          "Content-Type": contentType,
+        },
+      });
 
-        if (uploadResult.status !== 200) {
-          console.error("Failed to upload file:", uploadResult);
-          return false;
-        }
+      if (uploadResult.status !== 200 && uploadResult.status !== 201) {
+        console.error("Failed to upload file:", uploadResult.status, uploadResult.body);
+        return false;
       }
 
-      await apiRequest("POST", "/api/archidoc/register-asset", {
+      const registerRes = await apiRequest("POST", "/api/archidoc/register-asset", {
         observationId: archidocObservationId,
         assetType,
         objectPath,
         fileName,
         mimeType: contentType,
       });
+
+      if (!registerRes.ok) {
+        console.error("Failed to register asset");
+        return false;
+      }
 
       console.log(`Asset uploaded and registered: ${fileName}`);
       return true;
@@ -104,23 +123,42 @@ export default function QueueScreen() {
       setSyncingIds((prev) => new Set(prev).add(observation.id));
       
       const syncRes = await apiRequest("POST", `/api/sync-observation/${observation.id}`);
-      const { archidocObservationId } = await syncRes.json();
+      const syncData = await syncRes.json();
+      
+      if (!syncRes.ok) {
+        throw new Error(syncData.error || "Failed to create observation in ARCHIDOC");
+      }
+      
+      const { archidocObservationId } = syncData;
 
       if (!archidocObservationId) {
         throw new Error("Failed to get ARCHIDOC observation ID");
       }
 
       const mediaItems = observation.media || [];
+      let uploadFailures = 0;
+      
       for (const media of mediaItems) {
-        await uploadMediaToArchidoc(archidocObservationId, media);
+        const success = await uploadMediaToArchidoc(archidocObservationId, media);
+        if (!success) {
+          uploadFailures++;
+        }
       }
 
-      await apiRequest("POST", `/api/mark-synced/${observation.id}`);
+      if (uploadFailures > 0) {
+        throw new Error(`Failed to upload ${uploadFailures} media file(s). Observation not marked as synced.`);
+      }
+
+      const markRes = await apiRequest("POST", `/api/mark-synced/${observation.id}`);
+      if (!markRes.ok) {
+        throw new Error("Failed to mark observation as synced");
+      }
       
       return { localId: observation.id, archidocObservationId };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/observations/pending"] });
+      Alert.alert("Success", "Observation synced to ARCHIDOC!");
     },
     onSettled: (_, __, observation) => {
       setSyncingIds((prev) => {
@@ -131,7 +169,7 @@ export default function QueueScreen() {
     },
     onError: (error) => {
       console.error("Sync failed:", error);
-      Alert.alert("Sync Failed", "Failed to sync observation. Please try again.");
+      Alert.alert("Sync Failed", error instanceof Error ? error.message : "Failed to sync observation. Please try again.");
     },
   });
 
