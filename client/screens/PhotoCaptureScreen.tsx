@@ -15,7 +15,7 @@ import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 export default function PhotoCaptureScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "PhotoCapture">>();
   const { projectId } = route.params;
@@ -25,6 +25,7 @@ export default function PhotoCaptureScreen() {
   const [facing, setFacing] = useState<"front" | "back">("back");
   const cameraRef = useRef<CameraView>(null);
 
+  const isLandscape = width > height;
   const isPhone = width < 500;
   const buttonSize = isPhone ? 64 : 80;
   const smallButtonSize = isPhone ? 48 : 56;
@@ -108,6 +109,37 @@ export default function PhotoCaptureScreen() {
   }
 
   if (capturedPhoto) {
+    if (isLandscape) {
+      return (
+        <View style={styles.landscapeContainer}>
+          <View style={[styles.landscapeTopBar, { paddingTop: insets.top + Spacing.sm, paddingLeft: insets.left + Spacing.md }]}>
+            <Pressable style={styles.closeButton} onPress={handleClose}>
+              <Feather name="x" size={28} color="#FFFFFF" />
+            </Pressable>
+          </View>
+          
+          <View style={styles.landscapeMain}>
+            <Image source={{ uri: capturedPhoto }} style={styles.previewImage} />
+          </View>
+
+          <View style={[styles.landscapeSideControls, { paddingRight: insets.right + Spacing.md }]}>
+            <Pressable
+              style={[styles.actionButton, { backgroundColor: "rgba(255,255,255,0.2)" }]}
+              onPress={handleRetake}
+            >
+              <Feather name="refresh-cw" size={22} color="#FFFFFF" />
+            </Pressable>
+            <Pressable
+              style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+              onPress={handleDone}
+            >
+              <Feather name="check" size={22} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.container}>
         <Image source={{ uri: capturedPhoto }} style={styles.previewImage} />
@@ -138,6 +170,60 @@ export default function PhotoCaptureScreen() {
           >
             <Feather name="check" size={22} color="#FFFFFF" />
             <ThemedText style={styles.actionButtonText}>Use Photo</ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  if (isLandscape) {
+    return (
+      <View style={styles.landscapeContainer}>
+        <View style={[styles.landscapeTopBar, { paddingTop: insets.top + Spacing.sm, paddingLeft: insets.left + Spacing.md }]}>
+          <Pressable style={styles.closeButton} onPress={handleClose}>
+            <Feather name="x" size={28} color="#FFFFFF" />
+          </Pressable>
+        </View>
+        
+        <View style={styles.landscapeMain}>
+          {Platform.OS === "web" ? (
+            <View style={[styles.webPlaceholder, { backgroundColor: theme.backgroundSecondary }]}>
+              <Feather name="camera" size={64} color={theme.textTertiary} />
+              <ThemedText style={[styles.webText, { color: theme.textSecondary }]}>
+                Camera preview is available on Expo Go
+              </ThemedText>
+            </View>
+          ) : (
+            <CameraView
+              ref={cameraRef}
+              style={styles.camera}
+              facing={facing}
+            />
+          )}
+        </View>
+
+        <View style={[styles.landscapeSideControls, { paddingRight: insets.right + Spacing.md }]}>
+          <Pressable
+            style={styles.flipButton}
+            onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
+          >
+            <Feather name="refresh-cw" size={24} color="#FFFFFF" />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.captureButton,
+              { width: buttonSize, height: buttonSize },
+              pressed && styles.captureButtonPressed,
+            ]}
+            onPress={handleCapture}
+          >
+            <View style={styles.captureInner} />
+          </Pressable>
+          <Pressable
+            style={[styles.galleryButton, { width: smallButtonSize, height: smallButtonSize }]}
+            onPress={handlePickImage}
+          >
+            <Feather name="image" size={24} color="#FFFFFF" />
           </Pressable>
         </View>
       </View>
@@ -215,6 +301,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000000",
+  },
+  landscapeContainer: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: "#000000",
+  },
+  landscapeTopBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    zIndex: 10,
+  },
+  landscapeMain: {
+    flex: 1,
+  },
+  landscapeSideControls: {
+    width: 100,
+    backgroundColor: "#000000",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xl,
   },
   camera: {
     flex: 1,
