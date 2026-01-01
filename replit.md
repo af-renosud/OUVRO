@@ -80,10 +80,13 @@ The app connects to the live ARCHIDOC system at https://archidoc.app to fetch pr
 - `status` → `status`
 
 ## Design System
-- **Primary Color**: #4299E1 (Blue)
-- **Secondary Color**: #63B3ED (Light Blue)
-- **Accent Color**: #319795 (Teal)
-- **Background**: #F7FAFC (Off-White)
+- **Primary Dark Blue**: #0B2545 (headers, buttons, key actions)
+- **Medium Blue**: #4299E1
+- **Light Blue**: #63B3ED
+- **Accent**: #319795 (Teal)
+- **Error/Delete**: #EA526F (Coral Red - use sparingly)
+- **Success**: #10B981 (Green)
+- **Background**: #F8F9FA (Light Gray)
 - **Text**: #2D3748 (Dark Gray)
 - **Touch Targets**: 48-56pt minimum for field use
 - **Style**: iOS 26 Liquid Glass effect

@@ -163,38 +163,47 @@ The app has 4 distinct feature areas with a primary capture action:
 ## Design System
 
 ### Color Palette
-**Primary:**
-- Primary: #4299E1 (Blue - professional, modern)
-- Primary Dark: #3182CE
-- Primary Light: #63B3ED
 
-**Secondary:**
-- Secondary: #63B3ED (Light Blue - airy, approachable)
-- Secondary Dark: #4299E1
+**Primary Brand Colors:**
+- Primary Dark Blue: #0B2545 (headers, buttons, key actions)
+- Primary Hover: #0a1f3a (darker blue for hover states)
+- Medium Blue: #4299E1
+- Light Blue: #63B3ED
 
-**Accent:**
-- Accent: #319795 (Teal - action, highlight)
-- Accent Light: #4FD1C5
+**Accent & Status Colors:**
+- Teal Accent: #319795 (accent elements, highlights)
+- Coral Red: #EA526F (delete buttons, warnings, destructive actions)
+- Success Green: #10B981 (success states, confirmations)
 
-**Neutrals:**
-- Neutral: #4A5568 (Gray)
-- Background: #F7FAFC (Off-White)
-- Surface: #FFFFFF
-- Border: #E2E8F0
-- Text Primary: #2D3748 (Dark Gray)
-- Text Secondary: #4A5568
-- Text Tertiary: #718096
+**Text Colors:**
+- Headings: #0C0A09 (near-black)
+- Body Text: #2D3748 (dark gray)
+- Secondary Text: #34312D (dark brown-gray)
+- Muted Text: #4A5568 (medium gray)
+- Labels/Captions: #7E7F83 (light gray)
+
+**Background & Border Colors:**
+- Page Background: #F8F9FA (light gray)
+- Card Background: #F7FAFC (off-white)
+- Subtle Background: #F8FAFC (very light gray)
+- Border Light: #F1F5F9
+- Border Standard: #E2E8F0
 
 **Semantic:**
-- Success: #38A169 (synced)
+- Success: #10B981 (synced)
 - Warning: #DD6B20 (pending)
-- Error: #E53E3E (failed)
+- Error: #EA526F (failed, destructive)
 - Info: #4299E1 (syncing)
 
 **Annotation Tools:**
-- Red: #E53E3E (markup pen)
+- Red: #EA526F (markup pen)
 - Yellow: #ECC94B (highlighter)
-- Black: #2D3748 (text)
+- Black: #0C0A09 (text)
+
+**Usage Guidelines:**
+- Use #0B2545 for primary buttons and headers
+- Use #EA526F sparingly for destructive/delete actions only
+- Maintain high contrast for accessibility
 
 ### Typography
 **System Font: San Francisco (iOS/iPadOS default)**
