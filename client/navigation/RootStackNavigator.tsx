@@ -56,12 +56,12 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="PhotoCapture"
         component={PhotoCaptureScreen}
-        options={{ presentation: "fullScreenModal" }}
+        options={{ presentation: "fullScreenModal", headerShown: false }}
       />
       <Stack.Screen
         name="VideoCapture"
         component={VideoCaptureScreen}
-        options={{ presentation: "fullScreenModal" }}
+        options={{ presentation: "fullScreenModal", headerShown: false }}
       />
       <Stack.Screen
         name="AudioCapture"

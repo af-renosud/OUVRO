@@ -14,7 +14,7 @@ import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 export default function VideoCaptureScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "VideoCapture">>();
   const { projectId } = route.params;
@@ -27,6 +27,7 @@ export default function VideoCaptureScreen() {
   const cameraRef = useRef<CameraView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const isLandscape = width > height;
   const isPhone = width < 500;
   const buttonSize = isPhone ? 64 : 80;
 
@@ -120,6 +121,72 @@ export default function VideoCaptureScreen() {
     );
   }
 
+  if (isLandscape) {
+    return (
+      <View style={styles.landscapeContainer}>
+        <View style={[styles.landscapeTopBar, { paddingTop: insets.top + Spacing.sm, paddingLeft: insets.left + Spacing.md }]}>
+          <Pressable style={styles.closeButton} onPress={handleClose}>
+            <Feather name="x" size={28} color="#FFFFFF" />
+          </Pressable>
+          {isRecording ? (
+            <View style={[styles.recordingIndicator, { marginLeft: Spacing.md }]}>
+              <View style={styles.recordingDot} />
+              <ThemedText style={styles.recordingTime}>
+                {formatDuration(recordingDuration)}
+              </ThemedText>
+            </View>
+          ) : null}
+        </View>
+        
+        <View style={styles.landscapeMain}>
+          {Platform.OS === "web" ? (
+            <View style={[styles.webPlaceholder, { backgroundColor: theme.backgroundSecondary }]}>
+              <Feather name="video" size={64} color={theme.textTertiary} />
+              <ThemedText style={[styles.webText, { color: theme.textSecondary }]}>
+                Video recording is available on Expo Go
+              </ThemedText>
+            </View>
+          ) : (
+            <CameraView
+              ref={cameraRef}
+              style={styles.camera}
+              facing={facing}
+              mode="video"
+              videoQuality="480p"
+            />
+          )}
+        </View>
+
+        <View style={[styles.landscapeSideControls, { paddingRight: insets.right + Spacing.md }]}>
+          {!isRecording ? (
+            <Pressable
+              style={styles.flipButton}
+              onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
+            >
+              <Feather name="refresh-cw" size={24} color="#FFFFFF" />
+            </Pressable>
+          ) : null}
+          <Pressable
+            style={({ pressed }) => [
+              styles.recordButton,
+              { width: buttonSize, height: buttonSize },
+              isRecording && styles.recordButtonRecording,
+              pressed && styles.recordButtonPressed,
+            ]}
+            onPress={isRecording ? handleStopRecording : handleStartRecording}
+          >
+            <View
+              style={[
+                styles.recordInner,
+                isRecording && styles.recordInnerRecording,
+              ]}
+            />
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {Platform.OS === "web" ? (
@@ -171,7 +238,7 @@ export default function VideoCaptureScreen() {
           styles.bottomControls,
           {
             paddingBottom: Math.max(insets.bottom, 20) + Spacing.lg,
-            backgroundColor: "#000000",
+            backgroundColor: "#0B2545",
           },
         ]}
       >
@@ -201,7 +268,30 @@ export default function VideoCaptureScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: "#0B2545",
+  },
+  landscapeContainer: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: "#0B2545",
+  },
+  landscapeTopBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  landscapeMain: {
+    flex: 1,
+  },
+  landscapeSideControls: {
+    width: 100,
+    backgroundColor: "#0B2545",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xl,
   },
   camera: {
     flex: 1,
