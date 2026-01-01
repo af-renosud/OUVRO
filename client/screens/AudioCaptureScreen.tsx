@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
@@ -147,34 +148,89 @@ export default function AudioCaptureScreen() {
 
   if (permissionStatus === "loading") {
     return (
-      <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={BrandColors.primary} />
-      </ThemedView>
+      <View style={styles.container}>
+        <View style={styles.headerBackground}>
+          <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.lg }]}>
+            <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+              <Image
+                source={require("../../assets/images/back-button.png")}
+                style={styles.backButtonImage}
+                contentFit="contain"
+              />
+            </Pressable>
+            <Image
+              source={require("../../assets/images/ouvro-logo.png")}
+              style={styles.logo}
+              contentFit="contain"
+            />
+            <View style={styles.backButton} />
+          </View>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={BrandColors.primary} />
+        </View>
+      </View>
     );
   }
 
   if (permissionStatus === "denied") {
     return (
-      <ThemedView style={styles.permissionContainer}>
-        <Feather name="mic-off" size={64} color={theme.textTertiary} />
-        <ThemedText style={styles.permissionText}>
-          Microphone Access Required
-        </ThemedText>
-        <ThemedText style={[styles.permissionSubtext, { color: theme.textSecondary }]}>
-          Please enable microphone access in your device settings
-        </ThemedText>
-        <Pressable
-          style={[styles.permissionButton, { backgroundColor: BrandColors.primary }]}
-          onPress={checkPermission}
-        >
-          <ThemedText style={styles.permissionButtonText}>Try Again</ThemedText>
-        </Pressable>
-      </ThemedView>
+      <View style={styles.container}>
+        <View style={styles.headerBackground}>
+          <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.lg }]}>
+            <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+              <Image
+                source={require("../../assets/images/back-button.png")}
+                style={styles.backButtonImage}
+                contentFit="contain"
+              />
+            </Pressable>
+            <Image
+              source={require("../../assets/images/ouvro-logo.png")}
+              style={styles.logo}
+              contentFit="contain"
+            />
+            <View style={styles.backButton} />
+          </View>
+        </View>
+        <View style={styles.permissionContainer}>
+          <Feather name="mic-off" size={64} color={theme.textTertiary} />
+          <ThemedText style={styles.permissionText}>
+            Microphone Access Required
+          </ThemedText>
+          <ThemedText style={[styles.permissionSubtext, { color: theme.textSecondary }]}>
+            Please enable microphone access in your device settings
+          </ThemedText>
+          <Pressable
+            style={[styles.permissionButton, { backgroundColor: BrandColors.primary }]}
+            onPress={checkPermission}
+          >
+            <ThemedText style={styles.permissionButtonText}>Try Again</ThemedText>
+          </Pressable>
+        </View>
+      </View>
     );
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
+      <View style={styles.headerBackground}>
+        <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.lg }]}>
+          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Image
+              source={require("../../assets/images/back-button.png")}
+              style={styles.backButtonImage}
+              contentFit="contain"
+            />
+          </Pressable>
+          <Image
+            source={require("../../assets/images/ouvro-logo.png")}
+            style={styles.logo}
+            contentFit="contain"
+          />
+          <View style={styles.backButton} />
+        </View>
+      </View>
       <ScrollView
         contentContainerStyle={[
           styles.content,
@@ -305,13 +361,38 @@ export default function AudioCaptureScreen() {
           </ThemedText>
         </Card>
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#0B2545",
+  },
+  headerBackground: {
+    backgroundColor: "#FFFFFF",
+  },
+  headerBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backButtonImage: {
+    width: 28,
+    height: 28,
+  },
+  logo: {
+    width: 180,
+    height: 56,
   },
   loadingContainer: {
     flex: 1,
