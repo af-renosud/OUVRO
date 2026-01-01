@@ -80,8 +80,8 @@ export default function CaptureModalScreen() {
   const buttonSize = Math.min((height - 200) / 3.5, 140);
 
   return (
-    <View style={[styles.container, { backgroundColor: "#0B2545" }]}>
-      <View style={[styles.logoContainer, { paddingTop: insets.top + Spacing.xl }]}>
+    <View style={styles.container}>
+      <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.md }]}>
         <Image
           source={require("@assets/images/ouvro-logo.png")}
           style={styles.logo}
@@ -113,19 +113,23 @@ export default function CaptureModalScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#0B2545",
   },
-  logoContainer: {
+  headerBar: {
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
+    justifyContent: "center",
+    paddingBottom: Spacing.lg,
     paddingHorizontal: Spacing.lg,
   },
   logo: {
-    width: 160,
-    height: 50,
+    width: 180,
+    height: 56,
   },
   content: {
     flex: 1,
     padding: Spacing.lg,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.xl,
   },
   mediaGrid: {
     flex: 1,
