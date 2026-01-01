@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, Pressable, Alert, useWindowDimensions, Text } from "react-native";
+import { View, StyleSheet, Pressable, Alert, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { Image } from "expo-image";
+import { Spacing, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
 
@@ -80,6 +81,13 @@ export default function CaptureModalScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: "#0B2545" }]}>
+      <View style={[styles.logoContainer, { paddingTop: insets.top + Spacing.xl }]}>
+        <Image
+          source={require("@assets/images/ouvro-logo.png")}
+          style={styles.logo}
+          contentFit="contain"
+        />
+      </View>
       <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
         <View style={styles.mediaGrid}>
           {mediaOptions.map((item) => (
@@ -106,10 +114,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  logoContainer: {
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+  },
+  logo: {
+    width: 160,
+    height: 50,
+  },
   content: {
     flex: 1,
     padding: Spacing.lg,
-    paddingTop: Spacing.lg + 40,
+    paddingTop: Spacing.md,
   },
   mediaGrid: {
     flex: 1,
