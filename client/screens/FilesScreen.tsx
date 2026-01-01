@@ -181,12 +181,12 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   filterTab: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
     borderRadius: BorderRadius.full,
   },
   filterText: {
-    ...Typography.body,
+    ...Typography.bodySmall,
     fontWeight: "600",
   },
   listContent: {
