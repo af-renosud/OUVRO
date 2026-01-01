@@ -18,9 +18,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingTop: 8,
   },
   logo: {
-    width: 160,
-    height: 44,
+    width: 200,
+    height: 56,
   },
 });
