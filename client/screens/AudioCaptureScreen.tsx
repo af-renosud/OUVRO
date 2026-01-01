@@ -6,11 +6,14 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
-import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+
+type RecordingObject = {
+  stopAndUnloadAsync: () => Promise<unknown>;
+  getURI: () => string | null;
+};
 
 export default function AudioCaptureScreen() {
   const { theme } = useTheme();
@@ -26,6 +29,7 @@ export default function AudioCaptureScreen() {
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingRef = useRef<RecordingObject | null>(null);
 
   const isPhone = width < 500;
   const waveformSize = isPhone ? 120 : 160;
@@ -36,6 +40,9 @@ export default function AudioCaptureScreen() {
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+      }
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync().catch(() => {});
       }
     };
   }, []);
@@ -85,6 +92,11 @@ export default function AudioCaptureScreen() {
         playsInSilentModeIOS: true,
       });
 
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      
+      recordingRef.current = recording;
       setIsRecording(true);
       setRecordingDuration(0);
       setRecordingUri(null);
@@ -92,6 +104,8 @@ export default function AudioCaptureScreen() {
       timerRef.current = setInterval(() => {
         setRecordingDuration((d) => d + 1);
       }, 1000);
+
+      console.log("[Audio] Recording started");
     } catch (error) {
       console.error("Failed to start recording:", error);
     }
@@ -100,6 +114,7 @@ export default function AudioCaptureScreen() {
   const handleStopRecording = async () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
+      timerRef.current = null;
     }
 
     if (Platform.OS === "web") {
@@ -109,31 +124,66 @@ export default function AudioCaptureScreen() {
     }
 
     try {
+      if (!recordingRef.current) {
+        console.error("[Audio] No recording to stop");
+        setIsRecording(false);
+        return;
+      }
+
       const { Audio } = await import("expo-av");
+      
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      
+      console.log("[Audio] Recording stopped, URI:", uri);
+      
       setIsRecording(false);
-      setRecordingUri("file://recording.m4a");
+      setRecordingUri(uri);
+      recordingRef.current = null;
 
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
       });
     } catch (error) {
       console.error("Failed to stop recording:", error);
+      setIsRecording(false);
     }
   };
 
   const handlePlayPause = async () => {
-    if (!recordingUri) return;
-    setIsPlaying(!isPlaying);
-    
-    if (isPlaying) {
-      setTimeout(() => setIsPlaying(false), 100);
-    } else {
-      setTimeout(() => setIsPlaying(false), recordingDuration * 1000);
+    if (!recordingUri || Platform.OS === "web") {
+      setIsPlaying(!isPlaying);
+      if (!isPlaying) {
+        setTimeout(() => setIsPlaying(false), recordingDuration * 1000);
+      }
+      return;
+    }
+
+    try {
+      const { Audio } = await import("expo-av");
+      
+      if (isPlaying) {
+        setIsPlaying(false);
+      } else {
+        setIsPlaying(true);
+        const { sound } = await Audio.Sound.createAsync({ uri: recordingUri });
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            setIsPlaying(false);
+            sound.unloadAsync();
+          }
+        });
+        await sound.playAsync();
+      }
+    } catch (error) {
+      console.error("Playback error:", error);
+      setIsPlaying(false);
     }
   };
 
   const handleDone = () => {
     if (recordingUri) {
+      console.log("[Audio] Navigating with URI:", recordingUri);
       navigation.navigate("ObservationDetails", {
         projectId,
         mediaItems: [{ type: "audio", uri: recordingUri, duration: recordingDuration }],
