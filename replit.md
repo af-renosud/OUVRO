@@ -97,6 +97,12 @@ The app runs on port 8081 (Expo dev server) with Express backend on port 5000.
 Users can scan the QR code with Expo Go to test on physical devices.
 
 ## Recent Changes
+- January 1, 2026: ARCHIDOC sync integration and layout fixes
+  - Fixed ObservationDetailsScreen padding to prevent text overlapping with header (uses useHeaderHeight)
+  - Updated sync endpoint to POST observations to ARCHIDOC /api/field-observations endpoint
+  - Observations now store archidocProjectId (UUID) separately from local projectId (integer FK)
+  - Sync payload includes: projectId, observedBy, summary, observedAt, classification, status, priority
+  - Created default project (ID: 1) in local database for observations
 - January 1, 2026: Pre-deployment audit fixes
   - Files tab shows "Coming Soon" message (backend not yet implemented)
   - API configuration properly handles missing EXPO_PUBLIC_ARCHIDOC_API_URL
