@@ -181,7 +181,7 @@ export default function SettingsScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: tabBarHeight + 120 },
+          { paddingBottom: Math.max(tabBarHeight, 80) + 160 },
         ]}
         showsVerticalScrollIndicator={false}
       >
