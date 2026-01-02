@@ -62,14 +62,16 @@ ARCHIDOC `/api/archive/files` returns snake_case. OUVRO transforms in `fetchProj
 
 Response format: `{ files: [...] }` (wrapped array)
 
-### DQE Item Fields
-- `description` (not `designation`) - work item description
-- `assignedContractorId` - contractor UUID (or use `lotContractors[lotCode]`)
-- `zone` - building location (RDC, R+1, etc.)
-- `stageCode` - construction stage code
+### DQE Item Fields (ARCHIDOC → OUVRO mapping in `archidoc-api.ts`)
+- `lotNumber` → `lotCode` - lot identifier (e.g., "GO", "VRD", "SO")
+- `lotName` - full lot name (e.g., "GROS OEUVRE MAÇONNERIE")
+- `description` or `title` → `description` - work item description
+- `category` → `zone` - building location/category
 - `tags` - array of tag strings
-- `notes` - optional notes text
-- `attachments` - array of `{ id, fileName, fileUrl }`
+- `internalNotes` → `notes` - optional notes (array of `{ text }`)
+- `projectAttachments` → `attachments` - actual file attachments (ARCHIDOC uses `projectAttachments`, not `attachments`)
+  - Format: `{ id, name, url, type }`
+- Project-level `lotContractors` maps lot codes to contractor IDs (items don't have individual contractor assignments)
 
 ### File Category Values
 | Screen | Category Query |

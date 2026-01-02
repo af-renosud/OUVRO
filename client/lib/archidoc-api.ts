@@ -4,6 +4,7 @@ const ARCHIDOC_API_URL = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
 type RawDQEItem = {
   id: string;
   description?: string;
+  designation?: string; // Legacy field name
   title?: string; // Short title
   lotCode?: string;
   lotNumber?: string; // ARCHIDOC uses lotNumber, not lotCode
@@ -65,7 +66,7 @@ function mapDQEItem(raw: RawDQEItem): DQEItem {
   
   return {
     id: raw.id,
-    description: raw.description || raw.title || "",
+    description: raw.description || raw.title || raw.designation || "",
     lotCode: lotCode,
     unit: raw.unit,
     quantity: raw.quantity,
