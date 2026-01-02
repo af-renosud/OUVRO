@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { View, StyleSheet, Pressable, ActivityIndicator, Alert, Platform, useWindowDimensions, Modal, TextInput, KeyboardAvoidingView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -7,7 +7,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import Svg, { Path, Circle, Rect, Line, G, Text as SvgText } from "react-native-svg";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
-import { runOnJS } from "react-native-reanimated";
+import { runOnJS, useSharedValue, useAnimatedReaction } from "react-native-reanimated";
 import ViewShot from "react-native-view-shot";
 import * as FileSystem from "expo-file-system/legacy";
 import { ThemedText } from "@/components/ThemedText";
@@ -58,6 +58,11 @@ export default function AnnotationScreen() {
   const [showTextModal, setShowTextModal] = useState(false);
   const [textInput, setTextInput] = useState("");
   const [pendingTextPosition, setPendingTextPosition] = useState<number[] | null>(null);
+  
+  // Use refs for real-time point collection to avoid React state update delays
+  const currentPointsRef = useRef<number[][]>([]);
+  const isDrawingRef = useRef(false);
+  const drawingUpdateCounter = useSharedValue(0);
 
   const handleImageError = useCallback(() => {
     setImageError("Unable to load image. The URL may have expired.");
@@ -83,6 +88,8 @@ export default function AnnotationScreen() {
 
   const handlePanStart = useCallback((x: number, y: number, tool: AnnotationType) => {
     if (tool === "text") return;
+    isDrawingRef.current = true;
+    currentPointsRef.current = [[x, y]];
     const newElement: DrawingElement = {
       id: generateId(),
       type: tool,
@@ -94,23 +101,32 @@ export default function AnnotationScreen() {
   }, [selectedColor, strokeWidth]);
 
   const handlePanUpdate = useCallback((x: number, y: number, tool: AnnotationType) => {
-    if (tool === "text") return;
+    if (tool === "text" || !isDrawingRef.current) return;
+    
+    // Add point to ref immediately (no React state delay)
+    if (tool === "freehand") {
+      currentPointsRef.current.push([x, y]);
+    } else {
+      // For shapes, just update the end point
+      currentPointsRef.current = [currentPointsRef.current[0], [x, y]];
+    }
+    
+    // Update React state with current points
     setCurrentElement((prev) => {
       if (!prev) return prev;
-      if (prev.type === "freehand") {
-        return { ...prev, points: [...prev.points, [x, y]] };
-      } else {
-        const start = prev.points[0];
-        return { ...prev, points: [start, [x, y]] };
-      }
+      return { ...prev, points: [...currentPointsRef.current] };
     });
   }, []);
 
   const handlePanEnd = useCallback(() => {
+    isDrawingRef.current = false;
     setCurrentElement((prev) => {
-      if (prev) {
-        setElements((els) => [...els, prev]);
+      if (prev && currentPointsRef.current.length > 0) {
+        // Use the complete points from ref
+        const finalElement = { ...prev, points: [...currentPointsRef.current] };
+        setElements((els) => [...els, finalElement]);
       }
+      currentPointsRef.current = [];
       return null;
     });
   }, []);
