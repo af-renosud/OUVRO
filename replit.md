@@ -81,6 +81,8 @@ Response format: `{ files: [...] }` (wrapped array)
 | ProjectFilesScreen | `00` - `08` (Loi MOP phases) |
 
 ## Recent Changes (January 2, 2026)
+- **Fixed DQE Browser contractor display**: Contractor chips now show company names (fetched from `/api/contractors` endpoint) instead of UUID codes
+- **Fixed DQE lot filtering**: Selecting different lots (GO, SO, VRD) now correctly shows items for each lot - fixed by applying only the active filter (lot OR contractor) instead of both simultaneously
 - Fixed file access: snake_case → camelCase field mapping for `/api/archive/files`
 - Fixed DQE Browser: `designation` → `description` field name
 - Added DQE fields: `zone`, `stageCode`, `tags`, `assignedContractorId`
