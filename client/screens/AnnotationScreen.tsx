@@ -329,7 +329,7 @@ export default function AnnotationScreen() {
           <SvgText
             x={midX}
             y={midY + 5}
-            fill={color}
+            fill="#333333"
             fontSize={12}
             fontWeight="bold"
             textAnchor="middle"

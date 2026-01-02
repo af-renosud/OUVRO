@@ -61,9 +61,11 @@ shared/
 5. **Translation**: Translate text to French for contractor communication
 6. **Share Options**: WhatsApp and SMS sharing of observations
 7. **Sync Queue**: Manual sync control with WiFi/cellular preferences
-8. **Project Files**: Browse project documents by Loi MOP category
+8. **Project Files**: Browse project documents by Asset Hub category (00-08)
 9. **File Viewer**: View PDFs and images from ARCHIDOC Asset Hub
-10. **Annotations**: Draw markups on images (pen, arrow, shapes, text) with French construction standard colors
+10. **Annotations**: Draw markups on images (pen, arrow, shapes, text, measurement) with French construction standard colors
+11. **DQE Browser**: Browse project DQE items with lot filtering
+12. **Project Links**: View and open external project links
 
 ## External API Integration
 The app connects to the live ARCHIDOC system at https://archidoc.app to fetch project data. The ARCHIDOC API URL is configurable via the `EXPO_PUBLIC_ARCHIDOC_API_URL` environment variable.
@@ -141,11 +143,19 @@ This will execute the following checks:
 ---
 
 ## Recent Changes
+- January 2, 2026: ARCHIDOC Asset Hub Integration (Phase 2)
+  - Updated file categories to Asset Hub structure (00-08: Contrats, PLU, État des Lieux, Permis, Admin, DCE, DET, VISA, AOR)
+  - New DQEBrowserScreen: Browse project DQE items with lot code filtering
+  - New ProjectLinksScreen: View and open external project links with auto-detected icons
+  - Measurement tool added to AnnotationScreen with distance display (pixels/meters) and perpendicular tick marks
+  - FilesScreen action row: Files, DQE, and Links buttons (disabled when no data available)
+  - Fixed ProjectLinksScreen to show alert when link cannot be opened
+  - Fixed AnnotationScreen measurement text to use dark color for readability
 - January 2, 2026: ARCHIDOC Project Files Integration
   - New FilesScreen: Browse projects to access their files
-  - ProjectFilesScreen: View files by Loi MOP category (ESQ, APS, APD, PRO, DCE, ACT, VISA, DET, AOR)
+  - ProjectFilesScreen: View files by category with tabs
   - FileViewerScreen: View PDFs (WebView) and images with zoom
-  - AnnotationScreen: Draw on images with pen, arrow, rectangle, circle, and text tools
+  - AnnotationScreen: Draw on images with pen, arrow, rectangle, circle, text, and measurement tools
   - Annotation colors: Red (defects), Orange (warnings), Blue (info), Green (approved), Black (general)
   - Save annotations: Flattens drawing onto image and uploads to ARCHIDOC annotations category
   - API client in archidoc-api.ts: fetchProjectFiles, getFileDownloadUrl, requestUploadUrl, archiveUploadedFile

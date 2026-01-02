@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Pressable, FlatList, Linking } from "react-native";
+import { View, StyleSheet, Pressable, FlatList, Linking, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRoute, RouteProp } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -29,14 +29,25 @@ export default function ProjectLinksScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "ProjectLinks">>();
   const { projectName, links } = route.params;
 
-  const handleOpenLink = async (url: string) => {
+  const handleOpenLink = async (url: string, title: string) => {
     try {
       const supported = await Linking.canOpenURL(url);
       if (supported) {
         await Linking.openURL(url);
+      } else {
+        Alert.alert(
+          "Impossible d'ouvrir le lien",
+          `Le lien "${title}" ne peut pas être ouvert sur cet appareil.`,
+          [{ text: "OK" }]
+        );
       }
     } catch (error) {
       console.error("Failed to open link:", error);
+      Alert.alert(
+        "Erreur",
+        "Une erreur s'est produite lors de l'ouverture du lien.",
+        [{ text: "OK" }]
+      );
     }
   };
 
@@ -46,7 +57,7 @@ export default function ProjectLinksScreen() {
     return (
       <Pressable
         style={[styles.linkItem, { backgroundColor: theme.backgroundSecondary }]}
-        onPress={() => handleOpenLink(item.url)}
+        onPress={() => handleOpenLink(item.url, item.title)}
       >
         <View style={[styles.linkIcon, { backgroundColor: theme.backgroundTertiary }]}>
           <Feather name={iconName as any} size={24} color={BrandColors.primary} />
