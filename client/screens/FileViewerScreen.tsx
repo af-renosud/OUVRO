@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { View, StyleSheet, Pressable, ActivityIndicator, Platform, useWindowDimensions, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -6,7 +6,8 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import WebView from "react-native-webview";
-import ViewShot from "react-native-view-shot";
+import { captureScreen } from "react-native-view-shot";
+import { StatusBar } from "expo-status-bar";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
@@ -25,7 +26,7 @@ export default function FileViewerScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
-  const pdfViewShotRef = useRef<ViewShot>(null);
+  const [hideChrome, setHideChrome] = useState(false);
 
   const isImage = file.contentType.startsWith("image/");
   const isPdf = file.contentType === "application/pdf";
@@ -39,14 +40,18 @@ export default function FileViewerScreen() {
   };
 
   const handleCapturePdfClip = async () => {
-    if (!pdfViewShotRef.current?.capture) {
-      Alert.alert("Error", "Unable to capture. Please try again.");
-      return;
-    }
-
     try {
       setIsCapturing(true);
-      const capturedUri = await pdfViewShotRef.current.capture();
+      setHideChrome(true);
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const capturedUri = await captureScreen({
+        format: "png",
+        quality: 1,
+      });
+      
+      setHideChrome(false);
       
       const pdfName = file.originalName.replace(/\.pdf$/i, "");
       const timestamp = Date.now();
@@ -70,6 +75,7 @@ export default function FileViewerScreen() {
       });
     } catch (err) {
       console.error("PDF capture error:", err);
+      setHideChrome(false);
       Alert.alert("Capture Failed", "Unable to capture the current view. Please try again.");
     } finally {
       setIsCapturing(false);
@@ -128,42 +134,38 @@ export default function FileViewerScreen() {
       }
       return (
         <View style={styles.pdfContainer}>
-          <ViewShot
-            ref={pdfViewShotRef}
-            style={styles.pdfViewShot}
-            options={{ format: "png", quality: 1 }}
-          >
-            <WebView
-              source={{ uri: signedUrl }}
-              style={styles.webview}
-              onLoadStart={() => setIsLoading(true)}
-              onLoadEnd={() => setIsLoading(false)}
-              onError={() => {
-                setIsLoading(false);
-                setError("Failed to load PDF");
-              }}
-              scalesPageToFit={true}
-              bounces={false}
-            />
-          </ViewShot>
-          <Pressable
-            style={[
-              styles.captureButton,
-              { bottom: insets.bottom + Spacing.xl },
-              isCapturing && styles.captureButtonDisabled,
-            ]}
-            onPress={handleCapturePdfClip}
-            disabled={isCapturing || isLoading}
-          >
-            {isCapturing ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Feather name="camera" size={20} color="#FFFFFF" />
-                <ThemedText style={styles.captureButtonText}>Capture for Annotation</ThemedText>
-              </>
-            )}
-          </Pressable>
+          <WebView
+            source={{ uri: signedUrl }}
+            style={styles.webview}
+            onLoadStart={() => setIsLoading(true)}
+            onLoadEnd={() => setIsLoading(false)}
+            onError={() => {
+              setIsLoading(false);
+              setError("Failed to load PDF");
+            }}
+            scalesPageToFit={true}
+            bounces={false}
+          />
+          {!hideChrome ? (
+            <Pressable
+              style={[
+                styles.captureButton,
+                { bottom: insets.bottom + Spacing.xl },
+                isCapturing && styles.captureButtonDisabled,
+              ]}
+              onPress={handleCapturePdfClip}
+              disabled={isCapturing || isLoading}
+            >
+              {isCapturing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Feather name="camera" size={20} color="#FFFFFF" />
+                  <ThemedText style={styles.captureButtonText}>Capture for Annotation</ThemedText>
+                </>
+              )}
+            </Pressable>
+          ) : null}
         </View>
       );
     }
@@ -183,35 +185,38 @@ export default function FileViewerScreen() {
 
   return (
     <BackgroundView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Pressable
-          style={[styles.headerButton, { backgroundColor: theme.backgroundSecondary }]}
-          onPress={() => navigation.goBack()}
-        >
-          <Feather name="x" size={24} color={theme.text} />
-        </Pressable>
-        <View style={styles.headerInfo}>
-          <ThemedText style={[styles.fileName, { color: theme.text }]} numberOfLines={1}>
-            {file.originalName}
-          </ThemedText>
-          <ThemedText style={[styles.fileSize, { color: theme.textSecondary }]}>
-            {formatFileSize(file.size)}
-          </ThemedText>
-        </View>
-        {isImage ? (
+      <StatusBar hidden={hideChrome} />
+      {!hideChrome ? (
+        <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
           <Pressable
-            style={[styles.annotateButton, { backgroundColor: BrandColors.primary }]}
-            onPress={handleAnnotate}
+            style={[styles.headerButton, { backgroundColor: theme.backgroundSecondary }]}
+            onPress={() => navigation.goBack()}
           >
-            <Feather name="edit-2" size={18} color="#FFFFFF" />
-            <ThemedText style={styles.annotateText}>Annotate</ThemedText>
+            <Feather name="x" size={24} color={theme.text} />
           </Pressable>
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
-      </View>
+          <View style={styles.headerInfo}>
+            <ThemedText style={[styles.fileName, { color: theme.text }]} numberOfLines={1}>
+              {file.originalName}
+            </ThemedText>
+            <ThemedText style={[styles.fileSize, { color: theme.textSecondary }]}>
+              {formatFileSize(file.size)}
+            </ThemedText>
+          </View>
+          {isImage ? (
+            <Pressable
+              style={[styles.annotateButton, { backgroundColor: BrandColors.primary }]}
+              onPress={handleAnnotate}
+            >
+              <Feather name="edit-2" size={18} color="#FFFFFF" />
+              <ThemedText style={styles.annotateText}>Annotate</ThemedText>
+            </Pressable>
+          ) : (
+            <View style={styles.headerSpacer} />
+          )}
+        </View>
+      ) : null}
 
-      <View style={styles.content}>
+      <View style={[styles.content, hideChrome && styles.contentFullscreen]}>
         {isLoading && !error ? (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={BrandColors.primary} />
@@ -265,6 +270,13 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentFullscreen: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -325,9 +337,6 @@ const styles = StyleSheet.create({
   pdfContainer: {
     flex: 1,
     position: "relative",
-  },
-  pdfViewShot: {
-    flex: 1,
   },
   captureButton: {
     position: "absolute",

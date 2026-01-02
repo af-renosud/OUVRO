@@ -99,6 +99,6 @@ Response format: `{ files: [...] }` (wrapped array)
   - ProjectFilesScreen: Routes through FileViewer with annotation access
 - **Fixed iOS annotation tool crash**: Wrapped gesture handler state updates with `runOnJS` from react-native-reanimated to prevent cross-thread violations
 - **Fixed annotation save failure**: Updated `expo-file-system` import to use legacy API for SDK 54 compatibility
-- **Added PDF Clip-to-Annotate**: FileViewerScreen now shows a "Capture for Annotation" button when viewing PDFs, allowing architects to pinch/zoom and capture the current view for annotation
+- **Added PDF Clip-to-Annotate**: FileViewerScreen now shows a "Capture for Annotation" button when viewing PDFs, allowing architects to pinch/zoom and capture the current view for annotation. Uses `captureScreen()` with status bar and UI chrome hidden during capture for clean PDF-only screenshots.
 
 **Note:** Files uploaded before January 2, 2026 may have empty `category`/`projectId` and won't appear in filtered queries.
