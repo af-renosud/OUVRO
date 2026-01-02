@@ -77,12 +77,12 @@ Each project card shows 6 action buttons:
 | FICHES | FichesScreen | All documents attached to any DQE item |
 | DRIVE | External link | Opens project Google Drive folder |
 
-### Project External Link Fields
-- `photoSiteLink` - Google Drive/Dropbox photo folder
-- `models3dLink` - SketchUp, Revit, ArchiCAD files
-- `scan3dVisitLink` - Matterport, point cloud link
-- `googleDriveLink` - Project Google Drive folder
-- `plansDrawingsLink` - External plans folder (fallback)
+### Project External Link Fields (ARCHIDOC API)
+- `photosUrl` - Google Drive/Dropbox photo folder
+- `model3dUrl` - SketchUp, Revit, ArchiCAD files
+- `tour3dUrl` - Matterport, point cloud, 3D tour link
+- `googleDriveUrl` - Project Google Drive folder
+- `lotContractors` - Record<string, string> mapping lot codes to contractor names
 
 ## External API Integration
 The app connects to the live ARCHIDOC system at https://archidoc.app to fetch project data. The ARCHIDOC API URL is configurable via the `EXPO_PUBLIC_ARCHIDOC_API_URL` environment variable.
@@ -160,15 +160,20 @@ This will execute the following checks:
 ---
 
 ## Recent Changes
+- January 2, 2026: ARCHIDOC API Field Name Corrections
+  - Fixed project external link field names to match ARCHIDOC API: photosUrl, model3dUrl, tour3dUrl, googleDriveUrl
+  - Updated FileDownloadResponse type to use nested file.freshUrl structure (matches actual API response)
+  - Updated all file-accessing screens (PlansScreen, DocsScreen, ProjectFilesScreen) to use correct response structure
+  - Added lotContractors field (Record<string, string>) for contractor filtering
+  - Removed non-existent plansDrawingsLink field
 - January 2, 2026: New 6-Button File Access Strategy
   - FilesScreen: New 6-button menu per project (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE)
-  - PlansScreen: Browse plans & drawings with fallback to external link
+  - PlansScreen: Browse plans & drawings (Asset Hub category: plans)
   - DocsScreen: Browse general documents (Asset Hub category: general)
   - FichesScreen: View all DQE item attachments in one place
   - LINKS: Modal dropdown with 3 external links (Photos du Site, Modèles 3D, Visite 3D)
   - DRIVE: Opens project Google Drive folder directly
   - DQEBrowserScreen: Added contractor filter alongside lot filter
-  - API: Added new project fields (photoSiteLink, models3dLink, scan3dVisitLink, googleDriveLink, plansDrawingsLink)
   - API: Added DQEAttachment type and getAllDQEAttachments helper function
 - January 2, 2026: ARCHIDOC Asset Hub Integration (Phase 2)
   - Updated file categories to Asset Hub structure (00-08: Contrats, PLU, État des Lieux, Permis, Admin, DCE, DET, VISA, AOR)
