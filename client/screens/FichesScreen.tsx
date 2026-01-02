@@ -80,20 +80,11 @@ export default function FichesScreen() {
         createdAt: new Date().toISOString(),
       };
       
-      // For images, go directly to annotation screen
-      if (isImageFile(entry.attachment.fileName)) {
-        navigation.navigate("Annotation", {
-          file,
-          signedUrl: urlToUse,
-          projectId,
-        });
-      } else {
-        // For other files, open in FileViewer
-        navigation.navigate("FileViewer", {
-          file,
-          signedUrl: urlToUse,
-        });
-      }
+      // Always go through FileViewer first - users can preview and choose to annotate
+      navigation.navigate("FileViewer", {
+        file,
+        signedUrl: urlToUse,
+      });
     } catch (err) {
       Alert.alert("Erreur", "Impossible d'ouvrir le fichier.");
     } finally {

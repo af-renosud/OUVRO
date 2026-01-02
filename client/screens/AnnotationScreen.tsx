@@ -203,26 +203,37 @@ export default function AnnotationScreen() {
           uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
           headers: { "Content-Type": "image/png" },
         });
-        console.log("[Annotation] Upload result:", uploadResult.status);
+        console.log("[Annotation] Upload result status:", uploadResult.status, "body:", uploadResult.body);
 
-        console.log("[Annotation] Archiving file...");
-        await archiveUploadedFile({
-          objectId: uploadInfo.objectId,
-          bucketName: uploadInfo.bucketName,
-          objectName: uploadInfo.objectName,
-          originalName: fileName,
-          contentType: "image/png",
-          size: fileSize,
-          projectId,
-          category: "annotations",
-        });
-        console.log("[Annotation] Archive complete!");
+        // Verify upload succeeded (200 or 201)
+        if (uploadResult.status < 200 || uploadResult.status >= 300) {
+          throw new Error(`Upload failed with status ${uploadResult.status}: ${uploadResult.body}`);
+        }
 
-        Alert.alert(
-          "Saved",
-          "Annotation saved to project files.",
-          [{ text: "OK", onPress: () => navigation.goBack() }]
-        );
+        console.log("[Annotation] Archiving file with projectId:", projectId);
+        try {
+          await archiveUploadedFile({
+            objectId: uploadInfo.objectId,
+            bucketName: uploadInfo.bucketName,
+            objectName: uploadInfo.objectName,
+            originalName: fileName,
+            contentType: "image/png",
+            size: fileSize,
+            projectId,
+            category: "annotations",
+          });
+          console.log("[Annotation] Archive complete!");
+
+          Alert.alert(
+            "Saved",
+            "Annotation saved to project files.",
+            [{ text: "OK", onPress: () => navigation.goBack() }]
+          );
+        } catch (archiveError) {
+          console.error("[Annotation] Archive failed:", archiveError);
+          const archiveErrorMsg = archiveError instanceof Error ? archiveError.message : "Archive failed";
+          throw new Error(`File uploaded but failed to register: ${archiveErrorMsg}`);
+        }
       }
     } catch (error) {
       console.error("Save error:", error);

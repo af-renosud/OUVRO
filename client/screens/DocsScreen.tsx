@@ -38,18 +38,13 @@ export default function DocsScreen() {
   const handleFilePress = async (file: ProjectFile) => {
     try {
       const response = await getFileDownloadUrl(file.objectId);
-      if (file.contentType.includes("image")) {
-        navigation.navigate("Annotation", {
-          file,
-          signedUrl: response.file.freshUrl,
-          projectId,
-        });
-      } else {
-        navigation.navigate("FileViewer", {
-          file,
-          signedUrl: response.file.freshUrl,
-        });
-      }
+      // Always go through FileViewer first - users can choose to annotate from there
+      // Only add projectId if not already present, preserving all other fields
+      const fileForViewer = file.projectId ? file : { ...file, projectId };
+      navigation.navigate("FileViewer", {
+        file: fileForViewer,
+        signedUrl: response.file.freshUrl,
+      });
     } catch (err) {
       Alert.alert("Erreur", "Impossible d'ouvrir ce fichier.");
     }
