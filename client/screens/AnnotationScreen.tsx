@@ -190,20 +190,10 @@ export default function AnnotationScreen() {
 
         const uploadInfo = await requestUploadUrl(fileName, "image/png", fileSize);
 
-        const fileData = await FileSystem.readAsStringAsync(uri, {
-          encoding: "base64",
-        });
-        const binaryString = atob(fileData);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        const blob = new Blob([bytes], { type: "image/png" });
-
-        await fetch(uploadInfo.uploadURL, {
-          method: "PUT",
+        await FileSystem.uploadAsync(uploadInfo.uploadURL, uri, {
+          httpMethod: "PUT",
+          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
           headers: { "Content-Type": "image/png" },
-          body: blob,
         });
 
         await archiveUploadedFile({
