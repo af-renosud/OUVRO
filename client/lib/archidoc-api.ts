@@ -41,12 +41,15 @@ export type MappedProject = {
 
 export type DQEItem = {
   id: string;
-  designation: string;
+  description: string;
   lotCode: string;
   unit: string;
   quantity: number;
+  zone?: string;
+  stageCode?: string;
+  tags?: string[];
   notes?: string;
-  contractorId?: string;
+  assignedContractorId?: string | null;
   attachments?: DQEAttachment[];
 };
 

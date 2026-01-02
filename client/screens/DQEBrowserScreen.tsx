@@ -41,10 +41,23 @@ export default function DQEBrowserScreen() {
   const items = project?.items || [];
   const lotCodes = useMemo(() => getUniqueLotCodes(items), [items]);
   
-  const contractorIds = useMemo(() => {
-    const ids = new Set(items.filter((item) => item.contractorId).map((item) => item.contractorId as string));
-    return Array.from(ids).sort();
-  }, [items]);
+  const lotContractors = project?.lotContractors || {};
+  
+  const getContractorForItem = (item: DQEItem): string | null => {
+    if (item.assignedContractorId) return item.assignedContractorId;
+    return lotContractors[item.lotCode] || null;
+  };
+
+  const uniqueContractors = useMemo(() => {
+    const contractorSet = new Map<string, string>();
+    items.forEach((item) => {
+      const contractorId = getContractorForItem(item);
+      if (contractorId) {
+        contractorSet.set(contractorId, contractorId);
+      }
+    });
+    return Array.from(contractorSet.keys()).sort();
+  }, [items, lotContractors]);
 
   const filteredItems = useMemo(() => {
     let result = items;
@@ -52,10 +65,10 @@ export default function DQEBrowserScreen() {
       result = result.filter((item) => item.lotCode === selectedLot);
     }
     if (selectedContractor) {
-      result = result.filter((item) => item.contractorId === selectedContractor);
+      result = result.filter((item) => getContractorForItem(item) === selectedContractor);
     }
     return result;
-  }, [items, selectedLot, selectedContractor]);
+  }, [items, selectedLot, selectedContractor, lotContractors]);
 
   const hasAttachments = (item: DQEItem): boolean => {
     return !!(item.attachments && item.attachments.length > 0);
@@ -106,6 +119,10 @@ export default function DQEBrowserScreen() {
     );
   };
 
+  const getContractorDisplayName = (contractorId: string): string => {
+    return contractorId.length > 20 ? contractorId.substring(0, 8) + "..." : contractorId;
+  };
+
   const renderContractorTab = (contractorId: string) => {
     const isActive = selectedContractor === contractorId;
     return (
@@ -124,7 +141,7 @@ export default function DQEBrowserScreen() {
           ]}
           numberOfLines={1}
         >
-          {contractorId}
+          {getContractorDisplayName(contractorId)}
         </ThemedText>
       </Pressable>
     );
@@ -133,6 +150,7 @@ export default function DQEBrowserScreen() {
   const renderItem = ({ item }: { item: DQEItem }) => {
     const isExpanded = expandedItemId === item.id;
     const hasFiles = hasAttachments(item);
+    const contractorId = getContractorForItem(item);
 
     return (
       <Pressable
@@ -147,7 +165,7 @@ export default function DQEBrowserScreen() {
           </View>
           <View style={styles.itemTitleContainer}>
             <ThemedText style={[styles.itemTitle, { color: theme.text }]} numberOfLines={isExpanded ? undefined : 2}>
-              {item.designation}
+              {item.description}
             </ThemedText>
           </View>
           {hasFiles ? (
@@ -178,13 +196,33 @@ export default function DQEBrowserScreen() {
                 {item.quantity}
               </ThemedText>
             </View>
-            {item.contractorId ? (
+            {item.zone ? (
+              <View style={styles.detailRow}>
+                <ThemedText style={[styles.detailLabel, { color: theme.textSecondary }]}>
+                  Zone:
+                </ThemedText>
+                <ThemedText style={[styles.detailValue, { color: theme.text }]}>
+                  {item.zone}
+                </ThemedText>
+              </View>
+            ) : null}
+            {item.stageCode ? (
+              <View style={styles.detailRow}>
+                <ThemedText style={[styles.detailLabel, { color: theme.textSecondary }]}>
+                  Étape:
+                </ThemedText>
+                <ThemedText style={[styles.detailValue, { color: theme.text }]}>
+                  {item.stageCode}
+                </ThemedText>
+              </View>
+            ) : null}
+            {contractorId ? (
               <View style={styles.detailRow}>
                 <ThemedText style={[styles.detailLabel, { color: theme.textSecondary }]}>
                   Entreprise:
                 </ThemedText>
                 <ThemedText style={[styles.detailValue, { color: theme.text }]}>
-                  {item.contractorId}
+                  {contractorId}
                 </ThemedText>
               </View>
             ) : null}
@@ -203,8 +241,8 @@ export default function DQEBrowserScreen() {
                 <ThemedText style={[styles.detailLabel, { color: theme.textSecondary }]}>
                   Fiches ({item.attachments?.length}):
                 </ThemedText>
-                {item.attachments?.map((att, index) => (
-                  <View key={att.id || index} style={styles.attachmentItem}>
+                {item.attachments?.map((att) => (
+                  <View key={att.id} style={styles.attachmentItem}>
                     <Feather name="file" size={14} color={BrandColors.primary} />
                     <ThemedText style={[styles.attachmentName, { color: BrandColors.primary }]} numberOfLines={1}>
                       {att.fileName}
@@ -265,7 +303,7 @@ export default function DQEBrowserScreen() {
       <View style={[styles.content, { paddingTop: headerHeight + Spacing.sm }]}>
         <View style={styles.filterRow}>
           {renderFilterTab("lot", "Lot", lotCodes.length)}
-          {renderFilterTab("contractor", "Entreprise", contractorIds.length)}
+          {renderFilterTab("contractor", "Entreprise", uniqueContractors.length)}
         </View>
 
         {activeFilter === "lot" && lotCodes.length > 0 ? (
@@ -279,18 +317,18 @@ export default function DQEBrowserScreen() {
           </ScrollView>
         ) : null}
 
-        {activeFilter === "contractor" && contractorIds.length > 0 ? (
+        {activeFilter === "contractor" && uniqueContractors.length > 0 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles.optionScroll}
             contentContainerStyle={styles.optionContainer}
           >
-            {contractorIds.map(renderContractorTab)}
+            {uniqueContractors.map(renderContractorTab)}
           </ScrollView>
         ) : null}
 
-        {activeFilter === "contractor" && contractorIds.length === 0 ? (
+        {activeFilter === "contractor" && uniqueContractors.length === 0 ? (
           <View style={styles.noFilterData}>
             <ThemedText style={[styles.noFilterText, { color: theme.textSecondary }]}>
               Aucune entreprise assignée
