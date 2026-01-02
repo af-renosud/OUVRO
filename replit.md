@@ -30,6 +30,9 @@ client/
 │   ├── ProjectsScreen.tsx
 │   ├── QueueScreen.tsx
 │   ├── FilesScreen.tsx
+│   ├── ProjectFilesScreen.tsx
+│   ├── FileViewerScreen.tsx
+│   ├── AnnotationScreen.tsx
 │   ├── SettingsScreen.tsx
 │   ├── CaptureModalScreen.tsx
 │   ├── PhotoCaptureScreen.tsx
@@ -58,12 +61,19 @@ shared/
 5. **Translation**: Translate text to French for contractor communication
 6. **Share Options**: WhatsApp and SMS sharing of observations
 7. **Sync Queue**: Manual sync control with WiFi/cellular preferences
+8. **Project Files**: Browse project documents by Loi MOP category
+9. **File Viewer**: View PDFs and images from ARCHIDOC Asset Hub
+10. **Annotations**: Draw markups on images (pen, arrow, shapes, text) with French construction standard colors
 
 ## External API Integration
 The app connects to the live ARCHIDOC system at https://archidoc.app to fetch project data. The ARCHIDOC API URL is configurable via the `EXPO_PUBLIC_ARCHIDOC_API_URL` environment variable.
 
 ### ARCHIDOC API (External)
 - `GET /api/projects` - Fetch projects from ARCHIDOC (projectName, clientName, address, status)
+- `GET /api/archive/files?projectId={id}&category={cat}` - List files by project and category
+- `GET /api/archive/files/{objectId}` - Get signed download URL for file
+- `POST /api/uploads/request-url` - Request signed upload URL
+- `POST /api/archive/files` - Archive uploaded file to project
 
 ### Local API Endpoints
 - `GET /api/observations/pending` - Get pending sync queue
@@ -131,6 +141,20 @@ This will execute the following checks:
 ---
 
 ## Recent Changes
+- January 2, 2026: ARCHIDOC Project Files Integration
+  - New FilesScreen: Browse projects to access their files
+  - ProjectFilesScreen: View files by Loi MOP category (ESQ, APS, APD, PRO, DCE, ACT, VISA, DET, AOR)
+  - FileViewerScreen: View PDFs (WebView) and images with zoom
+  - AnnotationScreen: Draw on images with pen, arrow, rectangle, circle, and text tools
+  - Annotation colors: Red (defects), Orange (warnings), Blue (info), Green (approved), Black (general)
+  - Save annotations: Flattens drawing onto image and uploads to ARCHIDOC annotations category
+  - API client in archidoc-api.ts: fetchProjectFiles, getFileDownloadUrl, requestUploadUrl, archiveUploadedFile
+  - Added react-native-svg, react-native-webview, react-native-view-shot dependencies
+  - Added Typography.bodyBold and Typography.caption to theme
+- January 2, 2026: Audio capture screen fix
+  - Converted from dynamic imports to static imports for expo-av and expo-audio
+  - Restored 10-second permission timeout safeguard to prevent hanging
+  - Fixed import order - all imports at top of file before type declarations
 - January 2, 2026: Pre-deployment audit completed
   - All LSP diagnostics clear, no TypeScript errors
   - Database schema verified: 7 tables (users, projects, observations, observation_media, project_files, conversations, messages)

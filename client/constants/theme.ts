@@ -118,8 +118,16 @@ export const Typography = {
     fontSize: 17,
     fontWeight: "400" as const,
   },
+  bodyBold: {
+    fontSize: 17,
+    fontWeight: "600" as const,
+  },
   bodySmall: {
     fontSize: 15,
+    fontWeight: "400" as const,
+  },
+  caption: {
+    fontSize: 13,
     fontWeight: "400" as const,
   },
   label: {

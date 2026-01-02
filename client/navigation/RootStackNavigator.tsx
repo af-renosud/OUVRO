@@ -8,7 +8,11 @@ import AudioCaptureScreen from "@/screens/AudioCaptureScreen";
 import ObservationDetailsScreen from "@/screens/ObservationDetailsScreen";
 import ProjectDetailScreen from "@/screens/ProjectDetailScreen";
 import ShareModalScreen from "@/screens/ShareModalScreen";
+import FileViewerScreen from "@/screens/FileViewerScreen";
+import AnnotationScreen from "@/screens/AnnotationScreen";
+import ProjectFilesScreen from "@/screens/ProjectFilesScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import type { FileCategory, ProjectFile } from "@/lib/archidoc-api";
 
 export type ShareObservation = {
   id: number;
@@ -28,6 +32,9 @@ export type RootStackParamList = {
   ObservationDetails: { projectId: string; mediaItems?: MediaItem[] };
   ProjectDetail: { projectId: string };
   ShareModal: { observation: ShareObservation; projectName: string; contractorName?: string };
+  FileViewer: { file: ProjectFile; signedUrl: string };
+  Annotation: { file: ProjectFile; signedUrl: string; projectId: string };
+  ProjectFiles: { projectId: string; projectName: string };
 };
 
 export type MediaItem = {
@@ -81,6 +88,21 @@ export default function RootStackNavigator() {
         name="ShareModal"
         component={ShareModalScreen}
         options={{ presentation: "modal", headerShown: false }}
+      />
+      <Stack.Screen
+        name="FileViewer"
+        component={FileViewerScreen}
+        options={{ presentation: "modal", headerTitle: "View File" }}
+      />
+      <Stack.Screen
+        name="Annotation"
+        component={AnnotationScreen}
+        options={{ presentation: "fullScreenModal", headerShown: false }}
+      />
+      <Stack.Screen
+        name="ProjectFiles"
+        component={ProjectFilesScreen}
+        options={{ headerTitle: "Project Files" }}
       />
     </Stack.Navigator>
   );
