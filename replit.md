@@ -27,6 +27,7 @@ Key features include:
     - **Drive**: Opens project Google Drive folder.
 - **File Viewer**: View PDFs and images with zoom.
 - **Annotations**: Draw markups on images (pen, arrow, shapes, text, measurement) with French construction standard colors, saving annotations by flattening them onto the image.
+- **PDF Clip-to-Annotate**: While viewing PDFs, architects can pinch/zoom to the desired area, tap "Capture for Annotation" to capture the current view as an image, annotate it, and save. Supports taking multiple clips from a single PDF.
 
 The application structure separates client (navigation, screens, components, constants, lib), server (routes, storage, index), and shared (schema) concerns.
 
@@ -96,5 +97,8 @@ Response format: `{ files: [...] }` (wrapped array)
   - PlansScreen/DocsScreen: Images open directly in annotation screen
   - FileViewerScreen: Images have annotate button in header
   - ProjectFilesScreen: Routes through FileViewer with annotation access
+- **Fixed iOS annotation tool crash**: Wrapped gesture handler state updates with `runOnJS` from react-native-reanimated to prevent cross-thread violations
+- **Fixed annotation save failure**: Updated `expo-file-system` import to use legacy API for SDK 54 compatibility
+- **Added PDF Clip-to-Annotate**: FileViewerScreen now shows a "Capture for Annotation" button when viewing PDFs, allowing architects to pinch/zoom and capture the current view for annotation
 
 **Note:** Files uploaded before January 2, 2026 may have empty `category`/`projectId` and won't appear in filtered queries.

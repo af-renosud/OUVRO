@@ -1,16 +1,17 @@
-import React, { useState } from "react";
-import { View, StyleSheet, Pressable, ActivityIndicator, Platform, useWindowDimensions } from "react-native";
+import React, { useState, useRef } from "react";
+import { View, StyleSheet, Pressable, ActivityIndicator, Platform, useWindowDimensions, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import WebView from "react-native-webview";
+import ViewShot from "react-native-view-shot";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
-import { formatFileSize } from "@/lib/archidoc-api";
+import { formatFileSize, type ProjectFile } from "@/lib/archidoc-api";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 export default function FileViewerScreen() {
@@ -23,6 +24,8 @@ export default function FileViewerScreen() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const pdfViewShotRef = useRef<ViewShot>(null);
 
   const isImage = file.contentType.startsWith("image/");
   const isPdf = file.contentType === "application/pdf";
@@ -33,6 +36,44 @@ export default function FileViewerScreen() {
       signedUrl,
       projectId: file.projectId,
     });
+  };
+
+  const handleCapturePdfClip = async () => {
+    if (!pdfViewShotRef.current?.capture) {
+      Alert.alert("Error", "Unable to capture. Please try again.");
+      return;
+    }
+
+    try {
+      setIsCapturing(true);
+      const capturedUri = await pdfViewShotRef.current.capture();
+      
+      const pdfName = file.originalName.replace(/\.pdf$/i, "");
+      const timestamp = Date.now();
+      const clipFileName = `clip-${pdfName}-${timestamp}.png`;
+      
+      const clipFile: ProjectFile = {
+        objectId: `clip-${timestamp}`,
+        objectName: clipFileName,
+        originalName: clipFileName,
+        contentType: "image/png",
+        size: 0,
+        projectId: file.projectId,
+        category: "annotations",
+        createdAt: new Date().toISOString(),
+      };
+
+      navigation.navigate("Annotation", {
+        file: clipFile,
+        signedUrl: capturedUri,
+        projectId: file.projectId,
+      });
+    } catch (err) {
+      console.error("PDF capture error:", err);
+      Alert.alert("Capture Failed", "Unable to capture the current view. Please try again.");
+    } finally {
+      setIsCapturing(false);
+    }
   };
 
   const renderContent = () => {
@@ -86,16 +127,44 @@ export default function FileViewerScreen() {
         );
       }
       return (
-        <WebView
-          source={{ uri: signedUrl }}
-          style={styles.webview}
-          onLoadStart={() => setIsLoading(true)}
-          onLoadEnd={() => setIsLoading(false)}
-          onError={() => {
-            setIsLoading(false);
-            setError("Failed to load PDF");
-          }}
-        />
+        <View style={styles.pdfContainer}>
+          <ViewShot
+            ref={pdfViewShotRef}
+            style={styles.pdfViewShot}
+            options={{ format: "png", quality: 1 }}
+          >
+            <WebView
+              source={{ uri: signedUrl }}
+              style={styles.webview}
+              onLoadStart={() => setIsLoading(true)}
+              onLoadEnd={() => setIsLoading(false)}
+              onError={() => {
+                setIsLoading(false);
+                setError("Failed to load PDF");
+              }}
+              scalesPageToFit={true}
+              bounces={false}
+            />
+          </ViewShot>
+          <Pressable
+            style={[
+              styles.captureButton,
+              { bottom: insets.bottom + Spacing.xl },
+              isCapturing && styles.captureButtonDisabled,
+            ]}
+            onPress={handleCapturePdfClip}
+            disabled={isCapturing || isLoading}
+          >
+            {isCapturing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Feather name="camera" size={20} color="#FFFFFF" />
+                <ThemedText style={styles.captureButtonText}>Capture for Annotation</ThemedText>
+              </>
+            )}
+          </Pressable>
+        </View>
       );
     }
 
@@ -252,5 +321,37 @@ const styles = StyleSheet.create({
   },
   fileTypeText: {
     ...Typography.caption,
+  },
+  pdfContainer: {
+    flex: 1,
+    position: "relative",
+  },
+  pdfViewShot: {
+    flex: 1,
+  },
+  captureButton: {
+    position: "absolute",
+    left: Spacing.lg,
+    right: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: BrandColors.primary,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  captureButtonDisabled: {
+    opacity: 0.6,
+  },
+  captureButtonText: {
+    ...Typography.bodyBold,
+    color: "#FFFFFF",
   },
 });
