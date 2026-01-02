@@ -200,7 +200,7 @@ export default function AnnotationScreen() {
         }
         const blob = new Blob([bytes], { type: "image/png" });
 
-        await fetch(uploadInfo.uploadUrl, {
+        await fetch(uploadInfo.uploadURL, {
           method: "PUT",
           headers: { "Content-Type": "image/png" },
           body: blob,
@@ -208,8 +208,8 @@ export default function AnnotationScreen() {
 
         await archiveUploadedFile({
           objectId: uploadInfo.objectId,
-          bucketName: "archidoc-assets",
-          objectName: uploadInfo.publicUrl,
+          bucketName: uploadInfo.bucketName,
+          objectName: uploadInfo.objectName,
           originalName: fileName,
           contentType: "image/png",
           size: fileSize,

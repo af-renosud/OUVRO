@@ -187,9 +187,17 @@ export type FileDownloadResponse = {
 };
 
 export type UploadUrlResponse = {
-  uploadUrl: string;
+  uploadURL: string;
   publicUrl: string;
   objectId: string;
+  bucketName: string;
+  objectName: string;
+  objectPath: string;
+  metadata: {
+    name: string;
+    size: number;
+    contentType: string;
+  };
 };
 
 export type AnnotationType = "arrow" | "circle" | "rectangle" | "freehand" | "text" | "measurement";
@@ -463,8 +471,7 @@ export async function requestUploadUrl(
   const response = await fetch(`${ARCHIDOC_API_URL}/api/uploads/request-url`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ fileName, contentType, size }),
+    body: JSON.stringify({ name: fileName, contentType, size }),
   });
 
   if (!response.ok) {
