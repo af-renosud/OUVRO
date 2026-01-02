@@ -9,7 +9,7 @@ import Svg, { Path, Circle, Rect, Line, G, Text as SvgText } from "react-native-
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import ViewShot from "react-native-view-shot";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
