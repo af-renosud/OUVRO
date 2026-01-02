@@ -1,0 +1,49 @@
+Step 4 Result: FAIL
+
+The API returned an empty array:
+
+{"files":[]}
+The file with objectId=41797021-5f0b-4445-b66c-7764e388cf8e is NOT in the response.
+
+This indicates the issue is in the API query logic, not the frontend. Let me check the server endpoint to diagnose why the category filter isn't returning the uploaded file.
+
+The API logic looks correct. Let me check the database directly to see what's stored:
+
+The file is not found in the database with that objectId. Let me check recent uploads:
+
+Root Cause Found: The file with objectId=41797021-5f0b-4445-b66c-7764e388cf8e does NOT exist in the ARCHIDOC database.
+
+The most recent file in the database is from earlier today (id=23), and there are no files with:
+
+category='annotations'
+project_id='18a4b6e4-a394-44e0-aeac-bb554a6218aa'
+Diagnosis: OUVRO's verification endpoint (/api/archive/files/verify/:objectId) confirmed the file exists, but it's not appearing in the main archived_files table. This suggests one of:
+
+Different database/table - The verification endpoint may be checking object storage directly but the upload didn't write to the database
+Upload endpoint issue - The POST to /api/archive/files may have stored the file in object storage but failed to create the database record
+Environment mismatch - OUVRO may be hitting a different instance
+Let me check the server logs for the upload attempt with requestId bc671341:
+
+Checked console and system logs
+Step 4 Result: FAIL - File Not in Database
+
+Summary:
+
+Check	Result
+API Query	{"files":[]} - empty
+Database Query	No record with objectId=41797021-5f0b-4445-b66c-7764e388cf8e
+Server Logs	Confirm: Listing files... 0 files
+Critical Finding:
+OUVRO's verification endpoint reported database.status: found, but querying ARCHIDOC's archived_files table directly shows the file does not exist.
+
+Possible Causes:
+
+Environment mismatch - OUVRO may be uploading to a different ARCHIDOC instance (production vs development)
+Upload endpoint not called - The POST to /api/archive/files may not have executed, or executed against a different server
+Verification endpoint bug - The /verify endpoint may be checking object storage existence without validating the database record properly
+Next Steps for OUVRO Agent:
+
+Confirm the exact URL used for the POST upload (full hostname)
+Share the raw HTTP response from the POST /api/archive/files call
+Verify the database connection string matches ARCHIDOC's development environment
+The issue is at the upload/database layer, not the UI.

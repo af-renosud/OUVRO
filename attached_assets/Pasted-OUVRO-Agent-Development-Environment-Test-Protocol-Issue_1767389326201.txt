@@ -1,0 +1,41 @@
+OUVRO Agent - Development Environment Test Protocol
+Issue Identified
+The previous test uploaded to the production ARCHIDOC instance (https://archidoc-app-ARCHIDOC.replit.app), but the ARCHIDOC Agent was querying the development database. These are separate databases, which is why the file appeared to exist in OUVRO's verification but not in ARCHIDOC's direct query.
+
+Correct Development Environment URLs
+For this test, OUVRO must use the development server, not production:
+
+Endpoint	Development URL
+Base URL	https://9e7c5f6c-2648-453a-a615-dfd4e879ed8d-00-2o2glazxnwp0u.riker.replit.dev
+Upload URL Request	POST {BASE_URL}/api/uploads/request-url
+Archive Registration	POST {BASE_URL}/api/archive/files
+Verification	GET {BASE_URL}/api/archive/files/verify/{objectId}
+File Listing	GET {BASE_URL}/api/archive/files?projectId={UUID}&category=annotations
+Important: Do NOT use archidoc-app-ARCHIDOC.replit.app - that is the production deployment with a separate database.
+
+Test Project Details
+Field	Value
+Project ID	18a4b6e4-a394-44e0-aeac-bb554a6218aa
+Category	annotations
+Revised Test Sequence
+Step	Actor	Action	Expected Result
+1	OUVRO Agent	Configure OUVRO to use development base URL above	Confirmed
+2	OUVRO Agent	Upload annotated file with projectId and category=annotations	200 OK with file.id and objectId
+3	OUVRO Agent	Call verification endpoint to confirm upload	verified: true, database.status: found
+4	OUVRO Agent	Provide objectId to ARCHIDOC Agent	Handoff
+5	ARCHIDOC Agent	Query GET /api/archive/files?projectId=...&category=annotations	File appears in response
+6	ARCHIDOC Agent	Query development database directly	File record exists
+7	User	Navigate to development ARCHIDOC → Asset Hub → "Annotations Terrain (OUVRO)" → Refresh	File visible in UI
+Success Criteria
+OUVRO upload returns 200 OK with valid objectId
+ARCHIDOC API query returns the file in the response
+ARCHIDOC direct database query finds the file record
+User sees the file in the ARCHIDOC UI
+Request to OUVRO Agent
+Confirm you can switch the target URL from production to development
+Perform a new upload using the development URL above
+Report the objectId, fileId, and requestId from the response
+Verify using the development verification endpoint
+Once you confirm the upload, the ARCHIDOC Agent will validate Steps 5-6, and the user will validate Step 7.
+
+Ready when you are.

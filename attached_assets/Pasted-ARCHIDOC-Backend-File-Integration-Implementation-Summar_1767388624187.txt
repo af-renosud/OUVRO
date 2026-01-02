@@ -1,0 +1,41 @@
+ARCHIDOC Backend File Integration - Implementation Summary for OUVRO iPad App
+What ARCHIDOC Now Supports
+1. File Upload Endpoint (unchanged)
+
+POST /api/archive/files accepts multipart file uploads
+Required fields: file (the file), projectId (project UUID), category (must be "annotations")
+Returns: { success: true, file: { id, objectId, originalName, contentType, size } }
+2. File Listing Endpoint
+
+GET /api/archive/files?projectId={UUID}&category=annotations
+Returns: { files: [{ id, object_id, original_name, content_type, size, uploaded_at, category }] }
+3. Individual File Access Endpoint
+
+GET /api/archive/files/{objectId}
+Returns: { file: { id, objectId, originalName, contentType, size, freshUrl } }
+freshUrl is a signed URL valid for direct download/display
+4. New UI in ARCHIDOC Asset Hub
+
+"Annotations Terrain (OUVRO)" section displays all files where category='annotations'
+Grid view with thumbnails, file names, sizes, and upload dates
+Preview modal with image display (for images), PDF open button (for PDFs), or download button (for other files)
+Refresh button to reload from server
+Error messages displayed if fetch fails
+Proposed Definitive Test Sequence
+Test: End-to-End OUVRO to ARCHIDOC File Workflow
+
+Step	Action	Expected Result
+1	In OUVRO, select a test project by its projectId (UUID)	Project context is set
+2	Capture/annotate a photo in OUVRO	Photo saved locally
+3	OUVRO uploads to POST /api/archive/files with projectId={UUID}, category="annotations"	Response: { success: true, file: { objectId: "..." } }
+4	In ARCHIDOC, open the same project's Asset Hub	Navigate to "Annotations Terrain (OUVRO)" section
+5	Click "Actualiser" (Refresh) button	Grid shows newly uploaded file with correct name and timestamp
+6	Click on the file thumbnail	Preview modal opens with image displayed correctly
+7	Click "Telecharger" button	File downloads successfully
+8	Verify file content matches original	Binary content is identical
+Negative Tests:
+
+Upload with missing projectId → Should return 400 error
+Upload with invalid category → File should not appear in Annotations section
+Switch projects in ARCHIDOC → Previous project's annotations should clear, new project's annotations should load
+Please confirm this matches your upload implementation and let me know if the projectId and category field names align with what OUVRO sends. Once confirmed, we can run the test sequence.
