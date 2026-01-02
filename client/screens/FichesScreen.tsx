@@ -1,14 +1,15 @@
-import React from "react";
-import { View, StyleSheet, Pressable, FlatList, Alert, Linking } from "react-native";
+import React, { useState } from "react";
+import { View, StyleSheet, Pressable, FlatList, Alert, Linking, ActivityIndicator } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRoute, type RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
-import { getAllDQEAttachments, getFileDownloadUrl, type DQEItem, type DQEAttachment } from "@/lib/archidoc-api";
+import { getAllDQEAttachments, getFileDownloadUrl, type DQEItem, type DQEAttachment, type ProjectFile } from "@/lib/archidoc-api";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type FichesScreenRouteProp = RouteProp<RootStackParamList, "FichesScreen">;
@@ -22,38 +23,81 @@ export default function FichesScreen() {
   const { theme } = useTheme();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<FichesScreenRouteProp>();
-  const { projectName, items } = route.params;
+  const { projectId, projectName, items } = route.params;
+  const [loadingAttachmentId, setLoadingAttachmentId] = useState<string | null>(null);
 
   const fiches = getAllDQEAttachments(items);
 
+  const getContentType = (fileName: string): string => {
+    const ext = fileName.toLowerCase().split(".").pop();
+    if (["jpg", "jpeg"].includes(ext || "")) return "image/jpeg";
+    if (ext === "png") return "image/png";
+    if (ext === "gif") return "image/gif";
+    if (ext === "webp") return "image/webp";
+    if (ext === "pdf") return "application/pdf";
+    if (["doc", "docx"].includes(ext || "")) return "application/msword";
+    if (["xls", "xlsx"].includes(ext || "")) return "application/vnd.ms-excel";
+    return "application/octet-stream";
+  };
+
+  const isImageFile = (fileName: string): boolean => {
+    const ext = fileName.toLowerCase().split(".").pop();
+    return ["jpg", "jpeg", "png", "gif", "webp"].includes(ext || "");
+  };
+
   const handleFichePress = async (entry: FicheEntry) => {
     try {
+      setLoadingAttachmentId(entry.attachment.id);
+      
       // Try to get fresh signed URL using attachment id as objectId
-      // If the id is an objectId, this will return a fresh signed URL
-      // Otherwise, fall back to the stored fileUrl
-      let urlToOpen = entry.attachment.fileUrl;
+      let freshUrl: string | null = null;
       
       if (entry.attachment.id) {
         try {
           const response = await getFileDownloadUrl(entry.attachment.id);
           if (response?.file?.freshUrl) {
-            urlToOpen = response.file.freshUrl;
+            freshUrl = response.file.freshUrl;
           }
         } catch (urlError) {
-          // If fresh URL fails, fall back to stored fileUrl
           console.log("Could not get fresh URL, using stored fileUrl:", urlError);
         }
       }
       
-      const canOpen = await Linking.canOpenURL(urlToOpen);
-      if (canOpen) {
-        await Linking.openURL(urlToOpen);
+      const urlToUse = freshUrl || entry.attachment.fileUrl;
+      const contentType = getContentType(entry.attachment.fileName);
+      
+      // Create a ProjectFile-like object for navigation
+      const file: ProjectFile = {
+        objectId: entry.attachment.id,
+        objectName: entry.attachment.fileName,
+        originalName: entry.attachment.fileName,
+        contentType,
+        size: 0,
+        projectId: projectId,
+        category: "general",
+        createdAt: new Date().toISOString(),
+      };
+      
+      // For images, go directly to annotation screen
+      if (isImageFile(entry.attachment.fileName)) {
+        navigation.navigate("Annotation", {
+          file,
+          signedUrl: urlToUse,
+          projectId,
+        });
       } else {
-        Alert.alert("Impossible d'ouvrir", "Ce fichier ne peut pas être ouvert sur cet appareil.");
+        // For other files, open in FileViewer
+        navigation.navigate("FileViewer", {
+          file,
+          signedUrl: urlToUse,
+        });
       }
     } catch (err) {
       Alert.alert("Erreur", "Impossible d'ouvrir le fichier.");
+    } finally {
+      setLoadingAttachmentId(null);
     }
   };
 
@@ -71,29 +115,44 @@ export default function FichesScreen() {
     return "file";
   };
 
-  const renderFicheItem = ({ item }: { item: FicheEntry }) => (
-    <Pressable
-      style={[styles.ficheItem, { backgroundColor: theme.backgroundSecondary }]}
-      onPress={() => handleFichePress(item)}
-    >
-      <View style={[styles.ficheIcon, { backgroundColor: theme.backgroundTertiary }]}>
-        <Feather name={getFileIcon(item.attachment.fileName) as any} size={20} color={BrandColors.primary} />
-      </View>
-      <View style={styles.ficheInfo}>
-        <ThemedText style={[styles.ficheName, { color: theme.text }]} numberOfLines={1}>
-          {item.attachment.fileName}
-        </ThemedText>
-        <ThemedText style={[styles.ficheSource, { color: theme.textSecondary }]} numberOfLines={1}>
-          {item.item.lotCode} - {item.item.description}
-        </ThemedText>
-      </View>
-      <View style={[styles.fileTypeBadge, { backgroundColor: `${BrandColors.primary}15` }]}>
-        <ThemedText style={[styles.fileTypeText, { color: BrandColors.primary }]}>
-          {getFileExtension(item.attachment.fileName)}
-        </ThemedText>
-      </View>
-    </Pressable>
-  );
+  const renderFicheItem = ({ item }: { item: FicheEntry }) => {
+    const isLoading = loadingAttachmentId === item.attachment.id;
+    const isImage = isImageFile(item.attachment.fileName);
+    
+    return (
+      <Pressable
+        style={[styles.ficheItem, { backgroundColor: theme.backgroundSecondary }]}
+        onPress={() => handleFichePress(item)}
+        disabled={isLoading}
+      >
+        <View style={[styles.ficheIcon, { backgroundColor: theme.backgroundTertiary }]}>
+          {isLoading ? (
+            <ActivityIndicator size="small" color={BrandColors.primary} />
+          ) : (
+            <Feather name={getFileIcon(item.attachment.fileName) as any} size={20} color={BrandColors.primary} />
+          )}
+        </View>
+        <View style={styles.ficheInfo}>
+          <ThemedText style={[styles.ficheName, { color: theme.text }]} numberOfLines={1}>
+            {item.attachment.fileName}
+          </ThemedText>
+          <ThemedText style={[styles.ficheSource, { color: theme.textSecondary }]} numberOfLines={1}>
+            {item.item.lotCode} - {item.item.description}
+          </ThemedText>
+        </View>
+        {isImage ? (
+          <View style={[styles.annotationBadge, { backgroundColor: BrandColors.primary }]}>
+            <Feather name="edit-2" size={12} color="#FFFFFF" />
+          </View>
+        ) : null}
+        <View style={[styles.fileTypeBadge, { backgroundColor: `${BrandColors.primary}15` }]}>
+          <ThemedText style={[styles.fileTypeText, { color: BrandColors.primary }]}>
+            {getFileExtension(item.attachment.fileName)}
+          </ThemedText>
+        </View>
+      </Pressable>
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
@@ -184,6 +243,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.sm,
+  },
+  annotationBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
   },
   fileTypeText: {
     ...Typography.caption,
