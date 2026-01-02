@@ -155,7 +155,7 @@ export default function FileViewerScreen() {
             scalesPageToFit={true}
             bounces={false}
           />
-          {!hideChrome ? (
+          {!hideChrome && Platform.OS !== "ios" ? (
             <Pressable
               style={[
                 styles.captureButton,
