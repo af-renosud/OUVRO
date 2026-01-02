@@ -7,6 +7,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import Svg, { Path, Circle, Rect, Line, G, Text as SvgText } from "react-native-svg";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import ViewShot from "react-native-view-shot";
 import * as FileSystem from "expo-file-system";
 import { ThemedText } from "@/components/ThemedText";
@@ -46,6 +47,7 @@ export default function AnnotationScreen() {
 
   const viewShotRef = useRef<ViewShot>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [elements, setElements] = useState<DrawingElement[]>([]);
   const [currentElement, setCurrentElement] = useState<DrawingElement | null>(null);
   const [selectedTool, setSelectedTool] = useState<AnnotationType>("freehand");
@@ -57,50 +59,83 @@ export default function AnnotationScreen() {
   const [textInput, setTextInput] = useState("");
   const [pendingTextPosition, setPendingTextPosition] = useState<number[] | null>(null);
 
+  const handleImageError = useCallback(() => {
+    setImageError("Unable to load image. The URL may have expired.");
+    Alert.alert(
+      "Image Load Error",
+      "Unable to load the image for annotation. Please go back and try again.",
+      [{ text: "OK", onPress: () => navigation.goBack() }]
+    );
+  }, [navigation]);
+
   const canvasWidth = screenWidth;
   const canvasHeight = screenHeight - insets.top - insets.bottom - 160;
 
   const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-  const createNewElement = (x: number, y: number): DrawingElement => ({
+  const createNewElement = useCallback((x: number, y: number): DrawingElement => ({
     id: generateId(),
     type: selectedTool,
     color: selectedColor,
     strokeWidth,
     points: [[x, y]],
-  });
+  }), [selectedTool, selectedColor, strokeWidth]);
 
-  const panGesture = Gesture.Pan()
-    .onStart((e) => {
-      if (selectedTool === "text") return;
-      const newElement = createNewElement(e.x, e.y);
-      setCurrentElement(newElement);
-    })
-    .onUpdate((e) => {
-      if (!currentElement || selectedTool === "text") return;
-      setCurrentElement((prev) => {
-        if (!prev) return prev;
-        if (prev.type === "freehand") {
-          return { ...prev, points: [...prev.points, [e.x, e.y]] };
-        } else {
-          const start = prev.points[0];
-          return { ...prev, points: [start, [e.x, e.y]] };
-        }
-      });
-    })
-    .onEnd(() => {
-      if (currentElement) {
-        setElements((prev) => [...prev, currentElement]);
-        setCurrentElement(null);
+  const handlePanStart = useCallback((x: number, y: number, tool: AnnotationType) => {
+    if (tool === "text") return;
+    const newElement: DrawingElement = {
+      id: generateId(),
+      type: tool,
+      color: selectedColor,
+      strokeWidth,
+      points: [[x, y]],
+    };
+    setCurrentElement(newElement);
+  }, [selectedColor, strokeWidth]);
+
+  const handlePanUpdate = useCallback((x: number, y: number, tool: AnnotationType) => {
+    if (tool === "text") return;
+    setCurrentElement((prev) => {
+      if (!prev) return prev;
+      if (prev.type === "freehand") {
+        return { ...prev, points: [...prev.points, [x, y]] };
+      } else {
+        const start = prev.points[0];
+        return { ...prev, points: [start, [x, y]] };
       }
     });
+  }, []);
 
-  const tapGesture = Gesture.Tap().onEnd((e) => {
-    if (selectedTool === "text") {
-      setPendingTextPosition([e.x, e.y]);
+  const handlePanEnd = useCallback(() => {
+    setCurrentElement((prev) => {
+      if (prev) {
+        setElements((els) => [...els, prev]);
+      }
+      return null;
+    });
+  }, []);
+
+  const handleTapEnd = useCallback((x: number, y: number, tool: AnnotationType) => {
+    if (tool === "text") {
+      setPendingTextPosition([x, y]);
       setTextInput("");
       setShowTextModal(true);
     }
+  }, []);
+
+  const panGesture = Gesture.Pan()
+    .onStart((e) => {
+      runOnJS(handlePanStart)(e.x, e.y, selectedTool);
+    })
+    .onUpdate((e) => {
+      runOnJS(handlePanUpdate)(e.x, e.y, selectedTool);
+    })
+    .onEnd(() => {
+      runOnJS(handlePanEnd)();
+    });
+
+  const tapGesture = Gesture.Tap().onEnd((e) => {
+    runOnJS(handleTapEnd)(e.x, e.y, selectedTool);
   });
 
   const gesture = Gesture.Race(panGesture, tapGesture);
@@ -392,6 +427,7 @@ export default function AnnotationScreen() {
               style={[styles.backgroundImage, { width: canvasWidth, height: canvasHeight }]}
               contentFit="contain"
               onLoad={() => setImageLoaded(true)}
+              onError={handleImageError}
             />
             <Svg style={StyleSheet.absoluteFill} width={canvasWidth} height={canvasHeight}>
               {elements.map(renderElement)}
