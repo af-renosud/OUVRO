@@ -11,8 +11,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import {
   fetchProjectById,
+  fetchContractors,
   getUniqueLotCodes,
   type DQEItem,
+  type Contractor,
 } from "@/lib/archidoc-api";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -38,6 +40,20 @@ export default function DQEBrowserScreen() {
     staleTime: 1000 * 60 * 5,
   });
 
+  const { data: contractors = [] } = useQuery({
+    queryKey: ["/api/contractors"],
+    queryFn: fetchContractors,
+    staleTime: 1000 * 60 * 10,
+  });
+
+  const contractorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    contractors.forEach((c) => {
+      map.set(c.id, c.name);
+    });
+    return map;
+  }, [contractors]);
+
   const items = project?.items || [];
   const lotCodes = useMemo(() => getUniqueLotCodes(items), [items]);
   
@@ -61,14 +77,14 @@ export default function DQEBrowserScreen() {
 
   const filteredItems = useMemo(() => {
     let result = items;
-    if (selectedLot) {
+    if (activeFilter === "lot" && selectedLot) {
       result = result.filter((item) => item.lotCode === selectedLot);
     }
-    if (selectedContractor) {
+    if (activeFilter === "contractor" && selectedContractor) {
       result = result.filter((item) => getContractorForItem(item) === selectedContractor);
     }
     return result;
-  }, [items, selectedLot, selectedContractor, lotContractors]);
+  }, [items, selectedLot, selectedContractor, lotContractors, activeFilter]);
 
   const hasAttachments = (item: DQEItem): boolean => {
     return !!(item.attachments && item.attachments.length > 0);
@@ -120,6 +136,8 @@ export default function DQEBrowserScreen() {
   };
 
   const getContractorDisplayName = (contractorId: string): string => {
+    const name = contractorMap.get(contractorId);
+    if (name) return name;
     return contractorId.length > 20 ? contractorId.substring(0, 8) + "..." : contractorId;
   };
 
@@ -222,7 +240,7 @@ export default function DQEBrowserScreen() {
                   Entreprise:
                 </ThemedText>
                 <ThemedText style={[styles.detailValue, { color: theme.text }]}>
-                  {contractorId}
+                  {getContractorDisplayName(contractorId)}
                 </ThemedText>
               </View>
             ) : null}

@@ -139,6 +139,18 @@ export type ProjectLink = {
   type?: string;
 };
 
+export type Contractor = {
+  id: string;
+  name: string;
+  address1?: string;
+  town?: string;
+  postcode?: string;
+  siret?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactMobile?: string;
+};
+
 export type FileCategory =
   | "00"
   | "01"
@@ -250,6 +262,26 @@ export function formatFileSize(bytes: number): string {
 export function getCategoryLabel(category: FileCategory): string {
   const found = FILE_CATEGORIES.find((c) => c.key === category);
   return found ? found.label : category;
+}
+
+export async function fetchContractors(): Promise<Contractor[]> {
+  if (!ARCHIDOC_API_URL) {
+    console.warn("EXPO_PUBLIC_ARCHIDOC_API_URL is not configured");
+    return [];
+  }
+  
+  try {
+    const response = await fetch(`${ARCHIDOC_API_URL}/api/contractors`);
+    if (!response.ok) {
+      console.warn("Failed to fetch contractors:", response.status);
+      return [];
+    }
+    const contractors: Contractor[] = await response.json();
+    return contractors;
+  } catch (error) {
+    console.warn("Error fetching contractors:", error);
+    return [];
+  }
 }
 
 export async function fetchArchidocProjects(): Promise<MappedProject[]> {
