@@ -31,6 +31,7 @@ const TOOLS: { type: AnnotationType; icon: string; label: string }[] = [
   { type: "rectangle", icon: "square", label: "Rectangle" },
   { type: "circle", icon: "circle", label: "Circle" },
   { type: "text", icon: "type", label: "Text" },
+  { type: "measurement", icon: "maximize-2", label: "Mesure" },
 ];
 
 const STROKE_WIDTHS = [2, 4, 6, 8];
@@ -155,7 +156,7 @@ export default function AnnotationScreen() {
         const uploadInfo = await requestUploadUrl(fileName, "image/png", fileSize);
 
         const fileData = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: "base64",
         });
         const binaryString = atob(fileData);
         const bytes = new Uint8Array(binaryString.length);
@@ -286,6 +287,56 @@ export default function AnnotationScreen() {
         >
           {text}
         </SvgText>
+      );
+    }
+
+    if (type === "measurement" && points.length === 2) {
+      const [[x1, y1], [x2, y2]] = points;
+      const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+      const tickLength = 8;
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const perpAngle = angle + Math.PI / 2;
+      
+      const tick1x1 = x1 + tickLength * Math.cos(perpAngle);
+      const tick1y1 = y1 + tickLength * Math.sin(perpAngle);
+      const tick1x2 = x1 - tickLength * Math.cos(perpAngle);
+      const tick1y2 = y1 - tickLength * Math.sin(perpAngle);
+      
+      const tick2x1 = x2 + tickLength * Math.cos(perpAngle);
+      const tick2y1 = y2 + tickLength * Math.sin(perpAngle);
+      const tick2x2 = x2 - tickLength * Math.cos(perpAngle);
+      const tick2y2 = y2 - tickLength * Math.sin(perpAngle);
+      
+      const distanceText = distance < 100 
+        ? `${distance.toFixed(0)} px` 
+        : `${(distance / 100).toFixed(2)} m`;
+
+      return (
+        <G key={id}>
+          <Line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={sw} />
+          <Line x1={tick1x1} y1={tick1y1} x2={tick1x2} y2={tick1y2} stroke={color} strokeWidth={sw} />
+          <Line x1={tick2x1} y1={tick2y1} x2={tick2x2} y2={tick2y2} stroke={color} strokeWidth={sw} />
+          <Rect
+            x={midX - 35}
+            y={midY - 12}
+            width={70}
+            height={24}
+            fill="rgba(255,255,255,0.9)"
+            rx={4}
+          />
+          <SvgText
+            x={midX}
+            y={midY + 5}
+            fill={color}
+            fontSize={12}
+            fontWeight="bold"
+            textAnchor="middle"
+          >
+            {distanceText}
+          </SvgText>
+        </G>
       );
     }
 

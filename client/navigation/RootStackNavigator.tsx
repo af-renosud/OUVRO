@@ -11,8 +11,10 @@ import ShareModalScreen from "@/screens/ShareModalScreen";
 import FileViewerScreen from "@/screens/FileViewerScreen";
 import AnnotationScreen from "@/screens/AnnotationScreen";
 import ProjectFilesScreen from "@/screens/ProjectFilesScreen";
+import DQEBrowserScreen from "@/screens/DQEBrowserScreen";
+import ProjectLinksScreen from "@/screens/ProjectLinksScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
-import type { FileCategory, ProjectFile } from "@/lib/archidoc-api";
+import type { FileCategory, ProjectFile, ProjectLink } from "@/lib/archidoc-api";
 
 export type ShareObservation = {
   id: number;
@@ -35,6 +37,8 @@ export type RootStackParamList = {
   FileViewer: { file: ProjectFile; signedUrl: string };
   Annotation: { file: ProjectFile; signedUrl: string; projectId: string };
   ProjectFiles: { projectId: string; projectName: string };
+  DQEBrowser: { projectId: string; projectName: string };
+  ProjectLinks: { projectId: string; projectName: string; links: ProjectLink[] };
 };
 
 export type MediaItem = {
@@ -103,6 +107,16 @@ export default function RootStackNavigator() {
         name="ProjectFiles"
         component={ProjectFilesScreen}
         options={{ headerTitle: "Project Files" }}
+      />
+      <Stack.Screen
+        name="DQEBrowser"
+        component={DQEBrowserScreen}
+        options={{ headerTitle: "DQE" }}
+      />
+      <Stack.Screen
+        name="ProjectLinks"
+        component={ProjectLinksScreen}
+        options={{ headerTitle: "Liens Projet" }}
       />
     </Stack.Navigator>
   );

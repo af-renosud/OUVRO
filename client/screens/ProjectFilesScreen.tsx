@@ -15,6 +15,7 @@ import {
   FILE_CATEGORIES,
   formatFileSize,
   getFileIcon,
+  getCategoryLabel,
   type FileCategory,
   type ProjectFile,
 } from "@/lib/archidoc-api";
@@ -75,7 +76,7 @@ export default function ProjectFilesScreen() {
             isActive ? { color: "#FFFFFF" } : { color: theme.textSecondary },
           ]}
         >
-          {category.label}
+          {category.code}
         </ThemedText>
       </Pressable>
     );
@@ -109,7 +110,7 @@ export default function ProjectFilesScreen() {
         </View>
         <View style={[styles.categoryBadge, { backgroundColor: theme.backgroundTertiary }]}>
           <ThemedText style={[styles.categoryBadgeText, { color: theme.textSecondary }]}>
-            {item.category}
+            {getCategoryLabel(item.category)}
           </ThemedText>
         </View>
         <Feather name="chevron-right" size={20} color={theme.textTertiary} />

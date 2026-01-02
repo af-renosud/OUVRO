@@ -1,0 +1,176 @@
+OUVRO iPad App - ARCHIDOC Project Files Integration Prompt
+Mission
+Connect the OUVRO iPad Field app to ARCHIDOC's project file system so site managers can browse, view, annotate, and reference all project documents needed for day-to-day construction management.
+
+ARCHIDOC API Base URL
+https://[YOUR-ARCHIDOC-DEPLOYMENT-URL]
+OUVRO FIELD ACCESS SCOPE
+OUVRO provides site managers with practical working document access for on-site construction management.
+
+1. FULL ASSET HUB ACCESS
+All 9 document phases available:
+
+Code	Name	Contents
+00	CONTRATS & LÉGAL	Contracts, Amendments, Insurance
+01	PLU / URBANISME	PLU Extracts, Cadastre, AI Research
+02	ÉTAT DES LIEUX	Geotechnical, Topography, Diagnostics
+03	PERMIS PC/DP	Cerfa, PC1-PC8, RE2020, ABF
+04	SUIVI ADMIN	Receipts, DOC, DAACT, DT/DICT, CSPS
+05	DCE TECHNIQUE	CCTP, DPGF, CCAP, Plans PRO
+06	DET / EXÉCUTION	PV Chantier, Planning, Payment Situations
+07	VISA EXE	EXE Plans, Technical Sheets, Visa Log
+08	AOR / LIVRAISON	Reception PV, DOE, As-Built, DIUO
+Plus: General Files section
+
+2. DQE LIST WITH LOT FILTERING
+GET /api/projects/:projectId
+Response includes items array - the complete DQE list.
+Each item has lotCode field for filtering by trade/lot.
+
+Client-side filtering:
+
+const filteredItems = project.items.filter(item => item.lotCode === selectedLot);
+3. PROJECT LINKS
+GET /api/projects/:projectId
+Response includes external links attached to the project (suppliers, Drive folders, reference docs).
+
+API ENDPOINTS
+List Archived Files by Project
+GET /api/archive/files?projectId={projectId}&category={category}
+Response:
+
+[
+  {
+    "objectId": "uuid",
+    "objectName": "path/to/file.pdf",
+    "originalName": "Plans-EXE-RDC.pdf",
+    "contentType": "application/pdf",
+    "size": 1234567,
+    "projectId": "uuid",
+    "category": "07",
+    "createdAt": "2026-01-02T..."
+  }
+]
+Get File Download URL (Signed)
+GET /api/archive/files/{objectId}
+Response:
+
+{
+  "objectId": "uuid",
+  "originalName": "Plans-EXE-RDC.pdf",
+  "contentType": "application/pdf",
+  "signedUrl": "https://storage.../temporary-download-url",
+  "expiresIn": 3600
+}
+Upload File from Field
+POST /api/uploads/request-url
+Body: { "fileName": "site-photo.jpg", "contentType": "image/jpeg", "size": 12345 }
+Then upload using PUT to the returned uploadUrl.
+
+Archive Uploaded File
+POST /api/archive/files
+Body: {
+  "objectId": "uuid",
+  "objectName": "path/to/file",
+  "originalName": "site-photo.jpg",
+  "contentType": "image/jpeg",
+  "size": 12345,
+  "projectId": "uuid",
+  "category": "06"
+}
+ANNOTATION/MARKUP CAPABILITIES
+Drawing Tools
+Freehand pen (red, blue, green, black - configurable thickness)
+Arrow pointer for highlighting areas
+Rectangle/circle shapes for outlining zones
+Text labels with adjustable font size
+Measurement tool (line with auto-calculated distance)
+Annotation Workflow
+User selects a plan/photo to annotate
+File loads in full-screen canvas
+User draws markups using touch/Apple Pencil
+Save creates new annotated image
+Upload to ARCHIDOC Asset Hub
+Annotation Data Structure
+{
+  "originalFileId": "uuid-of-source-file",
+  "annotations": [
+    {
+      "type": "arrow|circle|rectangle|freehand|text|measurement",
+      "color": "#FF0000",
+      "strokeWidth": 3,
+      "points": [[x1,y1], [x2,y2]],
+      "text": "Probleme fissure",
+      "createdAt": "2026-01-02T10:30:00Z",
+      "createdBy": "Chef de chantier"
+    }
+  ],
+  "linkedObservationId": "uuid-if-attached"
+}
+Markup Color Codes (Construction Standard)
+Color	Usage
+Red	Defects / Issues / Safety
+Orange	Warnings / Attention Required
+Blue	Information / Notes
+Green	Approved / Compliant
+Black	General markups
+IMPLEMENTATION REQUIREMENTS
+File Browser Screen
+Display files grouped by Asset Hub category (00-08)
+Show file name, type icon, size, date
+Support PDF, image, document preview
+"Annotate" button on each file
+DQE Browser Screen
+List all DQE items from project
+Filter dropdown by Lot Code
+Show item description, unit, quantity
+Tap to view full details
+Links Section
+Display all project external links
+Open in external browser
+Annotation Canvas
+Full-screen document view
+Drawing toolbar (pen, arrow, shapes, text, eraser)
+Color/thickness picker
+Undo/redo, Save/Cancel
+Apple Pencil support
+Offline Caching
+Cache recently accessed files
+Store annotations locally until upload
+Refresh signed URLs when expired (1 hour TTL)
+API AUTHENTICATION
+Use session-based authentication. Include credentials with every request:
+
+fetch(url, { credentials: 'include' })
+DATA TYPES
+interface ProjectFile {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  category: string;
+  downloadUrl?: string;
+}
+interface DQEItem {
+  id: string;
+  designation: string;
+  lotCode: string;
+  unit: string;
+  quantity: number;
+  notes?: string;
+}
+interface Annotation {
+  id: string;
+  originalFileId: string;
+  type: 'arrow' | 'circle' | 'rectangle' | 'freehand' | 'text' | 'measurement';
+  color: string;
+  strokeWidth: number;
+  points: number[][];
+  text?: string;
+  createdAt: string;
+  createdBy: string;
+}
+ERROR HANDLING
+401 - Session expired, prompt re-authentication
+404 - File not found or deleted
+403 - No access to this project

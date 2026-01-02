@@ -25,40 +25,96 @@ export default function FilesScreen() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const handleProjectPress = (project: MappedProject) => {
+  const handleFilesPress = (project: MappedProject) => {
     navigation.navigate("ProjectFiles", {
       projectId: project.id,
       projectName: project.name,
     });
   };
 
+  const handleDQEPress = (project: MappedProject) => {
+    navigation.navigate("DQEBrowser", {
+      projectId: project.id,
+      projectName: project.name,
+    });
+  };
+
+  const handleLinksPress = (project: MappedProject) => {
+    navigation.navigate("ProjectLinks", {
+      projectId: project.id,
+      projectName: project.name,
+      links: project.links || [],
+    });
+  };
+
   const renderProjectItem = ({ item }: { item: MappedProject }) => {
     const statusColor = item.status === "active" ? BrandColors.success : theme.textTertiary;
+    const hasItems = item.items && item.items.length > 0;
+    const hasLinks = item.links && item.links.length > 0;
 
     return (
-      <Pressable
-        style={[styles.projectItem, { backgroundColor: theme.backgroundSecondary }]}
-        onPress={() => handleProjectPress(item)}
-      >
-        <View style={[styles.projectIcon, { backgroundColor: theme.backgroundTertiary }]}>
-          <Feather name="folder" size={24} color={BrandColors.primary} />
+      <View style={[styles.projectCard, { backgroundColor: theme.backgroundSecondary }]}>
+        <Pressable
+          style={styles.projectHeader}
+          onPress={() => handleFilesPress(item)}
+        >
+          <View style={[styles.projectIcon, { backgroundColor: theme.backgroundTertiary }]}>
+            <Feather name="folder" size={24} color={BrandColors.primary} />
+          </View>
+          <View style={styles.projectInfo}>
+            <ThemedText style={[styles.projectName, { color: theme.text }]} numberOfLines={1}>
+              {item.name}
+            </ThemedText>
+            <ThemedText style={[styles.projectLocation, { color: theme.textSecondary }]} numberOfLines={1}>
+              {item.location || item.clientName}
+            </ThemedText>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
+            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+            <ThemedText style={[styles.statusText, { color: statusColor }]}>
+              {item.status}
+            </ThemedText>
+          </View>
+        </Pressable>
+        
+        <View style={[styles.actionRow, { borderTopColor: theme.border }]}>
+          <Pressable
+            style={styles.actionButton}
+            onPress={() => handleFilesPress(item)}
+          >
+            <Feather name="file" size={18} color={BrandColors.primary} />
+            <ThemedText style={[styles.actionText, { color: BrandColors.primary }]}>
+              Fichiers
+            </ThemedText>
+          </Pressable>
+          
+          <View style={[styles.actionDivider, { backgroundColor: theme.border }]} />
+          
+          <Pressable
+            style={[styles.actionButton, !hasItems && styles.actionDisabled]}
+            onPress={() => handleDQEPress(item)}
+            disabled={!hasItems}
+          >
+            <Feather name="list" size={18} color={hasItems ? BrandColors.primary : theme.textTertiary} />
+            <ThemedText style={[styles.actionText, { color: hasItems ? BrandColors.primary : theme.textTertiary }]}>
+              DQE
+            </ThemedText>
+          </Pressable>
+          
+          <View style={[styles.actionDivider, { backgroundColor: theme.border }]} />
+          
+          <Pressable
+            style={[styles.actionButton, !hasLinks && styles.actionDisabled]}
+            onPress={() => handleLinksPress(item)}
+            disabled={!hasLinks}
+          >
+            <Feather name="link" size={18} color={hasLinks ? BrandColors.primary : theme.textTertiary} />
+            <ThemedText style={[styles.actionText, { color: hasLinks ? BrandColors.primary : theme.textTertiary }]}>
+              Liens
+            </ThemedText>
+          </Pressable>
         </View>
-        <View style={styles.projectInfo}>
-          <ThemedText style={[styles.projectName, { color: theme.text }]} numberOfLines={1}>
-            {item.name}
-          </ThemedText>
-          <ThemedText style={[styles.projectLocation, { color: theme.textSecondary }]} numberOfLines={1}>
-            {item.location || item.clientName}
-          </ThemedText>
-        </View>
-        <View style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <ThemedText style={[styles.statusText, { color: statusColor }]}>
-            {item.status}
-          </ThemedText>
-        </View>
-        <Feather name="chevron-right" size={20} color={theme.textTertiary} />
-      </Pressable>
+      </View>
     );
   };
 
@@ -206,12 +262,39 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: Spacing.lg,
   },
-  projectItem: {
+  projectCard: {
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+  },
+  projectHeader: {
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
     gap: Spacing.md,
+  },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderTopWidth: 1,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+  },
+  actionDisabled: {
+    opacity: 0.5,
+  },
+  actionText: {
+    ...Typography.caption,
+    fontWeight: "600",
+  },
+  actionDivider: {
+    width: 1,
+    height: 24,
   },
   projectIcon: {
     width: 48,
