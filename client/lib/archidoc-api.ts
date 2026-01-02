@@ -1,5 +1,8 @@
 const ARCHIDOC_API_URL = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
 
+// Log ARCHIDOC API URL configuration on load
+console.log("[ARCHIDOC] API URL configured:", ARCHIDOC_API_URL || "NOT SET");
+
 // Raw ARCHIDOC DQE item response - actual API field names
 type RawDQEItem = {
   id: string;
@@ -465,37 +468,55 @@ export async function requestUploadUrl(
   size: number
 ): Promise<UploadUrlResponse> {
   if (!ARCHIDOC_API_URL) {
-    throw new Error("ARCHIDOC API URL is not configured");
+    console.error("[requestUploadUrl] ARCHIDOC_API_URL is not configured!");
+    throw new Error("ARCHIDOC API URL is not configured. Please set EXPO_PUBLIC_ARCHIDOC_API_URL environment variable.");
   }
 
-  const response = await fetch(`${ARCHIDOC_API_URL}/api/uploads/request-url`, {
+  const uploadUrl = `${ARCHIDOC_API_URL}/api/uploads/request-url`;
+  console.log("[requestUploadUrl] Requesting signed URL from:", uploadUrl);
+  console.log("[requestUploadUrl] File:", fileName, "Type:", contentType, "Size:", size);
+
+  const response = await fetch(uploadUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: fileName, contentType, size }),
   });
 
+  console.log("[requestUploadUrl] Response status:", response.status);
+
   if (!response.ok) {
     const errorText = await response.text().catch(() => "Unknown error");
-    console.error(`Upload URL request failed (${response.status}):`, errorText);
+    console.error(`[requestUploadUrl] Failed (${response.status}):`, errorText);
     throw new Error(`Failed to get upload URL: ${response.status} - ${errorText}`);
   }
-  return response.json();
+  
+  const result = await response.json();
+  console.log("[requestUploadUrl] Got upload info:", JSON.stringify(result, null, 2));
+  return result;
 }
 
 export async function uploadFileToSignedUrl(
   uploadUrl: string,
   fileBlob: Blob,
   contentType: string
-): Promise<void> {
+): Promise<{ status: number; body: string }> {
+  console.log("[uploadFileToSignedUrl] Uploading to signed URL...");
+  console.log("[uploadFileToSignedUrl] Content-Type:", contentType, "Blob size:", fileBlob.size);
+  
   const response = await fetch(uploadUrl, {
     method: "PUT",
     headers: { "Content-Type": contentType },
     body: fileBlob,
   });
 
+  const responseBody = await response.text().catch(() => "");
+  console.log("[uploadFileToSignedUrl] Response status:", response.status, "Body:", responseBody);
+
   if (!response.ok) {
-    throw new Error("Failed to upload file");
+    throw new Error(`Failed to upload file: ${response.status} - ${responseBody}`);
   }
+  
+  return { status: response.status, body: responseBody };
 }
 
 export async function archiveUploadedFile(params: {
@@ -509,12 +530,15 @@ export async function archiveUploadedFile(params: {
   category: FileCategory;
 }): Promise<void> {
   if (!ARCHIDOC_API_URL) {
-    throw new Error("ARCHIDOC API URL is not configured");
+    console.error("[archiveUploadedFile] ARCHIDOC_API_URL is not configured!");
+    throw new Error("ARCHIDOC API URL is not configured. Please set EXPO_PUBLIC_ARCHIDOC_API_URL environment variable.");
   }
 
+  const archiveUrl = `${ARCHIDOC_API_URL}/api/archive/files`;
+  console.log("[archiveUploadedFile] Archiving to:", archiveUrl);
   console.log("[archiveUploadedFile] Params:", JSON.stringify(params, null, 2));
 
-  const response = await fetch(`${ARCHIDOC_API_URL}/api/archive/files`, {
+  const response = await fetch(archiveUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -525,8 +549,11 @@ export async function archiveUploadedFile(params: {
   console.log("[archiveUploadedFile] Response status:", response.status, "body:", responseText);
 
   if (!response.ok) {
+    console.error("[archiveUploadedFile] Archive failed!");
     throw new Error(`Failed to archive file: ${response.status} - ${responseText}`);
   }
+  
+  console.log("[archiveUploadedFile] Archive successful!");
 }
 
 export function getUniqueLotCodes(items: DQEItem[]): string[] {
