@@ -66,7 +66,7 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="AudioCapture"
         component={AudioCaptureScreen}
-        options={{ presentation: "modal", headerShown: false }}
+        options={{ presentation: "fullScreenModal", headerShown: false }}
       />
       <Stack.Screen
         name="ObservationDetails"

@@ -58,8 +58,16 @@ export default function AudioCaptureScreen() {
       }
     } else {
       try {
-        const { requestRecordingPermissionsAsync } = await import("expo-audio");
-        const permissionResponse = await requestRecordingPermissionsAsync();
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error("Permission request timeout")), 10000)
+        );
+        
+        const permissionPromise = (async () => {
+          const { requestRecordingPermissionsAsync } = await import("expo-audio");
+          return await requestRecordingPermissionsAsync();
+        })();
+        
+        const permissionResponse = await Promise.race([permissionPromise, timeoutPromise]);
         setPermissionStatus(permissionResponse.granted ? "granted" : "denied");
       } catch (error) {
         console.error("Permission error:", error);
