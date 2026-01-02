@@ -1,0 +1,202 @@
+OUVRO iPad App - ARCHIDOC Project Files Integration Prompt
+Mission
+Connect the OUVRO iPad Field app to ARCHIDOC's project file system so field teams can browse, view, annotate, and reference project documents (plans, specifications, photos) while capturing observations on-site.
+
+ARCHIDOC API Base URL
+https://[YOUR-ARCHIDOC-DEPLOYMENT-URL]
+Available Endpoints for Project Files
+1. List Archived Files by Project
+GET /api/archive/files?projectId={projectId}&category={category}
+Response:
+
+[
+  {
+    "objectId": "uuid",
+    "objectName": "path/to/file.pdf",
+    "originalName": "Plans-RDC.pdf",
+    "contentType": "application/pdf",
+    "size": 1234567,
+    "projectId": "uuid",
+    "category": "plans|photos|documents|specifications",
+    "createdAt": "2026-01-02T..."
+  }
+]
+2. Get File Download URL (Signed)
+GET /api/archive/files/{objectId}
+Response:
+
+{
+  "objectId": "uuid",
+  "originalName": "Plans-RDC.pdf",
+  "contentType": "application/pdf",
+  "signedUrl": "https://storage.../temporary-download-url",
+  "expiresIn": 3600
+}
+3. Upload File from Field
+POST /api/uploads/request-url
+Body: { "fileName": "annotated-plan.png", "contentType": "image/png", "size": 12345 }
+Response:
+
+{
+  "uploadUrl": "https://storage.../signed-put-url",
+  "publicUrl": "https://storage.../final-path",
+  "objectId": "uuid"
+}
+Then upload using PUT to the uploadUrl with the file data.
+
+4. Archive Uploaded File (Save to Project)
+POST /api/archive/files
+Body: {
+  "objectId": "uuid",
+  "bucketName": "bucket",
+  "objectName": "path/to/file",
+  "originalName": "annotated-plan.png",
+  "contentType": "image/png",
+  "size": 12345,
+  "projectId": "uuid",
+  "category": "annotations"
+}
+File Categories in Asset Hub
+Files are organized by Loi MOP phases:
+
+00-contrats - Contracts & Legal Documents
+ESQ - Esquisse (Sketch Design)
+APS - Avant-Projet Sommaire
+APD - Avant-Projet Définitif
+PRO - Projet
+DCE - Dossier de Consultation des Entreprises
+ACT - Assistance Contrats Travaux
+VISA - Visa
+DET - Direction Exécution Travaux
+AOR - Assistance Opérations Réception
+general - General Files
+annotations - Field Annotations & Markups
+ANNOTATION/MARKUP CAPABILITIES
+Annotation Feature Requirements
+Drawing Tools
+
+Freehand pen (red, blue, green, black - configurable thickness)
+Arrow pointer for highlighting areas
+Rectangle/circle shapes for outlining zones
+Text labels with adjustable font size
+Measurement tool (line with auto-calculated distance)
+Annotation Workflow
+
+1. User selects a project file (plan/photo) to annotate
+2. File loads in full-screen annotation canvas
+3. User draws markups using touch/Apple Pencil
+4. User saves annotation - creates new image layer
+5. Original file + annotation layer saved as new file
+6. New annotated file uploaded to ARCHIDOC with link to original
+Annotation Data Structure
+Store annotations as JSON for future editing:
+
+{
+  "originalFileId": "uuid-of-source-file",
+  "annotations": [
+    {
+      "type": "arrow|circle|rectangle|freehand|text|measurement",
+      "color": "#FF0000",
+      "strokeWidth": 3,
+      "points": [[x1,y1], [x2,y2]],
+      "text": "Probleme fissure",
+      "createdAt": "2026-01-02T10:30:00Z",
+      "createdBy": "Architecte Name"
+    }
+  ],
+  "linkedObservationId": "uuid-if-attached-to-observation"
+}
+Save Annotated File
+
+Flatten drawing layer onto original image
+Save as PNG/JPEG
+Upload to ARCHIDOC Asset Hub under annotations category
+Link to field observation if created during observation capture
+Annotation Storage in Observation
+When creating an observation, include annotated file references:
+
+{
+  "projectId": "uuid",
+  "summary": "Fissure detectee mur salon",
+  "assets": [
+    { "assetType": "photo", "objectPath": "/path", "fileName": "photo.jpg" },
+    { "assetType": "annotation", "objectPath": "/path", "fileName": "plan-annote.png", "sourceFileId": "original-uuid" }
+  ]
+}
+Implementation Technologies (iPad)
+PencilKit - Native Apple framework for drawing with Apple Pencil
+PDFKit - For rendering and annotating PDF documents
+Core Graphics - For image manipulation and flattening layers
+Markup Color Codes (French Construction Standard)
+Color	Usage
+Red	Defects / Issues / Safety
+Orange	Warnings / Attention Required
+Blue	Information / Notes
+Green	Approved / Compliant
+Black	General markups
+Implementation Requirements for OUVRO
+File Browser Screen
+
+Display files grouped by category
+Show file name, type icon, size, and date
+Support PDF, image, and document preview
+"Annotate" button on each file
+Annotation Canvas Screen
+
+Full-screen view of selected document
+Drawing toolbar (pen, arrow, shapes, text, eraser)
+Color/thickness picker
+Undo/redo buttons
+Save & Cancel actions
+Apple Pencil pressure sensitivity support
+Offline Caching
+
+Cache recently accessed files for offline viewing
+Store annotations locally until upload possible
+Signed URLs are temporary (1 hour) - refresh when expired
+Link Files to Observations
+
+When creating an observation, allow selecting related project files
+Allow annotating directly during observation capture
+Store file references in observation metadata
+File Type Support
+
+PDF plans and specifications (view + annotate)
+Images JPG, PNG (view + annotate)
+Word/Excel documents (view only)
+API Authentication
+Use the same session-based authentication as the existing OUVRO integration. Include credentials with every request:
+
+fetch(url, { credentials: 'include' })
+Data Mapping in OUVRO
+interface ProjectFile {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  category: string;
+  downloadUrl?: string;
+}
+interface Annotation {
+  id: string;
+  originalFileId: string;
+  type: 'arrow' | 'circle' | 'rectangle' | 'freehand' | 'text' | 'measurement';
+  color: string;
+  strokeWidth: number;
+  points: number[][];
+  text?: string;
+  createdAt: string;
+  createdBy: string;
+}
+interface AnnotatedFile {
+  id: string;
+  originalFileId: string;
+  projectId: string;
+  annotations: Annotation[];
+  flattenedImagePath: string;
+  linkedObservationId?: string;
+}
+Error Handling
+401 - Session expired, prompt re-authentication
+404 - File not found or deleted
+403 - No access to this project
