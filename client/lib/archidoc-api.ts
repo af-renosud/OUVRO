@@ -15,12 +15,12 @@ export type ArchidocProject = {
   clients?: Array<{ id: string; name: string; email: string }>;
   items?: DQEItem[];
   links?: ProjectLink[];
-  // New external link fields
-  photoSiteLink?: string;
-  models3dLink?: string;
-  scan3dVisitLink?: string;
-  googleDriveLink?: string;
-  plansDrawingsLink?: string;
+  lotContractors?: Record<string, string>;
+  // External link fields (correct ARCHIDOC field names)
+  photosUrl?: string;
+  model3dUrl?: string;
+  tour3dUrl?: string;
+  googleDriveUrl?: string;
 };
 
 export type MappedProject = {
@@ -31,12 +31,12 @@ export type MappedProject = {
   clientName: string;
   items?: DQEItem[];
   links?: ProjectLink[];
-  // External links
-  photoSiteLink?: string;
-  models3dLink?: string;
-  scan3dVisitLink?: string;
-  googleDriveLink?: string;
-  plansDrawingsLink?: string;
+  lotContractors?: Record<string, string>;
+  // External links (correct ARCHIDOC field names)
+  photosUrl?: string;
+  model3dUrl?: string;
+  tour3dUrl?: string;
+  googleDriveUrl?: string;
 };
 
 export type DQEItem = {
@@ -84,11 +84,12 @@ export type ProjectFile = {
 };
 
 export type FileDownloadResponse = {
-  objectId: string;
-  originalName: string;
-  contentType: string;
-  signedUrl: string;
-  expiresIn: number;
+  file: {
+    objectId: string;
+    originalName: string;
+    contentType: string;
+    freshUrl: string;
+  };
 };
 
 export type UploadUrlResponse = {
@@ -188,11 +189,11 @@ export async function fetchArchidocProjects(): Promise<MappedProject[]> {
     clientName: p.clientName,
     items: p.items,
     links: p.links,
-    photoSiteLink: p.photoSiteLink,
-    models3dLink: p.models3dLink,
-    scan3dVisitLink: p.scan3dVisitLink,
-    googleDriveLink: p.googleDriveLink,
-    plansDrawingsLink: p.plansDrawingsLink,
+    lotContractors: p.lotContractors,
+    photosUrl: p.photosUrl,
+    model3dUrl: p.model3dUrl,
+    tour3dUrl: p.tour3dUrl,
+    googleDriveUrl: p.googleDriveUrl,
   }));
 }
 
@@ -218,11 +219,11 @@ export async function fetchProjectById(projectId: string): Promise<MappedProject
     clientName: p.clientName,
     items: p.items,
     links: p.links,
-    photoSiteLink: p.photoSiteLink,
-    models3dLink: p.models3dLink,
-    scan3dVisitLink: p.scan3dVisitLink,
-    googleDriveLink: p.googleDriveLink,
-    plansDrawingsLink: p.plansDrawingsLink,
+    lotContractors: p.lotContractors,
+    photosUrl: p.photosUrl,
+    model3dUrl: p.model3dUrl,
+    tour3dUrl: p.tour3dUrl,
+    googleDriveUrl: p.googleDriveUrl,
   };
 }
 

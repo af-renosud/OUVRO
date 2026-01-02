@@ -45,7 +45,7 @@ export default function ProjectFilesScreen() {
       const downloadInfo = await getFileDownloadUrl(file.objectId);
       navigation.navigate("FileViewer", {
         file,
-        signedUrl: downloadInfo.signedUrl,
+        signedUrl: downloadInfo.file.freshUrl,
       });
     } catch (err) {
       console.error("Failed to get file URL:", err);

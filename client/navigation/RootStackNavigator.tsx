@@ -42,7 +42,7 @@ export type RootStackParamList = {
   ProjectFiles: { projectId: string; projectName: string };
   DQEBrowser: { projectId: string; projectName: string };
   ProjectLinks: { projectId: string; projectName: string; links: ProjectLink[] };
-  PlansScreen: { projectId: string; projectName: string; plansDrawingsLink?: string };
+  PlansScreen: { projectId: string; projectName: string };
   DocsScreen: { projectId: string; projectName: string };
   FichesScreen: { projectId: string; projectName: string; items: DQEItem[] };
 };

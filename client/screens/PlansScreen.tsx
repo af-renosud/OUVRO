@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Pressable, FlatList, ActivityIndicator, Alert, Linking } from "react-native";
+import { View, StyleSheet, Pressable, FlatList, ActivityIndicator, Alert } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
@@ -27,7 +27,7 @@ export default function PlansScreen() {
   const insets = useSafeAreaInsets();
   const route = useRoute<PlansScreenRouteProp>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { projectId, projectName, plansDrawingsLink } = route.params;
+  const { projectId, projectName } = route.params;
 
   const { data: files = [], isLoading, error, refetch } = useQuery({
     queryKey: ["/api/archive/files", projectId, "plans"],
@@ -41,32 +41,17 @@ export default function PlansScreen() {
       if (file.contentType.includes("image")) {
         navigation.navigate("Annotation", {
           file,
-          signedUrl: response.signedUrl,
+          signedUrl: response.file.freshUrl,
           projectId,
         });
       } else {
         navigation.navigate("FileViewer", {
           file,
-          signedUrl: response.signedUrl,
+          signedUrl: response.file.freshUrl,
         });
       }
     } catch (err) {
       Alert.alert("Erreur", "Impossible d'ouvrir ce fichier.");
-    }
-  };
-
-  const handleExternalLinkPress = async () => {
-    if (plansDrawingsLink) {
-      try {
-        const canOpen = await Linking.canOpenURL(plansDrawingsLink);
-        if (canOpen) {
-          await Linking.openURL(plansDrawingsLink);
-        } else {
-          Alert.alert("Impossible d'ouvrir", "Ce lien ne peut pas être ouvert.");
-        }
-      } catch (err) {
-        Alert.alert("Erreur", "Impossible d'ouvrir le lien.");
-      }
     }
   };
 
@@ -99,15 +84,6 @@ export default function PlansScreen() {
       <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
         Les plans et dessins de ce projet n'ont pas encore été ajoutés.
       </ThemedText>
-      {plansDrawingsLink ? (
-        <Pressable
-          style={[styles.externalLinkButton, { backgroundColor: BrandColors.primary }]}
-          onPress={handleExternalLinkPress}
-        >
-          <Feather name="external-link" size={18} color="#FFFFFF" />
-          <ThemedText style={styles.externalLinkText}>Ouvrir les plans externes</ThemedText>
-        </Pressable>
-      ) : null}
     </View>
   );
 
@@ -143,19 +119,6 @@ export default function PlansScreen() {
             {projectName}
           </ThemedText>
         </View>
-
-        {plansDrawingsLink ? (
-          <Pressable
-            style={[styles.externalBanner, { backgroundColor: `${BrandColors.primary}15` }]}
-            onPress={handleExternalLinkPress}
-          >
-            <Feather name="external-link" size={18} color={BrandColors.primary} />
-            <ThemedText style={[styles.externalBannerText, { color: BrandColors.primary }]}>
-              Voir les plans sur le dossier externe
-            </ThemedText>
-            <Feather name="chevron-right" size={18} color={BrandColors.primary} />
-          </Pressable>
-        ) : null}
 
         {isLoading ? (
           <View style={styles.loadingContainer}>

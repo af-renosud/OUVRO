@@ -41,13 +41,13 @@ export default function DocsScreen() {
       if (file.contentType.includes("image")) {
         navigation.navigate("Annotation", {
           file,
-          signedUrl: response.signedUrl,
+          signedUrl: response.file.freshUrl,
           projectId,
         });
       } else {
         navigation.navigate("FileViewer", {
           file,
-          signedUrl: response.signedUrl,
+          signedUrl: response.file.freshUrl,
         });
       }
     } catch (err) {

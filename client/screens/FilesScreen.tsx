@@ -38,7 +38,6 @@ export default function FilesScreen() {
     navigation.navigate("PlansScreen", {
       projectId: project.id,
       projectName: project.name,
-      plansDrawingsLink: project.plansDrawingsLink,
     });
   };
 
@@ -70,8 +69,8 @@ export default function FilesScreen() {
   };
 
   const handleDrivePress = (project: MappedProject) => {
-    if (project.googleDriveLink) {
-      openExternalLink(project.googleDriveLink);
+    if (project.googleDriveUrl) {
+      openExternalLink(project.googleDriveUrl);
     } else {
       Alert.alert("Lien non configuré", "Le lien Google Drive n'est pas configuré pour ce projet.");
     }
@@ -100,13 +99,13 @@ export default function FilesScreen() {
   };
 
   const getLinksDropdownItems = (project: MappedProject): LinksDropdownItem[] => [
-    { key: "photos", label: "Photos du Site", icon: "camera", link: project.photoSiteLink },
-    { key: "models3d", label: "Modèles 3D", icon: "box", link: project.models3dLink },
-    { key: "scan3d", label: "Visite 3D", icon: "home", link: project.scan3dVisitLink },
+    { key: "photos", label: "Photos du Site", icon: "camera", link: project.photosUrl },
+    { key: "models3d", label: "Modèles 3D", icon: "box", link: project.model3dUrl },
+    { key: "scan3d", label: "Visite 3D", icon: "home", link: project.tour3dUrl },
   ];
 
   const hasAnyLinks = (project: MappedProject): boolean => {
-    return !!(project.photoSiteLink || project.models3dLink || project.scan3dVisitLink);
+    return !!(project.photosUrl || project.model3dUrl || project.tour3dUrl);
   };
 
   const hasAnyFiches = (project: MappedProject): boolean => {
@@ -118,7 +117,7 @@ export default function FilesScreen() {
     const hasItems = item.items && item.items.length > 0;
     const hasLinks = hasAnyLinks(item);
     const hasFiches = hasAnyFiches(item);
-    const hasDrive = !!item.googleDriveLink;
+    const hasDrive = !!item.googleDriveUrl;
 
     return (
       <View style={[styles.projectCard, { backgroundColor: theme.backgroundSecondary }]}>
