@@ -468,7 +468,9 @@ export async function requestUploadUrl(
   });
 
   if (!response.ok) {
-    throw new Error("Failed to get upload URL");
+    const errorText = await response.text().catch(() => "Unknown error");
+    console.error(`Upload URL request failed (${response.status}):`, errorText);
+    throw new Error(`Failed to get upload URL: ${response.status} - ${errorText}`);
   }
   return response.json();
 }

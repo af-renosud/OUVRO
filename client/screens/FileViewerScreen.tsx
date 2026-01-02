@@ -40,6 +40,15 @@ export default function FileViewerScreen() {
   };
 
   const handleCapturePdfClip = async () => {
+    if (Platform.OS === "ios") {
+      Alert.alert(
+        "Feature Not Available",
+        "PDF capture for annotation is not currently supported on iOS. Please use a screenshot and annotate from Photos, or open images directly for annotation.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+    
     try {
       setIsCapturing(true);
       setHideChrome(true);

@@ -225,7 +225,8 @@ export default function AnnotationScreen() {
       }
     } catch (error) {
       console.error("Save error:", error);
-      Alert.alert("Error", "Failed to save annotation. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      Alert.alert("Error", `Failed to save annotation. ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }
