@@ -1,0 +1,133 @@
+Complete OUVRO File Access Prompt
+# OUVRO iPad App - Project Files Integration
+## API Base URL
+https://[YOUR-ARCHIDOC-DEPLOYMENT-URL]
+---
+## MENU STRUCTURE
+### 1. PLANS
+Opens "Plans & Dessins" file browser
+- Source: Project media section + uploaded plan files
+- API: GET /api/projects/:projectId
+- Field: `plansDrawingsLink` (external link if set)
+- Files: Filter archived files by "plans" category
+### 2. DQE
+Scrollable DQE item list with filters
+- Source: project.items array
+- API: GET /api/projects/:projectId
+**Filter Options:**
+- By Lot: Use `lotCode` field
+- By Contractor: Use assigned contractor data
+```typescript
+// Filter by lot
+const filteredByLot = project.items.filter(item => item.lotCode === selectedLot);
+// Filter by contractor (if assigned)
+const filteredByContractor = project.items.filter(item => item.contractorId === selectedContractorId);
+DQE Item Display:
+
+Field	Description
+designation	Item description
+lotCode	Trade/lot code
+unit	Measurement unit
+quantity	Amount
+notes	Additional notes
+3. DOCS
+Opens "Documents Généraux" (General Files section)
+
+Source: Asset Hub General Files
+API: GET /api/archive/files?projectId={projectId}&category=general
+4. LINKS (Dropdown)
+Three external link options:
+
+Menu Item	Field Name	Description
+📷 Photos du Site	photoSiteLink	Google Drive/Dropbox photo folder
+🎮 Modèles 3D	models3dLink	SketchUp, Revit, ArchiCAD files
+🏠 Visite 3D	scan3dVisitLink	Matterport, point cloud link
+API: GET /api/projects/:projectId
+Action: Open link in external browser
+5. FICHES
+All documents attached to any DQE item
+
+Source: Attachments linked to DQE items
+API: GET /api/projects/:projectId
+Data: Loop through project.items and collect all attachments
+const allFiches = project.items
+  .flatMap(item => item.attachments || [])
+  .filter(attachment => attachment !== null);
+6. DRIVE
+Opens project Google Drive folder
+
+Source: Project media section
+Field: googleDriveLink
+API: GET /api/projects/:projectId
+Action: Open link in external browser
+API RESPONSE STRUCTURE
+GET /api/projects/:projectId
+{
+  "id": "uuid",
+  "projectName": "Villa Renovation",
+  "clientName": "Client Name",
+  "items": [
+    {
+      "id": "uuid",
+      "designation": "Carrelage sol 60x60",
+      "lotCode": "CARR",
+      "unit": "m²",
+      "quantity": 45,
+      "notes": "Grès cérame antidérapant",
+      "attachments": [
+        {
+          "id": "uuid",
+          "fileName": "fiche-technique-carrelage.pdf",
+          "fileUrl": "https://..."
+        }
+      ]
+    }
+  ],
+  "photoSiteLink": "https://drive.google.com/...",
+  "models3dLink": "https://sketchfab.com/...",
+  "scan3dVisitLink": "https://my.matterport.com/...",
+  "googleDriveLink": "https://drive.google.com/..."
+}
+UI LAYOUT
+┌─────────────────────────────────────────────────────┐
+│  [PLANS]  [DQE]  [DOCS]  [LINKS ▼]  [FICHES]  [DRIVE]│
+└─────────────────────────────────────────────────────┘
+PLANS pressed:
+┌─────────────────────────────────────────────────────┐
+│ 📁 Plans & Dessins                                  │
+│ ┌─────────────────────────────────────────────────┐ │
+│ │ 📄 V9_COMPOSITION.PLANCHER.pdf              ⬇️  │ │
+│ │ 📄 Plan-RDC-EXE.pdf                         ⬇️  │ │
+│ │ 📄 Facade-Nord.dwg                          ⬇️  │ │
+│ └─────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────┘
+DQE pressed:
+┌─────────────────────────────────────────────────────┐
+│ 📋 DQE List                                         │
+│ ┌───────────────┐ ┌───────────────┐                 │
+│ │ Lot: All    ▼ │ │ Entreprise ▼ │                 │
+│ └───────────────┘ └───────────────┘                 │
+│ ┌─────────────────────────────────────────────────┐ │
+│ │ CARR-001 │ Carrelage sol 60x60 │ 45 m²      📎  │ │
+│ │ PLOM-003 │ Robinetterie douche │ 2 U        📎  │ │
+│ │ ELEC-012 │ Tableau électrique  │ 1 ens      📎  │ │
+│ └─────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────┘
+LINKS dropdown:
+┌─────────────────────────────────────────────────────┐
+│ LINKS ▼                                             │
+│ ┌─────────────────────────────────────────────────┐ │
+│ │ 📷 Photos du Site                           ↗️  │ │
+│ │ 🎮 Modèles 3D                               ↗️  │ │
+│ │ 🏠 Visite 3D                                ↗️  │ │
+│ └─────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────┘
+AUTHENTICATION
+Use session-based auth with credentials:
+
+fetch(url, { credentials: 'include' })
+ERROR HANDLING
+401: Session expired → prompt re-login
+404: Project/file not found
+Empty link: Show "Lien non configuré" message
+---

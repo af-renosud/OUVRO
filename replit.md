@@ -61,11 +61,28 @@ shared/
 5. **Translation**: Translate text to French for contractor communication
 6. **Share Options**: WhatsApp and SMS sharing of observations
 7. **Sync Queue**: Manual sync control with WiFi/cellular preferences
-8. **Project Files**: Browse project documents by Asset Hub category (00-08)
-9. **File Viewer**: View PDFs and images from ARCHIDOC Asset Hub
-10. **Annotations**: Draw markups on images (pen, arrow, shapes, text, measurement) with French construction standard colors
-11. **DQE Browser**: Browse project DQE items with lot filtering
-12. **Project Links**: View and open external project links
+8. **File Viewer**: View PDFs and images from ARCHIDOC Asset Hub
+9. **Annotations**: Draw markups on images (pen, arrow, shapes, text, measurement) with French construction standard colors
+10. **DQE Browser**: Browse project DQE items with lot AND contractor filtering
+11. **Fiches Techniques**: View all DQE item attachments in one place
+
+## Files Tab - 6-Button Menu Structure
+Each project card shows 6 action buttons:
+| Button | Screen | Description |
+|--------|--------|-------------|
+| PLANS | PlansScreen | Browse plans & drawings files (category: "plans") + external link fallback |
+| DQE | DQEBrowserScreen | Scrollable DQE item list with lot/contractor filters |
+| DOCS | DocsScreen | Browse general documents (category: "general") |
+| LINKS | Modal dropdown | 3 external links: Photos du Site, Modèles 3D, Visite 3D |
+| FICHES | FichesScreen | All documents attached to any DQE item |
+| DRIVE | External link | Opens project Google Drive folder |
+
+### Project External Link Fields
+- `photoSiteLink` - Google Drive/Dropbox photo folder
+- `models3dLink` - SketchUp, Revit, ArchiCAD files
+- `scan3dVisitLink` - Matterport, point cloud link
+- `googleDriveLink` - Project Google Drive folder
+- `plansDrawingsLink` - External plans folder (fallback)
 
 ## External API Integration
 The app connects to the live ARCHIDOC system at https://archidoc.app to fetch project data. The ARCHIDOC API URL is configurable via the `EXPO_PUBLIC_ARCHIDOC_API_URL` environment variable.
@@ -143,12 +160,21 @@ This will execute the following checks:
 ---
 
 ## Recent Changes
+- January 2, 2026: New 6-Button File Access Strategy
+  - FilesScreen: New 6-button menu per project (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE)
+  - PlansScreen: Browse plans & drawings with fallback to external link
+  - DocsScreen: Browse general documents (Asset Hub category: general)
+  - FichesScreen: View all DQE item attachments in one place
+  - LINKS: Modal dropdown with 3 external links (Photos du Site, Modèles 3D, Visite 3D)
+  - DRIVE: Opens project Google Drive folder directly
+  - DQEBrowserScreen: Added contractor filter alongside lot filter
+  - API: Added new project fields (photoSiteLink, models3dLink, scan3dVisitLink, googleDriveLink, plansDrawingsLink)
+  - API: Added DQEAttachment type and getAllDQEAttachments helper function
 - January 2, 2026: ARCHIDOC Asset Hub Integration (Phase 2)
   - Updated file categories to Asset Hub structure (00-08: Contrats, PLU, État des Lieux, Permis, Admin, DCE, DET, VISA, AOR)
   - New DQEBrowserScreen: Browse project DQE items with lot code filtering
   - New ProjectLinksScreen: View and open external project links with auto-detected icons
   - Measurement tool added to AnnotationScreen with distance display (pixels/meters) and perpendicular tick marks
-  - FilesScreen action row: Files, DQE, and Links buttons (disabled when no data available)
   - Fixed ProjectLinksScreen to show alert when link cannot be opened
   - Fixed AnnotationScreen measurement text to use dark color for readability
 - January 2, 2026: ARCHIDOC Project Files Integration

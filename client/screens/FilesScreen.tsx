@@ -1,5 +1,5 @@
-import React from "react";
-import { View, StyleSheet, Pressable, FlatList, ActivityIndicator, ScrollView } from "react-native";
+import React, { useState } from "react";
+import { View, StyleSheet, Pressable, FlatList, ActivityIndicator, Modal, Alert, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -13,10 +13,19 @@ import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/them
 import { fetchArchidocProjects, isApiConfigured, type MappedProject } from "@/lib/archidoc-api";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
+type LinksDropdownItem = {
+  key: string;
+  label: string;
+  icon: string;
+  link?: string;
+};
+
 export default function FilesScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [linksModalVisible, setLinksModalVisible] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<MappedProject | null>(null);
 
   const { data: projects = [], isLoading, error, refetch } = useQuery({
     queryKey: ["/api/projects"],
@@ -25,10 +34,11 @@ export default function FilesScreen() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const handleFilesPress = (project: MappedProject) => {
-    navigation.navigate("ProjectFiles", {
+  const handlePlansPress = (project: MappedProject) => {
+    navigation.navigate("PlansScreen", {
       projectId: project.id,
       projectName: project.name,
+      plansDrawingsLink: project.plansDrawingsLink,
     });
   };
 
@@ -39,25 +49,80 @@ export default function FilesScreen() {
     });
   };
 
-  const handleLinksPress = (project: MappedProject) => {
-    navigation.navigate("ProjectLinks", {
+  const handleDocsPress = (project: MappedProject) => {
+    navigation.navigate("DocsScreen", {
       projectId: project.id,
       projectName: project.name,
-      links: project.links || [],
     });
+  };
+
+  const handleLinksPress = (project: MappedProject) => {
+    setSelectedProject(project);
+    setLinksModalVisible(true);
+  };
+
+  const handleFichesPress = (project: MappedProject) => {
+    navigation.navigate("FichesScreen", {
+      projectId: project.id,
+      projectName: project.name,
+      items: project.items || [],
+    });
+  };
+
+  const handleDrivePress = (project: MappedProject) => {
+    if (project.googleDriveLink) {
+      openExternalLink(project.googleDriveLink);
+    } else {
+      Alert.alert("Lien non configuré", "Le lien Google Drive n'est pas configuré pour ce projet.");
+    }
+  };
+
+  const openExternalLink = async (url: string) => {
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("Impossible d'ouvrir", "Ce lien ne peut pas être ouvert sur cet appareil.");
+      }
+    } catch (err) {
+      Alert.alert("Erreur", "Impossible d'ouvrir le lien.");
+    }
+  };
+
+  const handleLinksItemPress = (item: LinksDropdownItem) => {
+    setLinksModalVisible(false);
+    if (item.link) {
+      openExternalLink(item.link);
+    } else {
+      Alert.alert("Lien non configuré", `Le lien "${item.label}" n'est pas configuré pour ce projet.`);
+    }
+  };
+
+  const getLinksDropdownItems = (project: MappedProject): LinksDropdownItem[] => [
+    { key: "photos", label: "Photos du Site", icon: "camera", link: project.photoSiteLink },
+    { key: "models3d", label: "Modèles 3D", icon: "box", link: project.models3dLink },
+    { key: "scan3d", label: "Visite 3D", icon: "home", link: project.scan3dVisitLink },
+  ];
+
+  const hasAnyLinks = (project: MappedProject): boolean => {
+    return !!(project.photoSiteLink || project.models3dLink || project.scan3dVisitLink);
+  };
+
+  const hasAnyFiches = (project: MappedProject): boolean => {
+    return (project.items || []).some((item) => item.attachments && item.attachments.length > 0);
   };
 
   const renderProjectItem = ({ item }: { item: MappedProject }) => {
     const statusColor = item.status === "active" ? BrandColors.success : theme.textTertiary;
     const hasItems = item.items && item.items.length > 0;
-    const hasLinks = item.links && item.links.length > 0;
+    const hasLinks = hasAnyLinks(item);
+    const hasFiches = hasAnyFiches(item);
+    const hasDrive = !!item.googleDriveLink;
 
     return (
       <View style={[styles.projectCard, { backgroundColor: theme.backgroundSecondary }]}>
-        <Pressable
-          style={styles.projectHeader}
-          onPress={() => handleFilesPress(item)}
-        >
+        <View style={styles.projectHeader}>
           <View style={[styles.projectIcon, { backgroundColor: theme.backgroundTertiary }]}>
             <Feather name="folder" size={24} color={BrandColors.primary} />
           </View>
@@ -75,16 +140,16 @@ export default function FilesScreen() {
               {item.status}
             </ThemedText>
           </View>
-        </Pressable>
+        </View>
         
         <View style={[styles.actionRow, { borderTopColor: theme.border }]}>
           <Pressable
             style={styles.actionButton}
-            onPress={() => handleFilesPress(item)}
+            onPress={() => handlePlansPress(item)}
           >
-            <Feather name="file" size={18} color={BrandColors.primary} />
+            <Feather name="map" size={16} color={BrandColors.primary} />
             <ThemedText style={[styles.actionText, { color: BrandColors.primary }]}>
-              Fichiers
+              PLANS
             </ThemedText>
           </Pressable>
           
@@ -95,7 +160,7 @@ export default function FilesScreen() {
             onPress={() => handleDQEPress(item)}
             disabled={!hasItems}
           >
-            <Feather name="list" size={18} color={hasItems ? BrandColors.primary : theme.textTertiary} />
+            <Feather name="list" size={16} color={hasItems ? BrandColors.primary : theme.textTertiary} />
             <ThemedText style={[styles.actionText, { color: hasItems ? BrandColors.primary : theme.textTertiary }]}>
               DQE
             </ThemedText>
@@ -104,13 +169,52 @@ export default function FilesScreen() {
           <View style={[styles.actionDivider, { backgroundColor: theme.border }]} />
           
           <Pressable
+            style={styles.actionButton}
+            onPress={() => handleDocsPress(item)}
+          >
+            <Feather name="file-text" size={16} color={BrandColors.primary} />
+            <ThemedText style={[styles.actionText, { color: BrandColors.primary }]}>
+              DOCS
+            </ThemedText>
+          </Pressable>
+        </View>
+
+        <View style={[styles.actionRow, { borderTopColor: theme.border }]}>
+          <Pressable
             style={[styles.actionButton, !hasLinks && styles.actionDisabled]}
             onPress={() => handleLinksPress(item)}
             disabled={!hasLinks}
           >
-            <Feather name="link" size={18} color={hasLinks ? BrandColors.primary : theme.textTertiary} />
+            <Feather name="link" size={16} color={hasLinks ? BrandColors.primary : theme.textTertiary} />
             <ThemedText style={[styles.actionText, { color: hasLinks ? BrandColors.primary : theme.textTertiary }]}>
-              Liens
+              LINKS
+            </ThemedText>
+            <Feather name="chevron-down" size={12} color={hasLinks ? BrandColors.primary : theme.textTertiary} />
+          </Pressable>
+          
+          <View style={[styles.actionDivider, { backgroundColor: theme.border }]} />
+          
+          <Pressable
+            style={[styles.actionButton, !hasFiches && styles.actionDisabled]}
+            onPress={() => handleFichesPress(item)}
+            disabled={!hasFiches}
+          >
+            <Feather name="paperclip" size={16} color={hasFiches ? BrandColors.primary : theme.textTertiary} />
+            <ThemedText style={[styles.actionText, { color: hasFiches ? BrandColors.primary : theme.textTertiary }]}>
+              FICHES
+            </ThemedText>
+          </Pressable>
+          
+          <View style={[styles.actionDivider, { backgroundColor: theme.border }]} />
+          
+          <Pressable
+            style={[styles.actionButton, !hasDrive && styles.actionDisabled]}
+            onPress={() => handleDrivePress(item)}
+            disabled={!hasDrive}
+          >
+            <Feather name="hard-drive" size={16} color={hasDrive ? BrandColors.primary : theme.textTertiary} />
+            <ThemedText style={[styles.actionText, { color: hasDrive ? BrandColors.primary : theme.textTertiary }]}>
+              DRIVE
             </ThemedText>
           </Pressable>
         </View>
@@ -131,6 +235,66 @@ export default function FilesScreen() {
       </ThemedText>
     </View>
   );
+
+  const renderLinksModal = () => {
+    if (!selectedProject) return null;
+    const items = getLinksDropdownItems(selectedProject);
+
+    return (
+      <Modal
+        visible={linksModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLinksModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setLinksModalVisible(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: theme.backgroundSecondary }]}>
+            <ThemedText style={[styles.modalTitle, { color: theme.text }]}>
+              Liens Externes
+            </ThemedText>
+            {items.map((item) => (
+              <Pressable
+                key={item.key}
+                style={[styles.modalItem, !item.link && styles.modalItemDisabled]}
+                onPress={() => handleLinksItemPress(item)}
+                disabled={!item.link}
+              >
+                <Feather
+                  name={item.icon as any}
+                  size={20}
+                  color={item.link ? BrandColors.primary : theme.textTertiary}
+                />
+                <ThemedText
+                  style={[
+                    styles.modalItemText,
+                    { color: item.link ? theme.text : theme.textTertiary },
+                  ]}
+                >
+                  {item.label}
+                </ThemedText>
+                <Feather
+                  name="external-link"
+                  size={16}
+                  color={item.link ? theme.textSecondary : theme.textTertiary}
+                />
+              </Pressable>
+            ))}
+            <Pressable
+              style={[styles.modalCloseButton, { backgroundColor: theme.backgroundTertiary }]}
+              onPress={() => setLinksModalVisible(false)}
+            >
+              <ThemedText style={[styles.modalCloseText, { color: theme.text }]}>
+                Fermer
+              </ThemedText>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+    );
+  };
 
   if (!isApiConfigured()) {
     return (
@@ -202,7 +366,7 @@ export default function FilesScreen() {
           Project Files
         </ThemedText>
         <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Select a project to browse files
+          Select a project to access files
         </ThemedText>
       </View>
 
@@ -226,6 +390,8 @@ export default function FilesScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
+
+      {renderLinksModal()}
     </BackgroundView>
   );
 }
@@ -282,7 +448,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing.xs,
+    gap: 4,
     paddingVertical: Spacing.sm,
   },
   actionDisabled: {
@@ -291,6 +457,7 @@ const styles = StyleSheet.create({
   actionText: {
     ...Typography.caption,
     fontWeight: "600",
+    fontSize: 11,
   },
   actionDivider: {
     width: 1,
@@ -378,5 +545,46 @@ const styles = StyleSheet.create({
   retryText: {
     ...Typography.bodyBold,
     color: "#FFFFFF",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.lg,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  modalTitle: {
+    ...Typography.h3,
+    marginBottom: Spacing.sm,
+  },
+  modalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  modalItemDisabled: {
+    opacity: 0.5,
+  },
+  modalItemText: {
+    ...Typography.body,
+    flex: 1,
+  },
+  modalCloseButton: {
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.sm,
+  },
+  modalCloseText: {
+    ...Typography.bodyBold,
   },
 });

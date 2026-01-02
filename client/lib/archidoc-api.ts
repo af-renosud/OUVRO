@@ -1,5 +1,11 @@
 const ARCHIDOC_API_URL = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
 
+export type DQEAttachment = {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+};
+
 export type ArchidocProject = {
   id: string;
   projectName: string;
@@ -9,6 +15,12 @@ export type ArchidocProject = {
   clients?: Array<{ id: string; name: string; email: string }>;
   items?: DQEItem[];
   links?: ProjectLink[];
+  // New external link fields
+  photoSiteLink?: string;
+  models3dLink?: string;
+  scan3dVisitLink?: string;
+  googleDriveLink?: string;
+  plansDrawingsLink?: string;
 };
 
 export type MappedProject = {
@@ -19,6 +31,12 @@ export type MappedProject = {
   clientName: string;
   items?: DQEItem[];
   links?: ProjectLink[];
+  // External links
+  photoSiteLink?: string;
+  models3dLink?: string;
+  scan3dVisitLink?: string;
+  googleDriveLink?: string;
+  plansDrawingsLink?: string;
 };
 
 export type DQEItem = {
@@ -28,6 +46,8 @@ export type DQEItem = {
   unit: string;
   quantity: number;
   notes?: string;
+  contractorId?: string;
+  attachments?: DQEAttachment[];
 };
 
 export type ProjectLink = {
@@ -49,7 +69,8 @@ export type FileCategory =
   | "08"
   | "general"
   | "annotations"
-  | "photos";
+  | "photos"
+  | "plans";
 
 export type ProjectFile = {
   objectId: string;
@@ -167,6 +188,11 @@ export async function fetchArchidocProjects(): Promise<MappedProject[]> {
     clientName: p.clientName,
     items: p.items,
     links: p.links,
+    photoSiteLink: p.photoSiteLink,
+    models3dLink: p.models3dLink,
+    scan3dVisitLink: p.scan3dVisitLink,
+    googleDriveLink: p.googleDriveLink,
+    plansDrawingsLink: p.plansDrawingsLink,
   }));
 }
 
@@ -192,7 +218,20 @@ export async function fetchProjectById(projectId: string): Promise<MappedProject
     clientName: p.clientName,
     items: p.items,
     links: p.links,
+    photoSiteLink: p.photoSiteLink,
+    models3dLink: p.models3dLink,
+    scan3dVisitLink: p.scan3dVisitLink,
+    googleDriveLink: p.googleDriveLink,
+    plansDrawingsLink: p.plansDrawingsLink,
   };
+}
+
+export function getAllDQEAttachments(items: DQEItem[]): { item: DQEItem; attachment: DQEAttachment }[] {
+  return items
+    .flatMap((item) =>
+      (item.attachments || []).map((attachment) => ({ item, attachment }))
+    )
+    .filter((entry) => entry.attachment !== null);
 }
 
 export async function fetchProjectFiles(

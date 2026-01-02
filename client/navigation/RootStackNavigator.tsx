@@ -13,8 +13,11 @@ import AnnotationScreen from "@/screens/AnnotationScreen";
 import ProjectFilesScreen from "@/screens/ProjectFilesScreen";
 import DQEBrowserScreen from "@/screens/DQEBrowserScreen";
 import ProjectLinksScreen from "@/screens/ProjectLinksScreen";
+import PlansScreen from "@/screens/PlansScreen";
+import DocsScreen from "@/screens/DocsScreen";
+import FichesScreen from "@/screens/FichesScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
-import type { FileCategory, ProjectFile, ProjectLink } from "@/lib/archidoc-api";
+import type { FileCategory, ProjectFile, ProjectLink, DQEItem } from "@/lib/archidoc-api";
 
 export type ShareObservation = {
   id: number;
@@ -39,6 +42,9 @@ export type RootStackParamList = {
   ProjectFiles: { projectId: string; projectName: string };
   DQEBrowser: { projectId: string; projectName: string };
   ProjectLinks: { projectId: string; projectName: string; links: ProjectLink[] };
+  PlansScreen: { projectId: string; projectName: string; plansDrawingsLink?: string };
+  DocsScreen: { projectId: string; projectName: string };
+  FichesScreen: { projectId: string; projectName: string; items: DQEItem[] };
 };
 
 export type MediaItem = {
@@ -117,6 +123,21 @@ export default function RootStackNavigator() {
         name="ProjectLinks"
         component={ProjectLinksScreen}
         options={{ headerTitle: "Liens Projet" }}
+      />
+      <Stack.Screen
+        name="PlansScreen"
+        component={PlansScreen}
+        options={{ headerTitle: "Plans & Dessins" }}
+      />
+      <Stack.Screen
+        name="DocsScreen"
+        component={DocsScreen}
+        options={{ headerTitle: "Documents" }}
+      />
+      <Stack.Screen
+        name="FichesScreen"
+        component={FichesScreen}
+        options={{ headerTitle: "Fiches Techniques" }}
       />
     </Stack.Navigator>
   );
