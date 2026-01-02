@@ -1,0 +1,145 @@
+OUVRO Mobile App - DQE File Viewer Integration Brief
+From: ARCHIDOC Backend Team
+To: OUVRO iPad/Mobile App Development Team
+Date: January 2, 2026
+
+1. Context
+OUVRO is a companion iPad/mobile app for field observation capture. One of its features is the DQE Menu which allows field managers to view project DQE (Devis Quantitatif Estimatif) items organized by lot or contractor assignment.
+
+Current Issue: Based on the screenshot provided, the DQE items are displaying only the quantity + unit (e.g., "1 m³") without the actual work description. There's also a React key prop warning.
+
+2. API Endpoint
+Fetch DQE Items for a Project
+GET /api/projects/:projectId
+Response Structure:
+
+{
+  "id": "uuid",
+  "projectName": "Villa Renovation",
+  "clientName": "Jean Dupont",
+  "items": [
+    {
+      "id": "item-uuid-123",
+      "description": "Béton armé pour fondations",
+      "quantity": 15,
+      "unit": "m³",
+      "lotCode": "GO-01",
+      "tags": ["foundation", "structural"],
+      "zone": "RDC",
+      "stageCode": "GO-02",
+      "attachments": [...],
+      "assignedContractorId": "contractor-uuid-456"
+    }
+  ],
+  "lotContractors": {
+    "GO-01": "contractor-uuid-789",
+    "GO-02": null
+  }
+}
+Fetch Contractors (for name lookup)
+GET /api/contractors
+Response:
+
+[
+  {
+    "id": "contractor-uuid-456",
+    "name": "SARL Maçonnerie Dupont",
+    "email": "contact@dupont-macon.fr",
+    "phone": "06 12 34 56 78",
+    "trades": ["maconnerie", "gros-oeuvre"]
+  }
+]
+3. Key Fields for DQE Item Display
+Field	Type	Description	Display Usage
+id	string (UUID)	Unique identifier	Use as React key prop
+description	string	Work item description	Primary text (most important!)
+quantity	number	Amount	Secondary text
+unit	string	Unit of measure (m², ml, U, FOR, ENS)	Secondary text with quantity
+lotCode	string	Lot identifier (GO-01, SO-03, etc.)	Badge/tag
+zone	string	Location in building (RDC, R+1, etc.)	Optional filter/badge
+stageCode	string	Construction stage code	Optional grouping
+attachments	array	File attachments	Show attachment icon if present
+assignedContractorId	string/null	Contractor UUID	Look up contractor name
+4. Lot Code Reference (French Standards)
+Code	French Name	English
+GO-01 to GO-05	Gros Œuvre	Structural Works
+SO-01 to SO-11	Second Œuvre	Secondary Works
+AM-01 to AM-02	Aménagements	Fit-out Works
+Common lot codes:
+
+GO-01: Terrassement (Earthworks)
+GO-02: Fondations (Foundations)
+GO-03: Maçonnerie (Masonry)
+SO-01: Charpente/Couverture (Roofing)
+SO-03: Menuiseries (Joinery)
+SO-05: Plomberie (Plumbing)
+SO-06: Électricité (Electrical)
+SO-08: Peinture (Painting)
+5. Recommended UI Card Layout
+List Item Card (Collapsed)
+┌────────────────────────────────────────────────┐
+│ [GO-01]  Béton armé pour fondations          ▼ │
+│          15 m³                                 │
+└────────────────────────────────────────────────┘
+List Item Card (Expanded)
+┌────────────────────────────────────────────────┐
+│ [GO-01]  Béton armé pour fondations          ▲ │
+│          15 m³                                 │
+├────────────────────────────────────────────────┤
+│ Zone: RDC                                      │
+│ Stage: GO-02 - Fondations                      │
+│ Entreprise: SARL Maçonnerie Dupont             │
+│ 📎 2 attachments                               │
+└────────────────────────────────────────────────┘
+6. Filtering Logic
+By Lot (Tab: "Lot")
+Group items by lotCode, show count per lot:
+
+Lot GO-01 (5)
+Lot GO-02 (3)
+Lot SO-05 (12)
+By Contractor (Tab: "Entreprise")
+Use project.lotContractors mapping + contractor lookup:
+
+Get lotContractors object from project
+For each lot, find the assigned contractor ID
+Group items by contractor name
+Items with lotCode mapped to null = "Non assigné"
+7. Bug Fixes Required
+Fix 1: React Key Prop
+// ❌ Wrong - causes "unique key" warning
+{items.map((item, index) => (
+  <DQECard item={item} />
+))}
+// ✅ Correct - use item.id as key
+{items.map((item) => (
+  <DQECard key={item.id} item={item} />
+))}
+Fix 2: Show Description as Primary Text
+// ❌ Current (broken)
+<Text>{item.quantity} {item.unit}</Text>
+// ✅ Correct
+<Text style={styles.title}>{item.description}</Text>
+<Text style={styles.subtitle}>{item.quantity} {item.unit}</Text>
+8. Contractor Name Lookup Helper
+// Build contractor lookup map
+const contractorMap = new Map(
+  contractors.map(c => [c.id, c.name])
+);
+// Get contractor name for a DQE item
+function getContractorName(item, project, contractorMap) {
+  const contractorId = project.lotContractors?.[item.lotCode];
+  if (!contractorId) return "Non assigné";
+  return contractorMap.get(contractorId) || "Inconnu";
+}
+9. Test Data Verification
+To verify your integration is working, call the API and check:
+
+items array is populated (not empty)
+Each item has id, description, quantity, unit, lotCode
+lotContractors object exists on project
+Contractor names resolve correctly
+10. Questions?
+Contact ARCHIDOC backend team for API support. The complete API contract is documented in ARCHIDOC's replit.md under "Field Observations API Endpoints" and "API Contract - Required Fields".
+
+This should give the OUVRO team everything needed to fix the DQE display.
