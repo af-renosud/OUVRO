@@ -51,7 +51,7 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="CaptureModal"
         component={CaptureModalScreen}
-        options={{ presentation: "modal", headerShown: false }}
+        options={{ presentation: "fullScreenModal", headerShown: false }}
       />
       <Stack.Screen
         name="PhotoCapture"
