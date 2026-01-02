@@ -5,12 +5,14 @@ import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { Audio } from "expo-av";
+import { requestRecordingPermissionsAsync } from "expo-audio";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
-type RecordingObject = {
+type RecordingInstance = {
   stopAndUnloadAsync: () => Promise<unknown>;
   getURI: () => string | null;
 };
@@ -29,7 +31,7 @@ export default function AudioCaptureScreen() {
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordingRef = useRef<RecordingObject | null>(null);
+  const recordingRef = useRef<RecordingInstance | null>(null);
 
   const isPhone = width < 500;
   const waveformSize = isPhone ? 120 : 160;
@@ -63,10 +65,7 @@ export default function AudioCaptureScreen() {
           timeoutId = setTimeout(() => reject(new Error("Permission request timeout")), 10000);
         });
         
-        const permissionPromise = (async () => {
-          const { requestRecordingPermissionsAsync } = await import("expo-audio");
-          return await requestRecordingPermissionsAsync();
-        })();
+        const permissionPromise = requestRecordingPermissionsAsync();
         
         const permissionResponse = await Promise.race([permissionPromise, timeoutPromise]);
         if (timeoutId) clearTimeout(timeoutId);
@@ -97,7 +96,6 @@ export default function AudioCaptureScreen() {
     }
 
     try {
-      const { Audio } = await import("expo-av");
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
@@ -141,8 +139,6 @@ export default function AudioCaptureScreen() {
         return;
       }
 
-      const { Audio } = await import("expo-av");
-      
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
       
@@ -171,15 +167,13 @@ export default function AudioCaptureScreen() {
     }
 
     try {
-      const { Audio } = await import("expo-av");
-      
       if (isPlaying) {
         setIsPlaying(false);
       } else {
         setIsPlaying(true);
         const { sound } = await Audio.Sound.createAsync({ uri: recordingUri });
         sound.setOnPlaybackStatusUpdate((status) => {
-          if (status.isLoaded && status.didJustFinish) {
+          if ("isLoaded" in status && status.isLoaded && "didJustFinish" in status && status.didJustFinish) {
             setIsPlaying(false);
             sound.unloadAsync();
           }
