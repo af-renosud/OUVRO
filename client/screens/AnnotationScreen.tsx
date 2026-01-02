@@ -183,20 +183,29 @@ export default function AnnotationScreen() {
       setIsSaving(true);
 
       if (viewShotRef.current?.capture) {
+        console.log("[Annotation] Capturing view...");
         const uri = await viewShotRef.current.capture();
+        console.log("[Annotation] Captured URI:", uri);
+        
         const fileName = `annotated-${file.originalName.replace(/\.[^/.]+$/, "")}-${Date.now()}.png`;
 
         const fileInfo = await FileSystem.getInfoAsync(uri);
         const fileSize = (fileInfo as any).size || 0;
+        console.log("[Annotation] File size:", fileSize);
 
+        console.log("[Annotation] Requesting upload URL...");
         const uploadInfo = await requestUploadUrl(fileName, "image/png", fileSize);
+        console.log("[Annotation] Upload info:", JSON.stringify(uploadInfo, null, 2));
 
-        await FileSystem.uploadAsync(uploadInfo.uploadURL, uri, {
+        console.log("[Annotation] Uploading to storage...");
+        const uploadResult = await FileSystem.uploadAsync(uploadInfo.uploadURL, uri, {
           httpMethod: "PUT",
           uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
           headers: { "Content-Type": "image/png" },
         });
+        console.log("[Annotation] Upload result:", uploadResult.status);
 
+        console.log("[Annotation] Archiving file...");
         await archiveUploadedFile({
           objectId: uploadInfo.objectId,
           bucketName: uploadInfo.bucketName,
@@ -207,6 +216,7 @@ export default function AnnotationScreen() {
           projectId,
           category: "annotations",
         });
+        console.log("[Annotation] Archive complete!");
 
         Alert.alert(
           "Saved",

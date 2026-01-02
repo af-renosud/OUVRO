@@ -512,6 +512,8 @@ export async function archiveUploadedFile(params: {
     throw new Error("ARCHIDOC API URL is not configured");
   }
 
+  console.log("[archiveUploadedFile] Params:", JSON.stringify(params, null, 2));
+
   const response = await fetch(`${ARCHIDOC_API_URL}/api/archive/files`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -519,8 +521,11 @@ export async function archiveUploadedFile(params: {
     body: JSON.stringify(params),
   });
 
+  const responseText = await response.text();
+  console.log("[archiveUploadedFile] Response status:", response.status, "body:", responseText);
+
   if (!response.ok) {
-    throw new Error("Failed to archive file");
+    throw new Error(`Failed to archive file: ${response.status} - ${responseText}`);
   }
 }
 
