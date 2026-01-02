@@ -124,6 +124,7 @@ export default function AnnotationScreen() {
   }, []);
 
   const panGesture = Gesture.Pan()
+    .minDistance(1)
     .onStart((e) => {
       runOnJS(handlePanStart)(e.x, e.y, selectedTool);
     })
@@ -411,19 +412,21 @@ export default function AnnotationScreen() {
           <ViewShot
             ref={viewShotRef}
             style={[styles.viewShot, { width: canvasWidth, height: canvasHeight }]}
-            options={{ format: "png", quality: 1 }}
+            options={{ format: "png", quality: 1, result: "tmpfile" }}
           >
-            <Image
-              source={{ uri: signedUrl }}
-              style={[styles.backgroundImage, { width: canvasWidth, height: canvasHeight }]}
-              contentFit="contain"
-              onLoad={() => setImageLoaded(true)}
-              onError={handleImageError}
-            />
-            <Svg style={StyleSheet.absoluteFill} width={canvasWidth} height={canvasHeight}>
-              {elements.map(renderElement)}
-              {currentElement ? renderElement(currentElement) : null}
-            </Svg>
+            <View style={{ width: canvasWidth, height: canvasHeight }}>
+              <Image
+                source={{ uri: signedUrl }}
+                style={[styles.backgroundImage, { width: canvasWidth, height: canvasHeight }]}
+                contentFit="contain"
+                onLoad={() => setImageLoaded(true)}
+                onError={handleImageError}
+              />
+              <Svg style={StyleSheet.absoluteFill} width={canvasWidth} height={canvasHeight}>
+                {elements.map(renderElement)}
+                {currentElement ? renderElement(currentElement) : null}
+              </Svg>
+            </View>
           </ViewShot>
         </View>
       </GestureDetector>
