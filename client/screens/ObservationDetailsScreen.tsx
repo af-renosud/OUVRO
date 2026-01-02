@@ -43,24 +43,37 @@ export default function ObservationDetailsScreen() {
   const lastDescriptionRef = useRef("");
 
   const detectAndRemoveDuplication = useCallback((text: string, prev: string): string => {
-    if (prev.length < 3) return text;
-    
     const trimmedText = text.trim();
-    const trimmedPrev = prev.trim();
+    if (trimmedText.length < 6) return text;
     
-    if (trimmedText === trimmedPrev + " " + trimmedPrev || trimmedText === trimmedPrev + trimmedPrev) {
-      return trimmedPrev;
+    const words = trimmedText.split(/\s+/);
+    if (words.length < 2) return text;
+    
+    for (let splitPoint = Math.ceil(words.length / 2); splitPoint < words.length; splitPoint++) {
+      const firstPart = words.slice(0, splitPoint).join(" ").toLowerCase();
+      const secondPart = words.slice(splitPoint).join(" ").toLowerCase();
+      
+      if (firstPart.startsWith(secondPart) || secondPart.startsWith(firstPart.split(" ").slice(0, words.length - splitPoint).join(" "))) {
+        return words.slice(0, splitPoint).join(" ");
+      }
     }
     
-    if (trimmedText.startsWith(trimmedPrev + " ")) {
-      const remainder = trimmedText.slice(trimmedPrev.length + 1).trim();
-      const prevWords = trimmedPrev.toLowerCase().split(/\s+/);
-      const remainderWords = remainder.toLowerCase().split(/\s+/);
+    const trimmedPrev = prev.trim();
+    if (trimmedPrev.length >= 3) {
+      if (trimmedText === trimmedPrev + " " + trimmedPrev || trimmedText === trimmedPrev + trimmedPrev) {
+        return trimmedPrev;
+      }
       
-      if (remainderWords.length > 0 && remainderWords.length <= prevWords.length) {
-        const matchCount = remainderWords.filter((word, i) => prevWords[i] === word).length;
-        if (matchCount >= remainderWords.length * 0.6) {
-          return trimmedPrev;
+      if (trimmedText.startsWith(trimmedPrev + " ")) {
+        const remainder = trimmedText.slice(trimmedPrev.length + 1).trim();
+        const prevWords = trimmedPrev.toLowerCase().split(/\s+/);
+        const remainderWords = remainder.toLowerCase().split(/\s+/);
+        
+        if (remainderWords.length > 0 && remainderWords.length <= prevWords.length) {
+          const matchCount = remainderWords.filter((word, i) => prevWords[i] === word).length;
+          if (matchCount >= remainderWords.length * 0.6) {
+            return trimmedPrev;
+          }
         }
       }
     }
