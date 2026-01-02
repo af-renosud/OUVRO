@@ -22,6 +22,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNavigator";
+import type { ProjectFile } from "@/lib/archidoc-api";
 
 export default function ObservationDetailsScreen() {
   const { theme } = useTheme();
@@ -206,6 +207,26 @@ export default function ObservationDetailsScreen() {
     }
   };
 
+  const handleAnnotatePhoto = (item: MediaItem, index: number) => {
+    // Create a ProjectFile-like object for the annotation screen
+    const file: ProjectFile = {
+      objectId: `local-photo-${index}`,
+      objectName: `photo-${index}.jpg`,
+      originalName: `Photo ${index + 1}`,
+      contentType: "image/jpeg",
+      size: 0,
+      projectId: projectId,
+      category: "photos",
+      createdAt: new Date().toISOString(),
+    };
+    
+    navigation.navigate("Annotation", {
+      file,
+      signedUrl: item.uri,
+      projectId,
+    });
+  };
+
   const hasAudio = mediaItems.some((m: MediaItem) => m.type === "audio");
 
   return (
@@ -262,14 +283,24 @@ export default function ObservationDetailsScreen() {
         {mediaItems.length > 0 ? (
           <View style={styles.section}>
             <ThemedText style={styles.label}>Attached Media</ThemedText>
+            <ThemedText style={[styles.mediaHint, { color: theme.textSecondary }]}>
+              Tap photos to annotate
+            </ThemedText>
             <View style={styles.mediaGrid}>
               {mediaItems.map((item: MediaItem, index: number) => (
-                <View
+                <Pressable
                   key={index}
                   style={[styles.mediaThumbnail, { backgroundColor: theme.backgroundSecondary }]}
+                  onPress={item.type === "photo" ? () => handleAnnotatePhoto(item, index) : undefined}
+                  disabled={item.type !== "photo"}
                 >
                   {item.type === "photo" ? (
-                    <Image source={{ uri: item.uri }} style={styles.thumbnailImage} />
+                    <>
+                      <Image source={{ uri: item.uri }} style={styles.thumbnailImage} />
+                      <View style={styles.annotationOverlay}>
+                        <Feather name="edit-2" size={16} color="#FFFFFF" />
+                      </View>
+                    </>
                   ) : (
                     <View style={styles.mediaIconContainer}>
                       <Feather name={getMediaIcon(item.type)} size={32} color={BrandColors.primary} />
@@ -280,7 +311,7 @@ export default function ObservationDetailsScreen() {
                       ) : null}
                     </View>
                   )}
-                </View>
+                </Pressable>
               ))}
             </View>
           </View>
@@ -389,6 +420,11 @@ const styles = StyleSheet.create({
     ...Typography.h3,
     marginBottom: Spacing.sm,
   },
+  mediaHint: {
+    ...Typography.caption,
+    marginBottom: Spacing.sm,
+    fontStyle: "italic",
+  },
   input: {
     ...Typography.body,
     padding: Spacing.md,
@@ -413,6 +449,17 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     resizeMode: "cover",
+  },
+  annotationOverlay: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: BrandColors.primary,
+    justifyContent: "center",
+    alignItems: "center",
   },
   mediaIconContainer: {
     flex: 1,
