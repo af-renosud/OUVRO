@@ -399,6 +399,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         translatedText: observation.translatedText || undefined,
       };
 
+      console.log("[Sync] Observation from DB:", JSON.stringify({
+        id: observation.id,
+        title: observation.title,
+        transcription: observation.transcription,
+        translatedText: observation.translatedText,
+      }));
+      console.log("[Sync] Payload to ARCHIDOC:", JSON.stringify(archidocPayload));
+
       let archidocObservationId: number | null = null;
 
       try {
