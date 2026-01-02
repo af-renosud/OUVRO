@@ -1,5 +1,83 @@
 const ARCHIDOC_API_URL = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
 
+// Raw ARCHIDOC DQE item response - actual API field names
+type RawDQEItem = {
+  id: string;
+  description?: string;
+  title?: string; // Short title
+  lotCode?: string;
+  lotNumber?: string; // ARCHIDOC uses lotNumber, not lotCode
+  lot_code?: string; // snake_case variant
+  lot_number?: string; // snake_case variant
+  unit: string;
+  quantity: number;
+  zone?: string;
+  category?: string;
+  stageCode?: string;
+  stage_code?: string;
+  tags?: string[];
+  notes?: string;
+  internalNotes?: Array<{ text: string }>;
+  assignedContractorId?: string | null;
+  assigned_contractor_id?: string | null;
+  contractorId?: string | null;
+  contractor_id?: string | null;
+  // ARCHIDOC uses "attachments" (usually empty) and "projectAttachments" (actual files)
+  attachments?: Array<{
+    id: string;
+    fileName?: string;
+    file_name?: string;
+    name?: string;
+    fileUrl?: string;
+    file_url?: string;
+    url?: string;
+    type?: string;
+  }>;
+  projectAttachments?: Array<{
+    id: string;
+    name?: string;
+    url?: string;
+    type?: string;
+  }>;
+};
+
+// Map raw DQE item to normalized format
+function mapDQEItem(raw: RawDQEItem): DQEItem {
+  // Combine attachments from both fields (ARCHIDOC uses projectAttachments for actual files)
+  const rawAttachments = raw.attachments || [];
+  const projectAttachments = raw.projectAttachments || [];
+  
+  const allAttachments: DQEAttachment[] = [
+    ...rawAttachments.map(att => ({
+      id: att.id,
+      fileName: att.fileName || att.file_name || att.name || "",
+      fileUrl: att.fileUrl || att.file_url || att.url || "",
+    })),
+    ...projectAttachments.map(att => ({
+      id: att.id,
+      fileName: att.name || "",
+      fileUrl: att.url || "",
+    })),
+  ].filter(att => att.id && (att.fileName || att.fileUrl));
+  
+  // ARCHIDOC uses lotNumber, not lotCode
+  const lotCode = raw.lotCode || raw.lotNumber || raw.lot_code || raw.lot_number || "";
+  
+  return {
+    id: raw.id,
+    description: raw.description || raw.title || "",
+    lotCode: lotCode,
+    unit: raw.unit,
+    quantity: raw.quantity,
+    zone: raw.zone || raw.category,
+    stageCode: raw.stageCode || raw.stage_code,
+    tags: raw.tags,
+    notes: raw.notes || (raw.internalNotes?.map(n => n.text).join("\n")),
+    assignedContractorId: raw.assignedContractorId || raw.assigned_contractor_id || raw.contractorId || raw.contractor_id || null,
+    attachments: allAttachments,
+  };
+}
+
 export type DQEAttachment = {
   id: string;
   fileName: string;
@@ -213,20 +291,54 @@ export async function fetchProjectById(projectId: string): Promise<MappedProject
     if (response.status === 404) return null;
     throw new Error("Failed to fetch project");
   }
-  const p: ArchidocProject = await response.json();
+  const rawData = await response.json();
+  
+  // Log raw response to check field names
+  console.log("[ARCHIDOC API] Raw JSON keys:", Object.keys(rawData));
+  if (rawData.items?.[0]) {
+    console.log("[ARCHIDOC API] First item raw keys:", Object.keys(rawData.items[0]));
+    console.log("[ARCHIDOC API] First item raw data:", JSON.stringify(rawData.items[0]));
+  }
+  // Log lotContractors/lot_contractors
+  console.log("[ARCHIDOC API] lotContractors:", rawData.lotContractors);
+  console.log("[ARCHIDOC API] lot_contractors:", rawData.lot_contractors);
+  
+  // Map items with snake_case support
+  const rawItems: RawDQEItem[] = rawData.items || [];
+  const mappedItems = rawItems.map(mapDQEItem);
+  
+  // Handle both lotContractors and lot_contractors (snake_case)
+  const lotContractors = rawData.lotContractors || rawData.lot_contractors || {};
+  
+  // Diagnostic logging for DQE data flow
+  console.log("[ARCHIDOC API] Mapped project response for", projectId, ":", JSON.stringify({
+    hasItems: mappedItems.length > 0,
+    itemsCount: mappedItems.length,
+    hasLotContractors: Object.keys(lotContractors).length > 0,
+    lotContractorsKeys: Object.keys(lotContractors),
+    sampleItem: mappedItems[0] ? {
+      lotCode: mappedItems[0].lotCode,
+      assignedContractorId: mappedItems[0].assignedContractorId,
+      hasAttachments: !!(mappedItems[0].attachments && mappedItems[0].attachments.length > 0),
+      attachmentsCount: mappedItems[0].attachments?.length || 0,
+    } : null,
+    allLotCodes: [...new Set(mappedItems.map(item => item.lotCode).filter(Boolean))],
+    allContractorIds: [...new Set(mappedItems.map(item => item.assignedContractorId).filter(Boolean))],
+  }));
+  
   return {
-    id: p.id,
-    name: p.projectName,
-    location: p.address,
-    status: p.status,
-    clientName: p.clientName,
-    items: p.items,
-    links: p.links,
-    lotContractors: p.lotContractors,
-    photosUrl: p.photosUrl,
-    model3dUrl: p.model3dUrl,
-    tour3dUrl: p.tour3dUrl,
-    googleDriveUrl: p.googleDriveUrl,
+    id: rawData.id,
+    name: rawData.projectName || rawData.project_name || "",
+    location: rawData.address || "",
+    status: rawData.status || "",
+    clientName: rawData.clientName || rawData.client_name || "",
+    items: mappedItems,
+    links: rawData.links,
+    lotContractors: lotContractors,
+    photosUrl: rawData.photosUrl || rawData.photos_url,
+    model3dUrl: rawData.model3dUrl || rawData.model_3d_url,
+    tour3dUrl: rawData.tour3dUrl || rawData.tour_3d_url,
+    googleDriveUrl: rawData.googleDriveUrl || rawData.google_drive_url,
   };
 }
 
