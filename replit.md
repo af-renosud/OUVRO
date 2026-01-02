@@ -96,8 +96,42 @@ The app connects to the live ARCHIDOC system at https://archidoc.app to fetch pr
 The app runs on port 8081 (Expo dev server) with Express backend on port 5000.
 Users can scan the QR code with Expo Go to test on physical devices.
 
+## Pre-Deployment Audit Command
+To run a comprehensive pre-deployment audit, prompt the agent with: **"RUN PREDEPLOYMENT AUDIT"**
+
+This will execute the following checks:
+1. **LSP Diagnostics**: Check all TypeScript files for errors
+2. **Database Schema**: Verify all tables exist and schema is correct
+3. **Security Audit**: Scan client code for exposed secrets/API keys
+4. **API Endpoints**: Verify all routes have proper error handling
+5. **Environment Config**: Check required environment variables are set
+6. **App Configuration**: Verify app.json settings (bundle ID, icons, permissions)
+7. **Workflow Status**: Confirm dev server is running correctly
+8. **Generate Report**: Save audit results to replit.md
+
+---
+
+## Latest Pre-Deployment Audit Results
+**Date**: January 2, 2026
+
+| Check | Status | Details |
+|-------|--------|---------|
+| LSP Diagnostics | PASS | No TypeScript errors found |
+| Database Schema | PASS | 7 tables verified (users, projects, observations, observation_media, project_files, conversations, messages) |
+| Security Audit | PASS | No exposed secrets in client code |
+| API Endpoints | PASS | All endpoints have try/catch error handling |
+| Environment Config | PASS | EXPO_PUBLIC_ARCHIDOC_API_URL set, all secrets configured |
+| App Configuration | PASS | Bundle ID: com.ouvro.field, icons configured, permissions set |
+| Workflow Status | PASS | Express server on :5000, Expo on :8081 running |
+
+**Minor Warnings (non-blocking):**
+- Some Expo packages have newer patch versions available (expo@54.0.25 → 54.0.30, etc.)
+- Browser console shows deprecated shadow*/pointerEvents warnings (React Native Web cosmetic)
+
+---
+
 ## Recent Changes
-- January 1, 2026: Pre-deployment audit completed
+- January 2, 2026: Pre-deployment audit completed
   - All LSP diagnostics clear, no TypeScript errors
   - Database schema verified: 7 tables (users, projects, observations, observation_media, project_files, conversations, messages)
   - Security audit passed: No exposed secrets in client code
