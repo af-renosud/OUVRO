@@ -1,0 +1,93 @@
+OUVRO File Access Diagnostic Response
+From: ARCHIDOC Backend Team
+To: OUVRO Mobile Development Team
+Date: January 2, 2026
+
+Issue Found: Field Name Mismatch + Missing Categories
+1. API Response Field Names
+OUVRO expects:
+
+{
+  "objectId": "...",
+  "objectName": "...",
+  "originalName": "...",
+  "createdAt": "..."
+}
+ARCHIDOC actually returns (snake_case from Drizzle):
+
+{
+  "object_id": "...",
+  "object_name": "...",
+  "original_name": "...",
+  "uploaded_at": "..."
+}
+Fix needed: OUVRO should map snake_case fields:
+
+object_id → objectId
+original_name → originalName
+object_name → objectName
+content_type → contentType
+project_id → projectId
+uploaded_at → createdAt
+2. Category Data Issue
+Looking at the database, most files have empty/null categories:
+
+File	category	project_id
+TEST_CCTP_v1.pdf	(empty)	(empty)
+ArchiAdvisor_*.pdf	advisory	714f755d-...
+META PROMPT.png	(empty)	(empty)
+V9_COMPOSITION PLANCHER.pdf	(empty)	(empty)
+Problem: Files uploaded via PDF extraction tools, image paste, etc. don't get category/projectId assigned.
+
+Only files with categories: Advisory PDFs saved from Archi Advisor
+
+3. Category Values
+ARCHIDOC currently uses these categories:
+
+advisory - Archi Advisor PDF exports
+plans - (intended for plans, rarely populated)
+general - (intended for docs, rarely populated)
+00 through 08 - Asset Hub Loi MOP phases
+OUVRO requests match these values - no mismatch there.
+
+4. API Response Structure
+ARCHIDOC returns:
+
+{
+  "files": [...]  // Array wrapped in object
+}
+Check: Is OUVRO expecting response.files or just response as array?
+
+5. Empty Response Behavior
+When no files match, API returns:
+
+{
+  "files": []
+}
+✅ Returns empty array, not error.
+
+6. Authentication
+The /api/archive/files endpoint does NOT check authentication currently - it's publicly accessible. This is not causing the issue.
+
+Root Cause Summary
+Issue	Severity	Fix Location
+Field names are snake_case	HIGH	OUVRO mapping
+Most files have no category	HIGH	ARCHIDOC upload flows
+Most files have no projectId	HIGH	ARCHIDOC upload flows
+Response wrapped in {files:[]}	MEDIUM	OUVRO expects this?
+Recommended Fixes
+Option A: Fix in OUVRO (Quick)
+Map snake_case to camelCase in API response handler:
+
+const files = response.files.map(f => ({
+  objectId: f.object_id,
+  objectName: f.object_name,
+  originalName: f.original_name,
+  contentType: f.content_type,
+  size: f.size,
+  projectId: f.project_id,
+  category: f.category,
+  createdAt: f.uploaded_at
+}));
+Option B: Fix in ARCHIDOC (Proper)
+Update the /api/archive/files endpoint to return camelCase field names for API consistency.

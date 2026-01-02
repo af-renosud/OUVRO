@@ -238,6 +238,17 @@ export function getAllDQEAttachments(items: DQEItem[]): { item: DQEItem; attachm
     .filter((entry) => entry.attachment !== null);
 }
 
+type ArchidocFileResponse = {
+  object_id: string;
+  object_name: string;
+  original_name: string;
+  content_type: string;
+  size: number;
+  project_id: string;
+  category: string;
+  uploaded_at: string;
+};
+
 export async function fetchProjectFiles(
   projectId: string,
   category?: FileCategory
@@ -262,7 +273,20 @@ export async function fetchProjectFiles(
     }
     throw new Error("Failed to fetch project files");
   }
-  return response.json();
+  
+  const data = await response.json();
+  const files: ArchidocFileResponse[] = data.files || data || [];
+  
+  return files.map((f) => ({
+    objectId: f.object_id,
+    objectName: f.object_name,
+    originalName: f.original_name,
+    contentType: f.content_type,
+    size: f.size,
+    projectId: f.project_id,
+    category: f.category as FileCategory,
+    createdAt: f.uploaded_at,
+  }));
 }
 
 export async function getFileDownloadUrl(objectId: string): Promise<FileDownloadResponse> {
