@@ -42,33 +42,45 @@ export default function ObservationDetailsScreen() {
   const lastTitleRef = useRef("");
   const lastDescriptionRef = useRef("");
 
+  const detectAndRemoveDuplication = useCallback((text: string, prev: string): string => {
+    if (prev.length < 3) return text;
+    
+    const trimmedText = text.trim();
+    const trimmedPrev = prev.trim();
+    
+    if (trimmedText === trimmedPrev + " " + trimmedPrev || trimmedText === trimmedPrev + trimmedPrev) {
+      return trimmedPrev;
+    }
+    
+    if (trimmedText.startsWith(trimmedPrev + " ")) {
+      const remainder = trimmedText.slice(trimmedPrev.length + 1).trim();
+      const prevWords = trimmedPrev.toLowerCase().split(/\s+/);
+      const remainderWords = remainder.toLowerCase().split(/\s+/);
+      
+      if (remainderWords.length > 0 && remainderWords.length <= prevWords.length) {
+        const matchCount = remainderWords.filter((word, i) => prevWords[i] === word).length;
+        if (matchCount >= remainderWords.length * 0.6) {
+          return trimmedPrev;
+        }
+      }
+    }
+    
+    return text;
+  }, []);
+
   const handleTitleChange = useCallback((text: string) => {
     const prev = lastTitleRef.current;
-    const expectedDupe = prev + " " + prev;
-    const expectedDupeNoSpace = prev + prev;
-    
-    if (prev.length > 0 && (text === expectedDupe || text === expectedDupeNoSpace)) {
-      lastTitleRef.current = prev;
-      setTitle(prev);
-    } else {
-      lastTitleRef.current = text;
-      setTitle(text);
-    }
-  }, []);
+    const cleaned = detectAndRemoveDuplication(text, prev);
+    lastTitleRef.current = cleaned;
+    setTitle(cleaned);
+  }, [detectAndRemoveDuplication]);
 
   const handleDescriptionChange = useCallback((text: string) => {
     const prev = lastDescriptionRef.current;
-    const expectedDupe = prev + " " + prev;
-    const expectedDupeNoSpace = prev + prev;
-    
-    if (prev.length > 0 && (text === expectedDupe || text === expectedDupeNoSpace)) {
-      lastDescriptionRef.current = prev;
-      setDescription(prev);
-    } else {
-      lastDescriptionRef.current = text;
-      setDescription(text);
-    }
-  }, []);
+    const cleaned = detectAndRemoveDuplication(text, prev);
+    lastDescriptionRef.current = cleaned;
+    setDescription(cleaned);
+  }, [detectAndRemoveDuplication]);
 
   const createObservationMutation = useMutation({
     mutationFn: async () => {
