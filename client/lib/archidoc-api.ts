@@ -499,7 +499,7 @@ export async function uploadFileToSignedUrl(
   uploadUrl: string,
   fileBlob: Blob,
   contentType: string
-): Promise<{ status: number; body: string }> {
+): Promise<void> {
   console.log("[uploadFileToSignedUrl] Uploading to signed URL...");
   console.log("[uploadFileToSignedUrl] Content-Type:", contentType, "Blob size:", fileBlob.size);
   
@@ -509,14 +509,12 @@ export async function uploadFileToSignedUrl(
     body: fileBlob,
   });
 
-  const responseBody = await response.text().catch(() => "");
-  console.log("[uploadFileToSignedUrl] Response status:", response.status, "Body:", responseBody);
+  console.log("[uploadFileToSignedUrl] Response status:", response.status);
 
   if (!response.ok) {
-    throw new Error(`Failed to upload file: ${response.status} - ${responseBody}`);
+    const errorText = await response.text().catch(() => "Unknown error");
+    throw new Error(`Failed to upload file: ${response.status} - ${errorText}`);
   }
-  
-  return { status: response.status, body: responseBody };
 }
 
 export async function archiveUploadedFile(params: {
