@@ -1,0 +1,180 @@
+Explanation for OUVRO Team
+The file access features aren't working because OUVRO is using incorrect field names that don't match what ARCHIDOC actually returns. The ARCHIDOC API is working correctly - the problem is a field name mismatch between what OUVRO expects and what ARCHIDOC provides.
+
+Below is the corrected prompt with the exact field names from the ARCHIDOC API.
+
+OUVRO iPad App - ARCHIDOC File Access Integration (CORRECTED)
+Issue Summary
+OUVRO was using incorrect field names. This prompt contains the correct field names that match the ARCHIDOC API exactly.
+
+MENU STRUCTURE
+┌─────────────────────────────────────────────────────┐
+│  [PLANS]  [DQE]  [DOCS]  [LINKS ▼]  [FICHES]  [DRIVE]│
+└─────────────────────────────────────────────────────┘
+1. PLANS
+Source: Files uploaded to Plans & Dessins section
+
+API Call:
+
+GET /api/archive/files?projectId={projectId}&category=plans
+Response:
+
+{
+  "files": [
+    {
+      "objectId": "uuid",
+      "objectName": "path/to/file.pdf",
+      "originalName": "Plan-RDC.pdf",
+      "contentType": "application/pdf",
+      "size": 1234567,
+      "projectId": "uuid",
+      "category": "plans",
+      "uploadedAt": "2026-01-02T..."
+    }
+  ]
+}
+To download a file:
+
+GET /api/archive/files/{objectId}
+Response:
+
+{
+  "file": {
+    "objectId": "uuid",
+    "originalName": "Plan-RDC.pdf",
+    "contentType": "application/pdf",
+    "freshUrl": "https://...signed-download-url..."
+  }
+}
+⚠️ Note: The signed URL field is called freshUrl, NOT signedUrl
+
+2. DQE
+Source: Project items array with lot filtering
+
+API Call:
+
+GET /api/projects/{projectId}
+Response includes:
+
+{
+  "id": "uuid",
+  "projectName": "Villa Renovation",
+  "items": [
+    {
+      "id": "uuid",
+      "designation": "Carrelage sol 60x60",
+      "lotCode": "CARR",
+      "unit": "m²",
+      "quantity": 45,
+      "notes": "Grès cérame",
+      "attachments": [
+        {
+          "id": "uuid",
+          "fileName": "fiche-carrelage.pdf",
+          "fileUrl": "https://..."
+        }
+      ]
+    }
+  ],
+  "lotContractors": {
+    "CARR": "contractor-uuid",
+    "PLOM": "contractor-uuid"
+  }
+}
+Filtering:
+
+// Filter by lot
+const filteredByLot = project.items.filter(item => item.lotCode === selectedLot);
+// Get contractor for a lot
+const contractorId = project.lotContractors[selectedLot];
+3. DOCS
+Source: General Files section in Asset Hub
+
+API Call:
+
+GET /api/archive/files?projectId={projectId}&category=general
+Response: Same structure as PLANS
+
+4. LINKS (Dropdown)
+Source: Project record fields
+
+API Call:
+
+GET /api/projects/{projectId}
+⚠️ CORRECTED FIELD NAMES:
+Menu Item	CORRECT Field Name	OLD (Wrong) Name
+📷 Photos du Site	photosUrl	photoSiteLink
+🎮 Modèles 3D	model3dUrl	models3dLink
+🏠 Visite 3D	tour3dUrl	scan3dVisitLink
+Response includes:
+
+{
+  "id": "uuid",
+  "projectName": "...",
+  "photosUrl": "https://drive.google.com/...",
+  "model3dUrl": "https://sketchfab.com/...",
+  "tour3dUrl": "https://my.matterport.com/..."
+}
+Usage:
+
+// CORRECT
+const photoLink = project.photosUrl;
+const model3dLink = project.model3dUrl;
+const tour3dLink = project.tour3dUrl;
+// WRONG - these fields don't exist
+// project.photoSiteLink ❌
+// project.models3dLink ❌
+// project.scan3dVisitLink ❌
+5. FICHES
+Source: Attachments from all DQE items
+
+API Call:
+
+GET /api/projects/{projectId}
+Extract all fiches:
+
+const allFiches = project.items
+  .flatMap(item => item.attachments || [])
+  .filter(Boolean);
+6. DRIVE
+Source: Project Google Drive link
+
+API Call:
+
+GET /api/projects/{projectId}
+⚠️ CORRECTED FIELD NAME:
+Menu Item	CORRECT Field Name	OLD (Wrong) Name
+Google Drive	googleDriveUrl	googleDriveLink
+Response includes:
+
+{
+  "id": "uuid",
+  "googleDriveUrl": "https://drive.google.com/..."
+}
+Usage:
+
+// CORRECT
+const driveLink = project.googleDriveUrl;
+// WRONG
+// project.googleDriveLink ❌
+FIELD NAME CORRECTION SUMMARY
+Update your code to use these field names:
+
+// OLD (WRONG)                    →  NEW (CORRECT)
+project.photoSiteLink             →  project.photosUrl
+project.models3dLink              →  project.model3dUrl
+project.scan3dVisitLink           →  project.tour3dUrl
+project.googleDriveLink           →  project.googleDriveUrl
+response.signedUrl                →  response.file.freshUrl
+AUTHENTICATION
+Session-based with credentials:
+
+fetch(url, { 
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' }
+})
+ERROR HANDLING
+Code	Meaning
+401	Session expired - re-authenticate
+404	Project or file not found
+null field	Link not configured for this project
