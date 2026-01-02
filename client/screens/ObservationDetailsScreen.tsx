@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -38,6 +38,37 @@ export default function ObservationDetailsScreen() {
   const [translatedText, setTranslatedText] = useState("");
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
+  
+  const lastTitleRef = useRef("");
+  const lastDescriptionRef = useRef("");
+
+  const handleTitleChange = useCallback((text: string) => {
+    const prev = lastTitleRef.current;
+    const expectedDupe = prev + " " + prev;
+    const expectedDupeNoSpace = prev + prev;
+    
+    if (prev.length > 0 && (text === expectedDupe || text === expectedDupeNoSpace)) {
+      lastTitleRef.current = prev;
+      setTitle(prev);
+    } else {
+      lastTitleRef.current = text;
+      setTitle(text);
+    }
+  }, []);
+
+  const handleDescriptionChange = useCallback((text: string) => {
+    const prev = lastDescriptionRef.current;
+    const expectedDupe = prev + " " + prev;
+    const expectedDupeNoSpace = prev + prev;
+    
+    if (prev.length > 0 && (text === expectedDupe || text === expectedDupeNoSpace)) {
+      lastDescriptionRef.current = prev;
+      setDescription(prev);
+    } else {
+      lastDescriptionRef.current = text;
+      setDescription(text);
+    }
+  }, []);
 
   const createObservationMutation = useMutation({
     mutationFn: async () => {
@@ -177,7 +208,7 @@ export default function ObservationDetailsScreen() {
             placeholder="Enter observation title..."
             placeholderTextColor={theme.textTertiary}
             value={title}
-            onChangeText={setTitle}
+            onChangeText={handleTitleChange}
           />
         </View>
 
@@ -196,7 +227,7 @@ export default function ObservationDetailsScreen() {
             placeholder="Describe what you observed..."
             placeholderTextColor={theme.textTertiary}
             value={description}
-            onChangeText={setDescription}
+            onChangeText={handleDescriptionChange}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
