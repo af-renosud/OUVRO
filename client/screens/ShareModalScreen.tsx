@@ -16,6 +16,7 @@ import * as Linking from "expo-linking";
 import * as MailComposer from "expo-mail-composer";
 import * as Contacts from "expo-contacts";
 import * as Sharing from "expo-sharing";
+import * as SMS from "expo-sms";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
@@ -182,17 +183,44 @@ export default function ShareModalScreen() {
   };
 
   const handleShareSMS = async () => {
+    const isAvailable = await SMS.isAvailableAsync();
+    
+    if (!isAvailable) {
+      Alert.alert("SMS Not Available", "SMS is not available on this device");
+      return;
+    }
+    
     const message = buildMessage();
+    const selectedFiles = getSelectedAttachments();
     const phone = selectedContact?.phone || "";
-    const url = phone 
-      ? `sms:${phone}?body=${encodeURIComponent(message)}`
-      : `sms:?body=${encodeURIComponent(message)}`;
+    const addresses = phone ? [phone] : [];
     
-    Linking.openURL(url).catch(() => {
-      Alert.alert("Error", "Unable to open SMS app");
-    });
-    
-    navigation.goBack();
+    try {
+      const attachments = selectedFiles.map((file) => ({
+        uri: file.uri,
+        mimeType: file.type === "photo" ? "image/jpeg" : 
+                  file.type === "video" ? "video/mp4" : "audio/m4a",
+        filename: file.type === "photo" ? "photo.jpg" : 
+                  file.type === "video" ? "video.mp4" : "audio.m4a",
+      }));
+      
+      await SMS.sendSMSAsync(addresses, message, {
+        attachments,
+      });
+      
+      navigation.goBack();
+    } catch (error) {
+      console.error("SMS error:", error);
+      const url = phone 
+        ? `sms:${phone}?body=${encodeURIComponent(message)}`
+        : `sms:?body=${encodeURIComponent(message)}`;
+      
+      Linking.openURL(url).catch(() => {
+        Alert.alert("Error", "Unable to open SMS app");
+      });
+      
+      navigation.goBack();
+    }
   };
 
   const handleShareEmail = async () => {
