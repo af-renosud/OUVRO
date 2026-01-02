@@ -85,5 +85,6 @@ Response format: `{ files: [...] }` (wrapped array)
 - Contractor lookup uses `lotContractors` mapping from project data
 - Fixed iOS dictation duplicate text bug with smart detection algorithm
 - Fixed React key warnings in DQE Browser list items
+- **Fixed DQE attachment (Fiches) stale URL issue**: Now fetches fresh signed URLs via `/api/archive/files/{objectId}` before opening files, with fallback to stored `fileUrl` if fresh URL unavailable
 
 **Note:** Files uploaded before January 2, 2026 may have empty `category`/`projectId` and won't appear in filtered queries.

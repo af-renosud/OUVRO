@@ -1,0 +1,43 @@
+Troubleshooting Prompt for OUVRO External App - File Access Issue
+Context
+The OUVRO iPad app is experiencing issues accessing uploaded files (plans, docs) from the ARCHIDOC server, while other data types (links, DQE content, Google Drive references) work correctly.
+
+System Architecture
+File Storage: Files are uploaded to Replit Object Storage (private bucket) via the ARCHIDOC server
+Database: Uploaded files are tracked in an archived_files table with fields: id, object_id, bucket_name, object_name, project_id, category, file_name, content_type, is_deleted
+Project Data: File metadata is also stored in project JSON fields like generalFiles, plansAttachments
+Access Method: Server-side endpoints generate short-lived signed URLs for file access (e.g., /api/archive/fresh-url/:objectId)
+The Problem
+Uploaded files cannot be accessed by the external OUVRO app. This is likely because:
+
+The app is receiving stale/expired URLs or raw storage paths instead of freshly signed URLs
+The sharing/export endpoints may be caching URLs from upload time rather than regenerating them on-demand
+There could be a mismatch between objectId references in the share payload vs. what exists in the database
+Investigation Steps Required
+Inspect the API response the OUVRO app receives when fetching project/task data with a share token:
+
+Do file attachments include an objectId field?
+Are the URLs full signed URLs (with long query parameters) or raw paths like /object-storage/...?
+Capture a failing response and identify what URL format is being served
+Check if the external API endpoints call the fresh-url signing helper:
+
+When building the response payload, does the code call something like signObjectURL() or hit /api/archive/fresh-url/:objectId?
+Or does it just pass through the publicUrl that was saved at upload time?
+Verify the file reference chain:
+
+Confirm the share payload correctly includes file objectId values from archived_files
+Ensure there's no filtering that excludes certain file categories (like 'plans' or 'docs')
+Test the signing mechanism:
+
+Try manually calling the fresh-url endpoint with a known objectId to confirm signed URLs are generated correctly
+If that works, the issue is specifically in how the external-facing endpoints serve files
+Expected Fix
+The external/sharing API endpoints likely need modification to:
+
+Extract objectId values from file attachments
+Call the signing helper to generate fresh URLs at response time
+Return these signed URLs instead of stale cached paths
+Questions to Answer
+What endpoint does OUVRO call to fetch project/task file attachments?
+Does that endpoint currently regenerate signed URLs or pass through stored URLs?
+Are there any error logs when the app tries to access these files?

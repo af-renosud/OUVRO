@@ -8,7 +8,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
-import { getAllDQEAttachments, type DQEItem, type DQEAttachment } from "@/lib/archidoc-api";
+import { getAllDQEAttachments, getFileDownloadUrl, type DQEItem, type DQEAttachment } from "@/lib/archidoc-api";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type FichesScreenRouteProp = RouteProp<RootStackParamList, "FichesScreen">;
@@ -29,9 +29,26 @@ export default function FichesScreen() {
 
   const handleFichePress = async (entry: FicheEntry) => {
     try {
-      const canOpen = await Linking.canOpenURL(entry.attachment.fileUrl);
+      // Try to get fresh signed URL using attachment id as objectId
+      // If the id is an objectId, this will return a fresh signed URL
+      // Otherwise, fall back to the stored fileUrl
+      let urlToOpen = entry.attachment.fileUrl;
+      
+      if (entry.attachment.id) {
+        try {
+          const response = await getFileDownloadUrl(entry.attachment.id);
+          if (response?.file?.freshUrl) {
+            urlToOpen = response.file.freshUrl;
+          }
+        } catch (urlError) {
+          // If fresh URL fails, fall back to stored fileUrl
+          console.log("Could not get fresh URL, using stored fileUrl:", urlError);
+        }
+      }
+      
+      const canOpen = await Linking.canOpenURL(urlToOpen);
       if (canOpen) {
-        await Linking.openURL(entry.attachment.fileUrl);
+        await Linking.openURL(urlToOpen);
       } else {
         Alert.alert("Impossible d'ouvrir", "Ce fichier ne peut pas être ouvert sur cet appareil.");
       }
@@ -67,7 +84,7 @@ export default function FichesScreen() {
           {item.attachment.fileName}
         </ThemedText>
         <ThemedText style={[styles.ficheSource, { color: theme.textSecondary }]} numberOfLines={1}>
-          {item.item.lotCode} - {item.item.designation}
+          {item.item.lotCode} - {item.item.description}
         </ThemedText>
       </View>
       <View style={[styles.fileTypeBadge, { backgroundColor: `${BrandColors.primary}15` }]}>
