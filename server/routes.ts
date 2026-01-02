@@ -395,7 +395,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         classification: "general",
         status: "pending",
         priority: "normal",
-        location: observation.translatedText ? `French: ${observation.translatedText}` : undefined,
+        transcription: observation.transcription || undefined,
+        translatedText: observation.translatedText || undefined,
       };
 
       let archidocObservationId: number | null = null;
