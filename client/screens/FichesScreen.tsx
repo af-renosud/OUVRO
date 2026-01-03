@@ -61,7 +61,7 @@ export default function FichesScreen() {
             freshUrl = response.file.freshUrl;
           }
         } catch (urlError) {
-          console.log("Could not get fresh URL, using stored fileUrl:", urlError);
+          if (__DEV__) console.log("Could not get fresh URL, using stored fileUrl:", urlError);
         }
       }
       

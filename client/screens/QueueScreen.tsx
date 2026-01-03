@@ -58,12 +58,12 @@ export default function QueueScreen() {
     media: ObservationMedia
   ): Promise<boolean> => {
     if (!media.localUri) {
-      console.log("[Upload] Skipping media with no localUri");
+      if (__DEV__) console.log("[Upload] Skipping media with no localUri");
       return true;
     }
 
     if (media.localUri.startsWith("mock://") || media.localUri.startsWith("file://recording")) {
-      console.log("[Upload] Skipping mock/placeholder media:", media.localUri);
+      if (__DEV__) console.log("[Upload] Skipping mock/placeholder media:", media.localUri);
       return true;
     }
 
@@ -72,15 +72,15 @@ export default function QueueScreen() {
       const fileName = media.localUri.split("/").pop() || `${assetType}_${Date.now()}`;
       const contentType = getMimeType(assetType);
 
-      console.log(`[Upload] Starting upload for ${assetType}: ${fileName}`);
-      console.log(`[Upload] Local URI: ${media.localUri}`);
+      if (__DEV__) console.log(`[Upload] Starting upload for ${assetType}: ${fileName}`);
+      if (__DEV__) console.log(`[Upload] Local URI: ${media.localUri}`);
 
-      console.log(`[Upload] Reading file as base64...`);
+      if (__DEV__) console.log(`[Upload] Reading file as base64...`);
       const file = new File(media.localUri);
       const fileBase64 = await file.base64();
-      console.log(`[Upload] File read, size: ${Math.round(fileBase64.length / 1024)}KB base64`);
+      if (__DEV__) console.log(`[Upload] File read, size: ${Math.round(fileBase64.length / 1024)}KB base64`);
 
-      console.log(`[Upload] Uploading via proxy...`);
+      if (__DEV__) console.log(`[Upload] Uploading via proxy...`);
       const uploadRes = await apiRequest("POST", "/api/archidoc/proxy-upload", {
         observationId: archidocObservationId,
         fileName,
@@ -96,7 +96,7 @@ export default function QueueScreen() {
       }
 
       const result = await uploadRes.json();
-      console.log(`[Upload] Asset uploaded and registered: ${fileName}, path: ${result.objectPath}`);
+      if (__DEV__) console.log(`[Upload] Asset uploaded and registered: ${fileName}, path: ${result.objectPath}`);
       return true;
     } catch (error) {
       console.error("[Upload] Exception during upload:", error);

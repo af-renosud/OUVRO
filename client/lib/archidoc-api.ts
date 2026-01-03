@@ -1,7 +1,7 @@
 const ARCHIDOC_API_URL = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
 
-// Log ARCHIDOC API URL configuration on load
-console.log("[ARCHIDOC] API URL configured:", ARCHIDOC_API_URL || "NOT SET");
+// Log ARCHIDOC API URL configuration on load (dev only)
+if (__DEV__) console.log("[ARCHIDOC] API URL configured:", ARCHIDOC_API_URL || "NOT SET");
 
 // Raw ARCHIDOC DQE item response - actual API field names
 type RawDQEItem = {
@@ -338,14 +338,14 @@ export async function fetchProjectById(projectId: string): Promise<MappedProject
   const rawData = await response.json();
   
   // Log raw response to check field names
-  console.log("[ARCHIDOC API] Raw JSON keys:", Object.keys(rawData));
+  if (__DEV__) console.log("[ARCHIDOC API] Raw JSON keys:", Object.keys(rawData));
   if (rawData.items?.[0]) {
-    console.log("[ARCHIDOC API] First item raw keys:", Object.keys(rawData.items[0]));
-    console.log("[ARCHIDOC API] First item raw data:", JSON.stringify(rawData.items[0]));
+    if (__DEV__) console.log("[ARCHIDOC API] First item raw keys:", Object.keys(rawData.items[0]));
+    if (__DEV__) console.log("[ARCHIDOC API] First item raw data:", JSON.stringify(rawData.items[0]));
   }
   // Log lotContractors/lot_contractors
-  console.log("[ARCHIDOC API] lotContractors:", rawData.lotContractors);
-  console.log("[ARCHIDOC API] lot_contractors:", rawData.lot_contractors);
+  if (__DEV__) console.log("[ARCHIDOC API] lotContractors:", rawData.lotContractors);
+  if (__DEV__) console.log("[ARCHIDOC API] lot_contractors:", rawData.lot_contractors);
   
   // Map items with snake_case support
   const rawItems: RawDQEItem[] = rawData.items || [];
@@ -355,7 +355,7 @@ export async function fetchProjectById(projectId: string): Promise<MappedProject
   const lotContractors = rawData.lotContractors || rawData.lot_contractors || {};
   
   // Diagnostic logging for DQE data flow
-  console.log("[ARCHIDOC API] Mapped project response for", projectId, ":", JSON.stringify({
+  if (__DEV__) console.log("[ARCHIDOC API] Mapped project response for", projectId, ":", JSON.stringify({
     hasItems: mappedItems.length > 0,
     itemsCount: mappedItems.length,
     hasLotContractors: Object.keys(lotContractors).length > 0,
@@ -473,8 +473,8 @@ export async function requestUploadUrl(
   }
 
   const uploadUrl = `${ARCHIDOC_API_URL}/api/uploads/request-url`;
-  console.log("[requestUploadUrl] Requesting signed URL from:", uploadUrl);
-  console.log("[requestUploadUrl] File:", fileName, "Type:", contentType, "Size:", size);
+  if (__DEV__) console.log("[requestUploadUrl] Requesting signed URL from:", uploadUrl);
+  if (__DEV__) console.log("[requestUploadUrl] File:", fileName, "Type:", contentType, "Size:", size);
 
   const response = await fetch(uploadUrl, {
     method: "POST",
@@ -482,7 +482,7 @@ export async function requestUploadUrl(
     body: JSON.stringify({ name: fileName, contentType, size }),
   });
 
-  console.log("[requestUploadUrl] Response status:", response.status);
+  if (__DEV__) console.log("[requestUploadUrl] Response status:", response.status);
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "Unknown error");
@@ -491,7 +491,7 @@ export async function requestUploadUrl(
   }
   
   const result = await response.json();
-  console.log("[requestUploadUrl] Got upload info:", JSON.stringify(result, null, 2));
+  if (__DEV__) console.log("[requestUploadUrl] Got upload info:", JSON.stringify(result, null, 2));
   return result;
 }
 
@@ -500,8 +500,8 @@ export async function uploadFileToSignedUrl(
   fileBlob: Blob,
   contentType: string
 ): Promise<void> {
-  console.log("[uploadFileToSignedUrl] Uploading to signed URL...");
-  console.log("[uploadFileToSignedUrl] Content-Type:", contentType, "Blob size:", fileBlob.size);
+  if (__DEV__) console.log("[uploadFileToSignedUrl] Uploading to signed URL...");
+  if (__DEV__) console.log("[uploadFileToSignedUrl] Content-Type:", contentType, "Blob size:", fileBlob.size);
   
   const response = await fetch(uploadUrl, {
     method: "PUT",
@@ -509,7 +509,7 @@ export async function uploadFileToSignedUrl(
     body: fileBlob,
   });
 
-  console.log("[uploadFileToSignedUrl] Response status:", response.status);
+  if (__DEV__) console.log("[uploadFileToSignedUrl] Response status:", response.status);
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "Unknown error");
@@ -533,8 +533,8 @@ export async function archiveUploadedFile(params: {
   }
 
   const archiveUrl = `${ARCHIDOC_API_URL}/api/archive/files`;
-  console.log("[archiveUploadedFile] Archiving to:", archiveUrl);
-  console.log("[archiveUploadedFile] Params:", JSON.stringify(params, null, 2));
+  if (__DEV__) console.log("[archiveUploadedFile] Archiving to:", archiveUrl);
+  if (__DEV__) console.log("[archiveUploadedFile] Params:", JSON.stringify(params, null, 2));
 
   const response = await fetch(archiveUrl, {
     method: "POST",
@@ -544,14 +544,14 @@ export async function archiveUploadedFile(params: {
   });
 
   const responseText = await response.text();
-  console.log("[archiveUploadedFile] Response status:", response.status, "body:", responseText);
+  if (__DEV__) console.log("[archiveUploadedFile] Response status:", response.status, "body:", responseText);
 
   if (!response.ok) {
     console.error("[archiveUploadedFile] Archive failed!");
     throw new Error(`Failed to archive file: ${response.status} - ${responseText}`);
   }
   
-  console.log("[archiveUploadedFile] Archive successful!");
+  if (__DEV__) console.log("[archiveUploadedFile] Archive successful!");
 }
 
 export function getUniqueLotCodes(items: DQEItem[]): string[] {

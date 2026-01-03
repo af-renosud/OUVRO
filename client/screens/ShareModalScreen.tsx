@@ -106,7 +106,7 @@ export default function ShareModalScreen() {
         setSelectedContact(formatted[0]);
       }
     } catch (error) {
-      console.log("Error fetching contacts:", error);
+      if (__DEV__) console.log("Error fetching contacts:", error);
     }
   };
 

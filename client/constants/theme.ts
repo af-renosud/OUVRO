@@ -140,29 +140,42 @@ export const Typography = {
   },
 };
 
-export const Shadows = {
-  fab: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.10,
-    shadowRadius: 2,
-    elevation: 4,
+export const Shadows = Platform.select({
+  web: {
+    fab: {
+      boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.10)",
+    },
+    modal: {
+      boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.08)",
+    },
+    card: {
+      boxShadow: "0px 1px 4px rgba(0, 0, 0, 0.05)",
+    },
   },
-  modal: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 8,
+  default: {
+    fab: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.10,
+      shadowRadius: 2,
+      elevation: 4,
+    },
+    modal: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+    card: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+      elevation: 2,
+    },
   },
-  card: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-};
+})!;
 
 export const Fonts = Platform.select({
   ios: {

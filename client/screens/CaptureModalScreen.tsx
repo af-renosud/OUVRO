@@ -5,7 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { Image } from "expo-image";
+import { CrossPlatformImage } from "@/components/CrossPlatformImage";
 import { Spacing, BrandColors, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -91,13 +91,13 @@ export default function CaptureModalScreen() {
       <View style={[styles.headerBackground, { paddingTop: insets.top + Spacing.lg }]}>
         <View style={styles.headerBar}>
           <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Image
+            <CrossPlatformImage
               source={require("../../assets/images/back-button.png")}
               style={styles.backButtonImage}
               contentFit="contain"
             />
           </Pressable>
-          <Image
+          <CrossPlatformImage
             source={require("../../assets/images/ouvro-logo.png")}
             style={styles.logo}
             contentFit="contain"

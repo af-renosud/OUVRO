@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import { CrossPlatformImage } from "@/components/CrossPlatformImage";
 import WebView from "react-native-webview";
 import { captureScreen } from "react-native-view-shot";
 import { StatusBar } from "expo-status-bar";
@@ -115,7 +115,7 @@ export default function FileViewerScreen() {
           {isLoading ? (
             <ActivityIndicator size="large" color={BrandColors.primary} />
           ) : null}
-          <Image
+          <CrossPlatformImage
             source={{ uri: signedUrl }}
             style={styles.image}
             contentFit="contain"

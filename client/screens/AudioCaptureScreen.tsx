@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import { CrossPlatformImage } from "@/components/CrossPlatformImage";
 import { Audio } from "expo-av";
 import { requestRecordingPermissionsAsync } from "expo-audio";
 import { ThemedText } from "@/components/ThemedText";
@@ -114,7 +114,7 @@ export default function AudioCaptureScreen() {
         setRecordingDuration((d) => d + 1);
       }, 1000);
 
-      console.log("[Audio] Recording started");
+      if (__DEV__) console.log("[Audio] Recording started");
     } catch (error) {
       console.error("Failed to start recording:", error);
     }
@@ -142,7 +142,7 @@ export default function AudioCaptureScreen() {
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
       
-      console.log("[Audio] Recording stopped, URI:", uri);
+      if (__DEV__) console.log("[Audio] Recording stopped, URI:", uri);
       
       setIsRecording(false);
       setRecordingUri(uri);
@@ -188,7 +188,7 @@ export default function AudioCaptureScreen() {
 
   const handleDone = () => {
     if (recordingUri) {
-      console.log("[Audio] Navigating with URI:", recordingUri);
+      if (__DEV__) console.log("[Audio] Navigating with URI:", recordingUri);
       navigation.navigate("ObservationDetails", {
         projectId,
         mediaItems: [{ type: "audio", uri: recordingUri, duration: recordingDuration }],
@@ -207,13 +207,13 @@ export default function AudioCaptureScreen() {
         <View style={[styles.headerBackground, { paddingTop: insets.top + Spacing.lg }]}>
           <View style={styles.headerBar}>
             <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-              <Image
+              <CrossPlatformImage
                 source={require("../../assets/images/back-button.png")}
                 style={styles.backButtonImage}
                 contentFit="contain"
               />
             </Pressable>
-            <Image
+            <CrossPlatformImage
               source={require("../../assets/images/ouvro-logo.png")}
               style={styles.logo}
               contentFit="contain"
@@ -234,13 +234,13 @@ export default function AudioCaptureScreen() {
         <View style={[styles.headerBackground, { paddingTop: insets.top + Spacing.lg }]}>
           <View style={styles.headerBar}>
             <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-              <Image
+              <CrossPlatformImage
                 source={require("../../assets/images/back-button.png")}
                 style={styles.backButtonImage}
                 contentFit="contain"
               />
             </Pressable>
-            <Image
+            <CrossPlatformImage
               source={require("../../assets/images/ouvro-logo.png")}
               style={styles.logo}
               contentFit="contain"
@@ -272,13 +272,13 @@ export default function AudioCaptureScreen() {
       <View style={[styles.headerBackground, { paddingTop: insets.top + Spacing.lg }]}>
         <View style={styles.headerBar}>
           <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Image
+            <CrossPlatformImage
               source={require("../../assets/images/back-button.png")}
               style={styles.backButtonImage}
               contentFit="contain"
             />
           </Pressable>
-          <Image
+          <CrossPlatformImage
             source={require("../../assets/images/ouvro-logo.png")}
             style={styles.logo}
             contentFit="contain"

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import { CrossPlatformImage } from "@/components/CrossPlatformImage";
 import Svg, { Path, Circle, Rect, Line, G, Text as SvgText } from "react-native-svg";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
 import { runOnJS, useSharedValue, useAnimatedReaction } from "react-native-reanimated";
@@ -199,34 +199,34 @@ export default function AnnotationScreen() {
       setIsSaving(true);
 
       if (viewShotRef.current?.capture) {
-        console.log("[Annotation] Capturing view...");
+        if (__DEV__) console.log("[Annotation] Capturing view...");
         const uri = await viewShotRef.current.capture();
-        console.log("[Annotation] Captured URI:", uri);
+        if (__DEV__) console.log("[Annotation] Captured URI:", uri);
         
         const fileName = `annotated-${file.originalName.replace(/\.[^/.]+$/, "")}-${Date.now()}.png`;
 
         const fileInfo = await FileSystem.getInfoAsync(uri);
         const fileSize = (fileInfo as any).size || 0;
-        console.log("[Annotation] File size:", fileSize);
+        if (__DEV__) console.log("[Annotation] File size:", fileSize);
 
-        console.log("[Annotation] Requesting upload URL...");
+        if (__DEV__) console.log("[Annotation] Requesting upload URL...");
         const uploadInfo = await requestUploadUrl(fileName, "image/png", fileSize);
-        console.log("[Annotation] Upload info:", JSON.stringify(uploadInfo, null, 2));
+        if (__DEV__) console.log("[Annotation] Upload info:", JSON.stringify(uploadInfo, null, 2));
 
-        console.log("[Annotation] Uploading to storage...");
+        if (__DEV__) console.log("[Annotation] Uploading to storage...");
         const uploadResult = await FileSystem.uploadAsync(uploadInfo.uploadURL, uri, {
           httpMethod: "PUT",
           uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
           headers: { "Content-Type": "image/png" },
         });
-        console.log("[Annotation] Upload result status:", uploadResult.status, "body:", uploadResult.body);
+        if (__DEV__) console.log("[Annotation] Upload result status:", uploadResult.status, "body:", uploadResult.body);
 
         // Verify upload succeeded (200 or 201)
         if (uploadResult.status < 200 || uploadResult.status >= 300) {
           throw new Error(`Upload failed with status ${uploadResult.status}: ${uploadResult.body}`);
         }
 
-        console.log("[Annotation] Archiving file with projectId:", projectId);
+        if (__DEV__) console.log("[Annotation] Archiving file with projectId:", projectId);
         try {
           await archiveUploadedFile({
             objectId: uploadInfo.objectId,
@@ -238,7 +238,7 @@ export default function AnnotationScreen() {
             projectId,
             category: "annotations",
           });
-          console.log("[Annotation] Archive complete!");
+          if (__DEV__) console.log("[Annotation] Archive complete!");
 
           Alert.alert(
             "Saved",
@@ -452,7 +452,7 @@ export default function AnnotationScreen() {
             options={{ format: "png", quality: 1, result: "tmpfile" }}
           >
             <View style={{ width: canvasWidth, height: canvasHeight }}>
-              <Image
+              <CrossPlatformImage
                 source={{ uri: signedUrl }}
                 style={[styles.backgroundImage, { width: canvasWidth, height: canvasHeight }]}
                 contentFit="contain"
