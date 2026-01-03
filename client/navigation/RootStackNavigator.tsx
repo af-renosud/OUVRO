@@ -99,6 +99,7 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="ProjectAssetHub"
         component={ProjectAssetHubScreen}
+        options={{ headerTitle: "" }}
       />
       <Stack.Screen
         name="ShareModal"
