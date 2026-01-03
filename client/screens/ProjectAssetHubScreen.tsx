@@ -321,17 +321,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   buttonsGrid: {
-    flex: 1,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-around",
-    alignContent: "center",
+    alignContent: "flex-start",
+    paddingTop: Spacing.xl,
   },
   buttonWrapper: {
     width: "50%",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Spacing.xs + 100,
+    paddingVertical: Spacing.lg,
   },
   roundButton: {
     borderRadius: 999,
