@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     width: "50%",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Spacing.lg,
+    paddingVertical: Spacing.lg * 2,
   },
   roundButton: {
     borderRadius: 999,
