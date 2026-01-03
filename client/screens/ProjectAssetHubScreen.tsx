@@ -13,12 +13,23 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
+import Svg, { Path } from "react-native-svg";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+
+function GoogleDriveIcon({ size, color }: { size: number; color: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 87.3 78" fill="none">
+      <Path d="M6.6 66.85L0 56.5 27.6 10.9h18.3L6.6 66.85z" fill={color} />
+      <Path d="M29.9 78l13.5-21.9h38.4l-13.5 21.9H29.9z" fill={color} />
+      <Path d="M50.3 38l16.2 28h17.8L68.1 38 55.2 16.2H37.8L50.3 38z" fill={color} />
+    </Svg>
+  );
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, "ProjectAssetHub">;
 
@@ -252,16 +263,22 @@ export default function ProjectAssetHubScreen() {
                       backgroundColor: BUTTON_BG_COLOR,
                     },
                     pressed && enabled && styles.buttonPressed,
-                    !enabled && styles.buttonDisabled,
                   ]}
                   onPress={() => handleButtonPress(button.id)}
                   disabled={!enabled}
                 >
-                  <Feather
-                    name={button.icon}
-                    size={iconSize}
-                    color={BUTTON_ICON_COLOR}
-                  />
+                  {button.id === "drive" ? (
+                    <GoogleDriveIcon
+                      size={iconSize}
+                      color={enabled ? BUTTON_ICON_COLOR : "#888888"}
+                    />
+                  ) : (
+                    <Feather
+                      name={button.icon}
+                      size={iconSize}
+                      color={enabled ? BUTTON_ICON_COLOR : "#888888"}
+                    />
+                  )}
                 </Pressable>
                 <ThemedText
                   style={[
@@ -314,7 +331,7 @@ const styles = StyleSheet.create({
     width: "50%",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
   roundButton: {
     borderRadius: 999,
