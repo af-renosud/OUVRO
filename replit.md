@@ -10,21 +10,20 @@ I prefer simple language and iterative development. Ask before making major chan
 The application uses an Expo SDK 54, React Native frontend with React Navigation 7. The backend is an Express.js server with TypeScript, utilizing PostgreSQL with Drizzle ORM. AI capabilities for transcription and translation are powered by Gemini AI. The UI/UX adheres to an iOS 26 Liquid Glass design aesthetic with a specific color palette (Primary Dark Blue: #0B2545, Accent: #319795, Error: #EA526F, Success: #10B981, Background: #F8F9FA, Text: #2D3748) and ensures touch targets of 48-56pt minimum.
 
 Key features include:
-- **4-tab navigation**: Projects, Queue, Files, Settings.
+- **3-tab navigation**: Projects, Queue, Settings (simplified from 4 tabs).
 - **Floating capture button**: Central FAB for quick observation capture.
 - **Media Capture**: Photo, video, and audio capture with device permissions, retake options, and waveform visualization for audio.
 - **Observation Workflow**: Capture media, add title/description, transcribe audio (English), translate to French.
 - **Sync Queue**: Manual sync control, view pending observations, share via WhatsApp/SMS.
-- **Project Management**: Browse projects, view details, observation count.
+- **Project Management**: Browse projects, tap to access Project Asset Hub directly.
 - **Dual Branding**: ARCHIDOC and Architects-France branding in the header.
-- **File Management**:
-    - **6-button menu** per project (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE).
-    - **PlansScreen**: Browse plans & drawings (category: "plans").
-    - **DQEBrowserScreen**: Scrollable DQE item list with lot and contractor filtering.
-    - **DocsScreen**: Browse general documents (category: "general").
-    - **Links**: Modal with external links (Photos du Site, Modèles 3D, Visite 3D).
-    - **FichesScreen**: View all DQE item attachments.
-    - **Drive**: Opens project Google Drive folder.
+- **Project Asset Hub**: Tap a project to see a 2x3 grid with 6 large buttons:
+    - **PLANS**: Browse plans & drawings (category: "plans").
+    - **DQE**: DQE item list with lot and contractor filtering.
+    - **DOCS**: Browse general documents (category: "general").
+    - **LINKS**: Modal with external links (Photos du Site, Modèles 3D, Visite 3D).
+    - **FICHES**: View all DQE item attachments.
+    - **DRIVE**: Opens project Google Drive folder.
 - **File Viewer**: View PDFs and images with zoom.
 - **Annotations**: Draw markups on images (pen, arrow, shapes, text, measurement) with French construction standard colors, saving annotations by flattening them onto the image.
 - **PDF Clip-to-Annotate**: While viewing PDFs, architects can pinch/zoom to the desired area, tap "Capture for Annotation" to capture the current view as an image, annotate it, and save. Supports taking multiple clips from a single PDF.
@@ -81,7 +80,13 @@ Response format: `{ files: [...] }` (wrapped array)
 | DocsScreen | `general` |
 | ProjectFilesScreen | `00` - `08` (Loi MOP phases) |
 
-## Recent Changes (January 2, 2026)
+## Recent Changes (January 3, 2026)
+- **Simplified navigation to 3 tabs**: Removed Files tab, now Projects/Queue/Settings only
+- **New ProjectAssetHubScreen**: Tapping a project now opens a 2x3 grid with 6 large buttons (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE)
+- **Removed FilesScreen**: No longer needed with new direct-access Asset Hub design
+- **Updated ProjectsScreen routing**: Now navigates directly to ProjectAssetHub on project tap
+
+## Changes (January 2, 2026)
 - **Fixed DQE Browser contractor display**: Contractor chips now show company names (fetched from `/api/contractors` endpoint) instead of UUID codes
 - **Fixed DQE lot filtering**: Selecting different lots (GO, SO, VRD) now correctly shows items for each lot - fixed by applying only the active filter (lot OR contractor) instead of both simultaneously
 - Fixed file access: snake_case → camelCase field mapping for `/api/archive/files`
