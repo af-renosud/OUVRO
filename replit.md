@@ -81,6 +81,12 @@ Response format: `{ files: [...] }` (wrapped array)
 | ProjectFilesScreen | `00` - `08` (Loi MOP phases) |
 
 ## Recent Changes (January 3, 2026)
+- **iOS PDF Screenshot-to-Annotate**: Enabled PDF annotation on iOS using native screenshot detection:
+  - When viewing PDFs on iOS, users see a hint: "Pinch to zoom, then take a screenshot to annotate"
+  - Uses `expo-screen-capture` to detect when user takes a native screenshot (Power + Volume Up)
+  - Uses `expo-media-library` to retrieve the screenshot from the camera roll
+  - Automatically navigates to Annotation screen with the captured image
+  - Requires photo library permission (requested on first use)
 - **Pre-deployment audit completed**: All critical issues resolved for production release
 - **CrossPlatformImage component**: Created to handle expo-image web compatibility issues, forwards onLoad/onError callbacks
 - **Shadow props updated**: Platform-specific implementation using boxShadow for web and native shadow* props for iOS/Android
