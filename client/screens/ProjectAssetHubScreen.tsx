@@ -316,6 +316,7 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     alignItems: "center",
+    marginTop: -Spacing.sm,
     marginBottom: Spacing.md,
   },
   projectName: {
