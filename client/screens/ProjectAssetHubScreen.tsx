@@ -16,6 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
+import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
@@ -243,6 +244,7 @@ export default function ProjectAssetHubScreen() {
   return (
     <BackgroundView style={styles.container}>
       <View style={[styles.content, { paddingTop: Spacing.md, paddingBottom: insets.bottom + Spacing.md }]}>
+        <HeaderTitle />
         <View style={styles.headerRow}>
           <ThemedText style={[styles.projectName, { color: theme.text }]} numberOfLines={1}>
             {project.name}
