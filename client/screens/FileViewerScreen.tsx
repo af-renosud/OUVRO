@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { View, StyleSheet, Pressable, ActivityIndicator, Platform, useWindowDimensions, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -36,33 +36,42 @@ export default function FileViewerScreen() {
   const isImage = file.contentType.startsWith("image/");
   const isPdf = file.contentType === "application/pdf";
 
-  const handleIOSScreenshotDetected = async () => {
-    if (hasNavigatedRef.current || isProcessingScreenshot) return;
+  const handleIOSScreenshotDetected = useCallback(async () => {
+    if (hasNavigatedRef.current) {
+      if (__DEV__) console.log("[Screenshot] Already navigated, skipping");
+      return;
+    }
     
+    if (__DEV__) console.log("[Screenshot] Detected! Processing...");
     setIsProcessingScreenshot(true);
     
     try {
-      let permission = mediaPermission;
-      if (!permission?.granted) {
-        permission = await requestMediaPermission();
-        if (!permission?.granted) {
-          Alert.alert(
-            "Photo Access Required",
-            "To annotate your screenshot, please allow access to your photos in Settings.",
-            [{ text: "OK" }]
-          );
-          setIsProcessingScreenshot(false);
-          return;
-        }
+      // Request permission if not granted
+      const permissionResult = await MediaLibrary.requestPermissionsAsync();
+      if (__DEV__) console.log("[Screenshot] Permission status:", permissionResult.status);
+      
+      if (permissionResult.status !== "granted") {
+        Alert.alert(
+          "Photo Access Required",
+          "To annotate your screenshot, please allow access to your photos in Settings.",
+          [{ text: "OK" }]
+        );
+        setIsProcessingScreenshot(false);
+        return;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for screenshot to be saved to camera roll
+      if (__DEV__) console.log("[Screenshot] Waiting for screenshot to save...");
+      await new Promise(resolve => setTimeout(resolve, 800));
 
+      // Get the latest photo from camera roll
       const assets = await MediaLibrary.getAssetsAsync({
         first: 1,
         mediaType: MediaLibrary.MediaType.photo,
         sortBy: [[MediaLibrary.SortBy.creationTime, false]],
       });
+
+      if (__DEV__) console.log("[Screenshot] Found assets:", assets.assets.length);
 
       if (assets.assets.length === 0) {
         Alert.alert("Screenshot Not Found", "Unable to find the screenshot. Please try again.");
@@ -71,8 +80,11 @@ export default function FileViewerScreen() {
       }
 
       const screenshot = assets.assets[0];
+      if (__DEV__) console.log("[Screenshot] Latest asset:", screenshot.filename);
+      
       const assetInfo = await MediaLibrary.getAssetInfoAsync(screenshot);
       const screenshotUri = assetInfo.localUri || screenshot.uri;
+      if (__DEV__) console.log("[Screenshot] URI:", screenshotUri);
 
       hasNavigatedRef.current = true;
 
@@ -91,32 +103,39 @@ export default function FileViewerScreen() {
         createdAt: new Date().toISOString(),
       };
 
+      if (__DEV__) console.log("[Screenshot] Navigating to Annotation...");
       navigation.navigate("Annotation", {
         file: clipFile,
         signedUrl: screenshotUri,
         projectId: file.projectId,
       });
     } catch (err) {
-      if (__DEV__) console.error("Screenshot processing error:", err);
+      if (__DEV__) console.error("[Screenshot] Processing error:", err);
       Alert.alert("Error", "Failed to process screenshot. Please try again.");
     } finally {
       setIsProcessingScreenshot(false);
     }
-  };
+  }, [file.originalName, file.projectId, navigation]);
 
   useEffect(() => {
-    if (Platform.OS !== "ios" || !isPdf) return;
+    if (Platform.OS !== "ios" || !isPdf) {
+      if (__DEV__) console.log("[Screenshot] Not iOS or not PDF, skipping listener setup");
+      return;
+    }
 
+    if (__DEV__) console.log("[Screenshot] Setting up iOS screenshot listener for PDF");
     hasNavigatedRef.current = false;
 
     const subscription = ScreenCapture.addScreenshotListener(() => {
+      if (__DEV__) console.log("[Screenshot] Listener triggered!");
       handleIOSScreenshotDetected();
     });
 
     return () => {
+      if (__DEV__) console.log("[Screenshot] Removing listener");
       subscription.remove();
     };
-  }, [isPdf, mediaPermission]);
+  }, [isPdf, handleIOSScreenshotDetected]);
 
   const handleAnnotate = () => {
     navigation.navigate("Annotation", {
