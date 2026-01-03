@@ -81,6 +81,10 @@ Response format: `{ files: [...] }` (wrapped array)
 | ProjectFilesScreen | `00` - `08` (Loi MOP phases) |
 
 ## Recent Changes (January 3, 2026)
+- **Pre-deployment audit completed**: All critical issues resolved for production release
+- **CrossPlatformImage component**: Created to handle expo-image web compatibility issues, forwards onLoad/onError callbacks
+- **Shadow props updated**: Platform-specific implementation using boxShadow for web and native shadow* props for iOS/Android
+- **Debug logging production-safe**: All console.log statements gated with __DEV__ to prevent production logging
 - **Simplified navigation to 3 tabs**: Removed Files tab, now Projects/Queue/Settings only
 - **New ProjectAssetHubScreen**: Tapping a project now opens a 2x3 grid with 6 large buttons (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE)
 - **Removed FilesScreen**: No longer needed with new direct-access Asset Hub design
