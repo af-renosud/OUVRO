@@ -30,13 +30,17 @@ type AssetButtonConfig = {
   bgColor: string;
 };
 
+const BUTTON_BG_COLOR = "#0B2545";
+const BUTTON_ICON_COLOR = "#F8FAFC";
+const BUTTON_TEXT_COLOR = "#7E7F83";
+
 const assetButtons: AssetButtonConfig[] = [
-  { id: "plans", label: "PLANS", icon: "map", color: "#0B2545", bgColor: "#E8F4FD" },
-  { id: "dqe", label: "DQE", icon: "list", color: "#319795", bgColor: "#E6FFFA" },
-  { id: "docs", label: "DOCS", icon: "file-text", color: "#6B7280", bgColor: "#F3F4F6" },
-  { id: "links", label: "LINKS", icon: "link", color: "#F59E0B", bgColor: "#FEF3C7" },
-  { id: "fiches", label: "FICHES", icon: "paperclip", color: "#8B5CF6", bgColor: "#EDE9FE" },
-  { id: "drive", label: "DRIVE", icon: "hard-drive", color: "#10B981", bgColor: "#D1FAE5" },
+  { id: "plans", label: "PLANS", icon: "map", color: BUTTON_ICON_COLOR, bgColor: BUTTON_BG_COLOR },
+  { id: "dqe", label: "DQE", icon: "list", color: BUTTON_ICON_COLOR, bgColor: BUTTON_BG_COLOR },
+  { id: "docs", label: "DOCS", icon: "file-text", color: BUTTON_ICON_COLOR, bgColor: BUTTON_BG_COLOR },
+  { id: "links", label: "LINKS", icon: "link", color: BUTTON_ICON_COLOR, bgColor: BUTTON_BG_COLOR },
+  { id: "fiches", label: "FICHES", icon: "paperclip", color: BUTTON_ICON_COLOR, bgColor: BUTTON_BG_COLOR },
+  { id: "drive", label: "DRIVE", icon: "hard-drive", color: BUTTON_ICON_COLOR, bgColor: BUTTON_BG_COLOR },
 ];
 
 type LinksDropdownItem = {
@@ -262,7 +266,7 @@ export default function ProjectAssetHubScreen() {
                 <ThemedText
                   style={[
                     styles.buttonLabel,
-                    { color: enabled ? button.color : theme.textTertiary },
+                    { color: enabled ? BUTTON_TEXT_COLOR : theme.textTertiary },
                   ]}
                 >
                   {button.label}
