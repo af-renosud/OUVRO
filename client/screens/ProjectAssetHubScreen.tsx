@@ -68,8 +68,8 @@ export default function ProjectAssetHubScreen() {
 
   const availableHeight = height - insets.top - insets.bottom - 120;
   const availableWidth = width - Spacing.lg * 2;
-  const buttonSize = Math.min((availableWidth - Spacing.lg) / 2, (availableHeight - Spacing.lg * 2) / 3);
-  const iconSize = Math.min(buttonSize * 0.5, 48);
+  const buttonSize = Math.min((availableWidth - Spacing.lg) / 2, (availableHeight - Spacing.lg * 2) / 3) * 0.5;
+  const iconSize = Math.min(buttonSize * 0.4, 24);
 
   const openExternalLink = async (url: string) => {
     try {
@@ -249,7 +249,7 @@ export default function ProjectAssetHubScreen() {
                     {
                       width: buttonSize,
                       height: buttonSize,
-                      backgroundColor: enabled ? button.bgColor : theme.backgroundTertiary,
+                      backgroundColor: BUTTON_BG_COLOR,
                     },
                     pressed && enabled && styles.buttonPressed,
                     !enabled && styles.buttonDisabled,
@@ -260,7 +260,7 @@ export default function ProjectAssetHubScreen() {
                   <Feather
                     name={button.icon}
                     size={iconSize}
-                    color={enabled ? button.color : theme.textTertiary}
+                    color={BUTTON_ICON_COLOR}
                   />
                 </Pressable>
                 <ThemedText
