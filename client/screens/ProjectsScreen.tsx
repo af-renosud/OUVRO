@@ -41,35 +41,33 @@ export default function ProjectsScreen() {
   );
 
   const renderProject = ({ item }: { item: MappedProject }) => (
-    <Pressable
-      style={({ pressed }) => [pressed && styles.pressed]}
+    <Card 
+      style={styles.projectCard}
       onPress={() => navigation.navigate("ProjectAssetHub", { projectId: item.id })}
     >
-      <Card style={styles.projectCard}>
-        <View style={styles.projectThumbnail}>
-          <Feather name="briefcase" size={32} color={BrandColors.primary} />
+      <View style={styles.projectThumbnail}>
+        <Feather name="briefcase" size={32} color={BrandColors.primary} />
+      </View>
+      <View style={styles.projectInfo}>
+        <ThemedText style={styles.projectName}>{item.name}</ThemedText>
+        {item.clientName ? (
+          <ThemedText style={[styles.clientName, { color: theme.textSecondary }]}>
+            {item.clientName}
+          </ThemedText>
+        ) : null}
+        {item.location ? (
+          <ThemedText style={[styles.projectLocation, { color: theme.textTertiary }]} numberOfLines={1}>
+            {item.location}
+          </ThemedText>
+        ) : null}
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+          <ThemedText style={styles.statusText}>
+            {item.status || "Active"}
+          </ThemedText>
         </View>
-        <View style={styles.projectInfo}>
-          <ThemedText style={styles.projectName}>{item.name}</ThemedText>
-          {item.clientName ? (
-            <ThemedText style={[styles.clientName, { color: theme.textSecondary }]}>
-              {item.clientName}
-            </ThemedText>
-          ) : null}
-          {item.location ? (
-            <ThemedText style={[styles.projectLocation, { color: theme.textTertiary }]} numberOfLines={1}>
-              {item.location}
-            </ThemedText>
-          ) : null}
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-            <ThemedText style={styles.statusText}>
-              {item.status || "Active"}
-            </ThemedText>
-          </View>
-        </View>
-        <Feather name="chevron-right" size={24} color={theme.textTertiary} />
-      </Card>
-    </Pressable>
+      </View>
+      <Feather name="chevron-right" size={24} color={theme.textTertiary} />
+    </Card>
   );
 
   const getStatusColor = (status: string | null) => {
