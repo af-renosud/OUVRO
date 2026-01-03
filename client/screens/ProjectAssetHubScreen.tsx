@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
@@ -16,7 +17,6 @@ import { Feather } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
-import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
@@ -65,6 +65,7 @@ type LinksDropdownItem = {
 export default function ProjectAssetHubScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const { width, height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<Props["route"]>();
@@ -243,10 +244,7 @@ export default function ProjectAssetHubScreen() {
 
   return (
     <BackgroundView style={styles.container}>
-      <View style={[styles.logoHeader, { paddingTop: insets.top + Spacing.md }]}>
-        <HeaderTitle />
-      </View>
-      <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
+      <View style={[styles.content, { paddingTop: headerHeight + Spacing.md, paddingBottom: insets.bottom + Spacing.md }]}>
         <View style={styles.headerRow}>
           <ThemedText style={[styles.projectName, { color: theme.text }]} numberOfLines={1}>
             {project.name}
@@ -306,10 +304,6 @@ export default function ProjectAssetHubScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  logoHeader: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
   },
   content: {
     flex: 1,
