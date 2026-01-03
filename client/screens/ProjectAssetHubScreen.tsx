@@ -321,8 +321,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md * 1.5,
   },
   projectName: {
-    ...Typography.h3,
+    ...Typography.h2,
     textAlign: "center",
+    fontWeight: "700",
   },
   buttonsGrid: {
     flexDirection: "row",
