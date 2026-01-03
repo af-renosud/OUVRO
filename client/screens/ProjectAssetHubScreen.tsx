@@ -22,12 +22,14 @@ import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/them
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
-function GoogleDriveIcon({ size, color }: { size: number; color: string }) {
+const DRIVE_BORDER_COLOR = "#EA4335";
+
+function GoogleDriveIcon({ size }: { size: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 87.3 78" fill="none">
-      <Path d="M6.6 66.85L0 56.5 27.6 10.9h18.3L6.6 66.85z" fill={color} />
-      <Path d="M29.9 78l13.5-21.9h38.4l-13.5 21.9H29.9z" fill={color} />
-      <Path d="M50.3 38l16.2 28h17.8L68.1 38 55.2 16.2H37.8L50.3 38z" fill={color} />
+      <Path d="M6.6 66.85L0 56.5 27.6 10.9h18.3L6.6 66.85z" fill="#0066DA" />
+      <Path d="M29.9 78l13.5-21.9h38.4l-13.5 21.9H29.9z" fill="#00AC47" />
+      <Path d="M50.3 38l16.2 28h17.8L68.1 38 55.2 16.2H37.8L50.3 38z" fill="#FFBA00" />
     </Svg>
   );
 }
@@ -254,6 +256,7 @@ export default function ProjectAssetHubScreen() {
         <View style={styles.buttonsGrid}>
           {assetButtons.map((button) => {
             const enabled = isButtonEnabled(button.id);
+            const isDrive = button.id === "drive";
             return (
               <View key={button.id} style={styles.buttonWrapper}>
                 <Pressable
@@ -262,18 +265,17 @@ export default function ProjectAssetHubScreen() {
                     {
                       width: buttonSize,
                       height: buttonSize,
-                      backgroundColor: BUTTON_BG_COLOR,
+                      backgroundColor: isDrive ? "#FFFFFF" : BUTTON_BG_COLOR,
+                      borderWidth: isDrive ? 3 : 0,
+                      borderColor: isDrive ? DRIVE_BORDER_COLOR : "transparent",
                     },
                     pressed && enabled && styles.buttonPressed,
                   ]}
                   onPress={() => handleButtonPress(button.id)}
                   disabled={!enabled}
                 >
-                  {button.id === "drive" ? (
-                    <GoogleDriveIcon
-                      size={iconSize}
-                      color={enabled ? BUTTON_ICON_COLOR : "#888888"}
-                    />
+                  {isDrive ? (
+                    <GoogleDriveIcon size={iconSize} />
                   ) : (
                     <Feather
                       name={button.icon}
