@@ -51,9 +51,11 @@ export default function ProjectsScreen() {
       <View style={styles.projectInfo}>
         <ThemedText style={styles.projectName}>{item.name}</ThemedText>
         {item.clientName ? (
-          <ThemedText style={[styles.clientName, { color: theme.textSecondary }]}>
-            {item.clientName}
-          </ThemedText>
+          <View style={styles.clientChip}>
+            <ThemedText style={[styles.clientName, { color: BrandColors.info }]}>
+              {item.clientName}
+            </ThemedText>
+          </View>
         ) : null}
         {item.location ? (
           <ThemedText style={[styles.projectLocation, { color: theme.textTertiary }]} numberOfLines={1}>
@@ -191,9 +193,17 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     color: "#0B2545",
   },
+  clientChip: {
+    alignSelf: "flex-start",
+    borderWidth: 1.5,
+    borderColor: BrandColors.info,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    marginBottom: Spacing.xs,
+  },
   clientName: {
-    ...Typography.body,
-    marginBottom: 2,
+    ...Typography.bodySmall,
   },
   projectLocation: {
     ...Typography.bodySmall,
