@@ -243,8 +243,10 @@ export default function ProjectAssetHubScreen() {
 
   return (
     <BackgroundView style={styles.container}>
-      <View style={[styles.content, { paddingTop: Spacing.md, paddingBottom: insets.bottom + Spacing.md }]}>
+      <View style={[styles.logoHeader, { paddingTop: insets.top + Spacing.md }]}>
         <HeaderTitle />
+      </View>
+      <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
         <View style={styles.headerRow}>
           <ThemedText style={[styles.projectName, { color: theme.text }]} numberOfLines={1}>
             {project.name}
@@ -305,6 +307,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  logoHeader: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
   content: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
@@ -316,7 +322,6 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     alignItems: "center",
-    marginTop: -Spacing.sm,
     marginBottom: Spacing.md,
   },
   projectName: {
