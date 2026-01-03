@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-around",
     alignContent: "flex-start",
-    paddingTop: Spacing.xl,
+    paddingTop: Spacing.xl * 3,
   },
   buttonWrapper: {
     width: "50%",
