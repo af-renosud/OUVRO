@@ -40,6 +40,8 @@
     "expo-image-picker": "^17.0.10",
     "expo-linking": "~8.0.8",
     "expo-mail-composer": "^15.0.8",
+    "expo-media-library": "^18.2.1",
+    "expo-screen-capture": "^8.0.9",
     "expo-sharing": "^14.0.8",
     "expo-sms": "^14.0.8",
     "expo-splash-screen": "~31.0.10",

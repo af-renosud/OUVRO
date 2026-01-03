@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, Pressable, ActivityIndicator, Platform, useWindowDimensions, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -8,6 +8,8 @@ import { CrossPlatformImage } from "@/components/CrossPlatformImage";
 import WebView from "react-native-webview";
 import { captureScreen } from "react-native-view-shot";
 import { StatusBar } from "expo-status-bar";
+import * as ScreenCapture from "expo-screen-capture";
+import * as MediaLibrary from "expo-media-library";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
@@ -27,9 +29,94 @@ export default function FileViewerScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [hideChrome, setHideChrome] = useState(false);
+  const [isProcessingScreenshot, setIsProcessingScreenshot] = useState(false);
+  const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
+  const hasNavigatedRef = useRef(false);
 
   const isImage = file.contentType.startsWith("image/");
   const isPdf = file.contentType === "application/pdf";
+
+  const handleIOSScreenshotDetected = async () => {
+    if (hasNavigatedRef.current || isProcessingScreenshot) return;
+    
+    setIsProcessingScreenshot(true);
+    
+    try {
+      let permission = mediaPermission;
+      if (!permission?.granted) {
+        permission = await requestMediaPermission();
+        if (!permission?.granted) {
+          Alert.alert(
+            "Photo Access Required",
+            "To annotate your screenshot, please allow access to your photos in Settings.",
+            [{ text: "OK" }]
+          );
+          setIsProcessingScreenshot(false);
+          return;
+        }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const assets = await MediaLibrary.getAssetsAsync({
+        first: 1,
+        mediaType: MediaLibrary.MediaType.photo,
+        sortBy: [[MediaLibrary.SortBy.creationTime, false]],
+      });
+
+      if (assets.assets.length === 0) {
+        Alert.alert("Screenshot Not Found", "Unable to find the screenshot. Please try again.");
+        setIsProcessingScreenshot(false);
+        return;
+      }
+
+      const screenshot = assets.assets[0];
+      const assetInfo = await MediaLibrary.getAssetInfoAsync(screenshot);
+      const screenshotUri = assetInfo.localUri || screenshot.uri;
+
+      hasNavigatedRef.current = true;
+
+      const pdfName = file.originalName.replace(/\.pdf$/i, "");
+      const timestamp = Date.now();
+      const clipFileName = `clip-${pdfName}-${timestamp}.png`;
+
+      const clipFile: ProjectFile = {
+        objectId: `clip-${timestamp}`,
+        objectName: clipFileName,
+        originalName: clipFileName,
+        contentType: "image/png",
+        size: 0,
+        projectId: file.projectId,
+        category: "annotations",
+        createdAt: new Date().toISOString(),
+      };
+
+      navigation.navigate("Annotation", {
+        file: clipFile,
+        signedUrl: screenshotUri,
+        projectId: file.projectId,
+      });
+    } catch (err) {
+      if (__DEV__) console.error("Screenshot processing error:", err);
+      Alert.alert("Error", "Failed to process screenshot. Please try again.");
+    } finally {
+      setIsProcessingScreenshot(false);
+    }
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== "ios" || !isPdf) return;
+
+    hasNavigatedRef.current = false;
+
+    const subscription = ScreenCapture.addScreenshotListener(() => {
+      handleIOSScreenshotDetected();
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isPdf, mediaPermission]);
 
   const handleAnnotate = () => {
     navigation.navigate("Annotation", {
@@ -40,15 +127,6 @@ export default function FileViewerScreen() {
   };
 
   const handleCapturePdfClip = async () => {
-    if (Platform.OS === "ios") {
-      Alert.alert(
-        "Feature Not Available",
-        "PDF capture for annotation is not currently supported on iOS. Please use a screenshot and annotate from Photos, or open images directly for annotation.",
-        [{ text: "OK" }]
-      );
-      return;
-    }
-    
     try {
       setIsCapturing(true);
       setHideChrome(true);
@@ -155,25 +233,43 @@ export default function FileViewerScreen() {
             scalesPageToFit={true}
             bounces={false}
           />
-          {!hideChrome && Platform.OS !== "ios" ? (
-            <Pressable
-              style={[
-                styles.captureButton,
-                { bottom: insets.bottom + Spacing.xl },
-                isCapturing && styles.captureButtonDisabled,
-              ]}
-              onPress={handleCapturePdfClip}
-              disabled={isCapturing || isLoading}
-            >
-              {isCapturing ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Feather name="camera" size={20} color="#FFFFFF" />
-                  <ThemedText style={styles.captureButtonText}>Capture for Annotation</ThemedText>
-                </>
-              )}
-            </Pressable>
+          {!hideChrome ? (
+            Platform.OS === "ios" ? (
+              <View style={[styles.iosHintContainer, { bottom: insets.bottom + Spacing.xl }]}>
+                {isProcessingScreenshot ? (
+                  <View style={styles.processingBanner}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <ThemedText style={styles.processingText}>Opening annotation...</ThemedText>
+                  </View>
+                ) : (
+                  <View style={styles.iosHintBanner}>
+                    <Feather name="camera" size={18} color={BrandColors.primary} />
+                    <ThemedText style={[styles.iosHintText, { color: theme.text }]}>
+                      Pinch to zoom, then take a screenshot to annotate
+                    </ThemedText>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <Pressable
+                style={[
+                  styles.captureButton,
+                  { bottom: insets.bottom + Spacing.xl },
+                  isCapturing && styles.captureButtonDisabled,
+                ]}
+                onPress={handleCapturePdfClip}
+                disabled={isCapturing || isLoading}
+              >
+                {isCapturing ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Feather name="camera" size={20} color="#FFFFFF" />
+                    <ThemedText style={styles.captureButtonText}>Capture for Annotation</ThemedText>
+                  </>
+                )}
+              </Pressable>
+            )
           ) : null}
         </View>
       );
@@ -369,6 +465,49 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   captureButtonText: {
+    ...Typography.bodyBold,
+    color: "#FFFFFF",
+  },
+  iosHintContainer: {
+    position: "absolute",
+    left: Spacing.lg,
+    right: Spacing.lg,
+  },
+  iosHintBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  iosHintText: {
+    ...Typography.bodySmall,
+    textAlign: "center",
+  },
+  processingBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: BrandColors.primary,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  processingText: {
     ...Typography.bodyBold,
     color: "#FFFFFF",
   },
