@@ -10,10 +10,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
+import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 
@@ -182,11 +182,7 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.brandingContainer}>
-          <Image
-            source={require("../../assets/images/ouvro-logo.png")}
-            style={styles.logo}
-            contentFit="contain"
-          />
+          <HeaderTitle />
         </View>
 
         {settingsGroups.map((group, groupIndex) => (
@@ -222,11 +218,7 @@ const styles = StyleSheet.create({
   },
   brandingContainer: {
     alignItems: "center",
-    paddingVertical: Spacing.xl,
-  },
-  logo: {
-    width: 180,
-    height: 56,
+    paddingBottom: Spacing.lg,
   },
   settingsGroup: {
     marginBottom: Spacing.lg,

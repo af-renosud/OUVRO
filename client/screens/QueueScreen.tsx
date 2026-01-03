@@ -14,11 +14,11 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { File } from "expo-file-system";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
+import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
@@ -301,11 +301,7 @@ export default function QueueScreen() {
   return (
     <BackgroundView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <Image
-          source={require("../../assets/images/ouvro-logo.png")}
-          style={styles.headerLogo}
-          contentFit="contain"
-        />
+        <HeaderTitle />
         {observations.length > 0 ? (
           <Pressable
             style={[styles.syncAllButton, { backgroundColor: BrandColors.primary }]}
@@ -359,10 +355,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.md,
-  },
-  headerLogo: {
-    width: 180,
-    height: 56,
   },
   syncAllButton: {
     flexDirection: "row",
