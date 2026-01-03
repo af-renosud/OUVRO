@@ -321,11 +321,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   buttonsGrid: {
-    flex: 1,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-around",
-    alignContent: "space-around",
+    alignContent: "flex-start",
   },
   buttonWrapper: {
     width: "50%",
