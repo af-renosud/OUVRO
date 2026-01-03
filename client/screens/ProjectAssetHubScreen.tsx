@@ -323,11 +323,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   buttonsGrid: {
+    flex: 1,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-around",
-    alignContent: "flex-start",
-    paddingTop: Spacing.xl * 3,
+    alignContent: "center",
   },
   buttonWrapper: {
     width: "50%",
