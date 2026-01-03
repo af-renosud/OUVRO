@@ -3,10 +3,10 @@ import {
   View,
   StyleSheet,
   Pressable,
-  ScrollView,
   Alert,
   Linking,
   Modal,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -49,6 +49,7 @@ type LinksDropdownItem = {
 export default function ProjectAssetHubScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<Props["route"]>();
   const { projectId } = route.params;
@@ -60,6 +61,11 @@ export default function ProjectAssetHubScreen() {
   });
 
   const project = projects.find((p) => p.id === projectId);
+
+  const availableHeight = height - insets.top - insets.bottom - 120;
+  const availableWidth = width - Spacing.lg * 2;
+  const buttonSize = Math.min((availableWidth - Spacing.lg) / 2, (availableHeight - Spacing.lg * 2) / 3);
+  const iconSize = Math.min(buttonSize * 0.5, 48);
 
   const openExternalLink = async (url: string) => {
     try {
@@ -150,14 +156,6 @@ export default function ProjectAssetHubScreen() {
     }
   };
 
-  const getStatusColor = (status: string | null) => {
-    const s = status?.toUpperCase() || "";
-    if (s.includes("PREPARATION") || s.includes("PENDING")) return BrandColors.warning;
-    if (s.includes("COMPLETE") || s.includes("FINISHED")) return theme.textTertiary;
-    if (s.includes("ACTIVE") || s.includes("PROGRESS")) return BrandColors.success;
-    return BrandColors.info;
-  };
-
   const renderLinksModal = () => {
     const items = getLinksDropdownItems();
 
@@ -229,61 +227,38 @@ export default function ProjectAssetHubScreen() {
 
   return (
     <BackgroundView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + Spacing.xl + 100 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={[styles.projectHeader, { backgroundColor: theme.backgroundSecondary }]}>
-          <View style={[styles.projectIcon, { backgroundColor: BrandColors.primary + "15" }]}>
-            <Feather name="briefcase" size={32} color={BrandColors.primary} />
-          </View>
-          <View style={styles.projectInfo}>
-            <ThemedText style={[styles.projectName, { color: theme.text }]} numberOfLines={2}>
-              {project.name}
-            </ThemedText>
-            {project.location ? (
-              <ThemedText style={[styles.projectLocation, { color: theme.textSecondary }]} numberOfLines={1}>
-                {project.location}
-              </ThemedText>
-            ) : null}
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(project.status) }]}>
-              <ThemedText style={styles.statusText}>
-                {project.status || "Active"}
-              </ThemedText>
-            </View>
-          </View>
+      <View style={[styles.content, { paddingTop: Spacing.md, paddingBottom: insets.bottom + Spacing.md }]}>
+        <View style={styles.headerRow}>
+          <ThemedText style={[styles.projectName, { color: theme.text }]} numberOfLines={1}>
+            {project.name}
+          </ThemedText>
         </View>
 
         <View style={styles.buttonsGrid}>
           {assetButtons.map((button) => {
             const enabled = isButtonEnabled(button.id);
             return (
-              <Pressable
-                key={button.id}
-                style={({ pressed }) => [
-                  styles.assetButton,
-                  { backgroundColor: enabled ? button.bgColor : theme.backgroundTertiary },
-                  pressed && enabled && styles.assetButtonPressed,
-                  !enabled && styles.assetButtonDisabled,
-                ]}
-                onPress={() => handleButtonPress(button.id)}
-                disabled={!enabled}
-              >
-                <View
-                  style={[
-                    styles.iconContainer,
-                    { backgroundColor: enabled ? button.color + "20" : theme.backgroundSecondary },
+              <View key={button.id} style={styles.buttonWrapper}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.roundButton,
+                    {
+                      width: buttonSize,
+                      height: buttonSize,
+                      backgroundColor: enabled ? button.bgColor : theme.backgroundTertiary,
+                    },
+                    pressed && enabled && styles.buttonPressed,
+                    !enabled && styles.buttonDisabled,
                   ]}
+                  onPress={() => handleButtonPress(button.id)}
+                  disabled={!enabled}
                 >
                   <Feather
                     name={button.icon}
-                    size={32}
+                    size={iconSize}
                     color={enabled ? button.color : theme.textTertiary}
                   />
-                </View>
+                </Pressable>
                 <ThemedText
                   style={[
                     styles.buttonLabel,
@@ -292,11 +267,11 @@ export default function ProjectAssetHubScreen() {
                 >
                   {button.label}
                 </ThemedText>
-              </Pressable>
+              </View>
             );
           })}
         </View>
-      </ScrollView>
+      </View>
 
       {renderLinksModal()}
     </BackgroundView>
@@ -307,84 +282,52 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
+  content: {
+    flex: 1,
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-  projectHeader: {
-    flexDirection: "row",
+  headerRow: {
     alignItems: "center",
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.xl,
-    gap: Spacing.md,
-  },
-  projectIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  projectInfo: {
-    flex: 1,
+    marginBottom: Spacing.md,
   },
   projectName: {
     ...Typography.h3,
-    marginBottom: Spacing.xs,
-  },
-  projectLocation: {
-    ...Typography.bodySmall,
-    marginBottom: Spacing.sm,
-  },
-  statusBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.full,
-  },
-  statusText: {
-    ...Typography.label,
-    color: "#FFFFFF",
-    fontSize: 11,
-    textTransform: "capitalize",
+    textAlign: "center",
   },
   buttonsGrid: {
+    flex: 1,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.md,
-    justifyContent: "space-between",
+    justifyContent: "space-around",
+    alignContent: "space-around",
   },
-  assetButton: {
-    width: "48%",
-    aspectRatio: 1.1,
-    borderRadius: BorderRadius.lg,
+  buttonWrapper: {
+    width: "50%",
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
-  assetButtonPressed: {
-    transform: [{ scale: 0.97 }],
+  roundButton: {
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buttonPressed: {
+    transform: [{ scale: 0.95 }],
     opacity: 0.9,
   },
-  assetButtonDisabled: {
-    opacity: 0.5,
-  },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
+  buttonDisabled: {
+    opacity: 0.4,
   },
   buttonLabel: {
-    ...Typography.h3,
+    ...Typography.label,
     fontWeight: "700",
+    marginTop: Spacing.sm,
     letterSpacing: 1,
   },
   modalOverlay: {
