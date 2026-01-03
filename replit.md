@@ -81,6 +81,11 @@ Response format: `{ files: [...] }` (wrapped array)
 | ProjectFilesScreen | `00` - `08` (Loi MOP phases) |
 
 ## Recent Changes (January 3, 2026)
+- **Pinch-to-zoom for image annotations**: Added zoom functionality to AnnotationScreen for image files:
+  - Tap the zoom icon (magnifying glass) in the toolbar to toggle zoom mode
+  - In zoom mode: pinch to zoom (0.5x-5x), drag to pan, double-tap to reset
+  - Tool buttons are dimmed and disabled in zoom mode - tap any tool to exit zoom mode
+  - Zoom is automatically reset before saving to ensure full image is captured
 - **iOS PDF Screenshot-to-Annotate**: Enabled PDF annotation on iOS using native screenshot detection:
   - When viewing PDFs on iOS, users see a hint: "Pinch to zoom, then take a screenshot to annotate"
   - Uses `expo-screen-capture` to detect when user takes a native screenshot (Power + Volume Up)
