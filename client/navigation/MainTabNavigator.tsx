@@ -7,7 +7,6 @@ import { useNavigation, useNavigationState } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import ProjectsScreen from "@/screens/ProjectsScreen";
 import QueueScreen from "@/screens/QueueScreen";
-import FilesScreen from "@/screens/FilesScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Shadows, BrandColors } from "@/constants/theme";
@@ -16,7 +15,6 @@ import type { RootStackParamList } from "./RootStackNavigator";
 export type MainTabParamList = {
   ProjectsTab: undefined;
   QueueTab: undefined;
-  FilesTab: undefined;
   SettingsTab: undefined;
 };
 
@@ -112,16 +110,6 @@ export default function MainTabNavigator() {
             title: "Queue",
             tabBarIcon: () => (
               <Feather name="cloud" size={28} color="#F59E0B" />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="FilesTab"
-          component={FilesScreen}
-          options={{
-            title: "Files",
-            tabBarIcon: () => (
-              <Feather name="folder" size={28} color="#F59E0B" />
             ),
           }}
         />

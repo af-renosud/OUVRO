@@ -7,6 +7,7 @@ import VideoCaptureScreen from "@/screens/VideoCaptureScreen";
 import AudioCaptureScreen from "@/screens/AudioCaptureScreen";
 import ObservationDetailsScreen from "@/screens/ObservationDetailsScreen";
 import ProjectDetailScreen from "@/screens/ProjectDetailScreen";
+import ProjectAssetHubScreen from "@/screens/ProjectAssetHubScreen";
 import ShareModalScreen from "@/screens/ShareModalScreen";
 import FileViewerScreen from "@/screens/FileViewerScreen";
 import AnnotationScreen from "@/screens/AnnotationScreen";
@@ -36,6 +37,7 @@ export type RootStackParamList = {
   AudioCapture: { projectId: string };
   ObservationDetails: { projectId: string; mediaItems?: MediaItem[] };
   ProjectDetail: { projectId: string };
+  ProjectAssetHub: { projectId: string };
   ShareModal: { observation: ShareObservation; projectName: string; contractorName?: string };
   FileViewer: { file: ProjectFile; signedUrl: string };
   Annotation: { file: ProjectFile; signedUrl: string; projectId: string };
@@ -93,6 +95,11 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="ProjectDetail"
         component={ProjectDetailScreen}
+      />
+      <Stack.Screen
+        name="ProjectAssetHub"
+        component={ProjectAssetHubScreen}
+        options={{ headerTitle: "Project Files" }}
       />
       <Stack.Screen
         name="ShareModal"

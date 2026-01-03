@@ -43,7 +43,7 @@ export default function ProjectsScreen() {
   const renderProject = ({ item }: { item: MappedProject }) => (
     <Pressable
       style={({ pressed }) => [pressed && styles.pressed]}
-      onPress={() => navigation.navigate("ProjectDetail", { projectId: item.id })}
+      onPress={() => navigation.navigate("ProjectAssetHub", { projectId: item.id })}
     >
       <Card style={styles.projectCard}>
         <View style={styles.projectThumbnail}>
