@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     alignItems: "center",
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.md * 1.5,
   },
   projectName: {
     ...Typography.h3,
