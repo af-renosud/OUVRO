@@ -7,7 +7,8 @@ import { Feather } from "@expo/vector-icons";
 import { CrossPlatformImage } from "@/components/CrossPlatformImage";
 import Svg, { Path, Circle, Rect, Line, G, Text as SvgText } from "react-native-svg";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
-import { runOnJS, useSharedValue, useAnimatedReaction } from "react-native-reanimated";
+import { runOnJS, useSharedValue } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, withSpring } from "react-native-reanimated";
 import ViewShot from "react-native-view-shot";
 import * as FileSystem from "expo-file-system/legacy";
 import { ThemedText } from "@/components/ThemedText";
@@ -58,6 +59,15 @@ export default function AnnotationScreen() {
   const [showTextModal, setShowTextModal] = useState(false);
   const [textInput, setTextInput] = useState("");
   const [pendingTextPosition, setPendingTextPosition] = useState<number[] | null>(null);
+  const [isZoomMode, setIsZoomMode] = useState(false);
+  
+  // Zoom state using shared values for smooth animations
+  const scale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedScale = useSharedValue(1);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
   
   // Use refs for real-time point collection to avoid React state update delays
   const currentPointsRef = useRef<number[][]>([]);
@@ -139,8 +149,10 @@ export default function AnnotationScreen() {
     }
   }, []);
 
-  const panGesture = Gesture.Pan()
+  // Drawing gestures (when not in zoom mode)
+  const drawPanGesture = Gesture.Pan()
     .minDistance(1)
+    .enabled(!isZoomMode)
     .onStart((e) => {
       runOnJS(handlePanStart)(e.x, e.y, selectedTool);
     })
@@ -151,11 +163,62 @@ export default function AnnotationScreen() {
       runOnJS(handlePanEnd)();
     });
 
-  const tapGesture = Gesture.Tap().onEnd((e) => {
-    runOnJS(handleTapEnd)(e.x, e.y, selectedTool);
-  });
+  const tapGesture = Gesture.Tap()
+    .enabled(!isZoomMode)
+    .onEnd((e) => {
+      runOnJS(handleTapEnd)(e.x, e.y, selectedTool);
+    });
 
-  const gesture = Gesture.Race(panGesture, tapGesture);
+  // Zoom gestures (when in zoom mode)
+  const pinchGesture = Gesture.Pinch()
+    .enabled(isZoomMode)
+    .onStart(() => {
+      savedScale.value = scale.value;
+    })
+    .onUpdate((e) => {
+      const newScale = savedScale.value * e.scale;
+      scale.value = Math.min(Math.max(newScale, 0.5), 5);
+    });
+
+  const zoomPanGesture = Gesture.Pan()
+    .enabled(isZoomMode)
+    .onStart(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    })
+    .onUpdate((e) => {
+      translateX.value = savedTranslateX.value + e.translationX;
+      translateY.value = savedTranslateY.value + e.translationY;
+    });
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .enabled(isZoomMode)
+    .onEnd(() => {
+      scale.value = withSpring(1);
+      translateX.value = withSpring(0);
+      translateY.value = withSpring(0);
+    });
+
+  // Animated style for zoom transforms
+  const animatedCanvasStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  // Combine gestures based on mode
+  const zoomGestures = Gesture.Simultaneous(pinchGesture, zoomPanGesture, doubleTapGesture);
+  const drawGestures = Gesture.Race(drawPanGesture, tapGesture);
+  const gesture = isZoomMode ? zoomGestures : drawGestures;
+  
+  const handleResetZoom = useCallback(() => {
+    scale.value = withSpring(1);
+    translateX.value = withSpring(0);
+    translateY.value = withSpring(0);
+  }, [scale, translateX, translateY]);
 
   const handleAddText = () => {
     if (textInput.trim() && pendingTextPosition) {
@@ -197,6 +260,16 @@ export default function AnnotationScreen() {
 
     try {
       setIsSaving(true);
+      
+      // Reset zoom before capture to ensure full image is saved
+      const wasZoomed = scale.value !== 1 || translateX.value !== 0 || translateY.value !== 0;
+      if (wasZoomed) {
+        scale.value = 1;
+        translateX.value = 0;
+        translateY.value = 0;
+        // Wait for transform to apply
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
 
       if (viewShotRef.current?.capture) {
         if (__DEV__) console.log("[Annotation] Capturing view...");
@@ -446,44 +519,72 @@ export default function AnnotationScreen() {
 
       <GestureDetector gesture={gesture}>
         <View style={styles.canvasContainer}>
-          <ViewShot
-            ref={viewShotRef}
-            style={[styles.viewShot, { width: canvasWidth, height: canvasHeight }]}
-            options={{ format: "png", quality: 1, result: "tmpfile" }}
-          >
-            <View style={{ width: canvasWidth, height: canvasHeight }}>
-              <CrossPlatformImage
-                source={{ uri: signedUrl }}
-                style={[styles.backgroundImage, { width: canvasWidth, height: canvasHeight }]}
-                contentFit="contain"
-                onLoad={() => setImageLoaded(true)}
-                onError={handleImageError}
-              />
-              <Svg style={StyleSheet.absoluteFill} width={canvasWidth} height={canvasHeight}>
-                {elements.map(renderElement)}
-                {currentElement ? renderElement(currentElement) : null}
-              </Svg>
+          <Animated.View style={animatedCanvasStyle}>
+            <ViewShot
+              ref={viewShotRef}
+              style={[styles.viewShot, { width: canvasWidth, height: canvasHeight }]}
+              options={{ format: "png", quality: 1, result: "tmpfile" }}
+            >
+              <View style={{ width: canvasWidth, height: canvasHeight }}>
+                <CrossPlatformImage
+                  source={{ uri: signedUrl }}
+                  style={[styles.backgroundImage, { width: canvasWidth, height: canvasHeight }]}
+                  contentFit="contain"
+                  onLoad={() => setImageLoaded(true)}
+                  onError={handleImageError}
+                />
+                <Svg style={StyleSheet.absoluteFill} width={canvasWidth} height={canvasHeight}>
+                  {elements.map(renderElement)}
+                  {currentElement ? renderElement(currentElement) : null}
+                </Svg>
+              </View>
+            </ViewShot>
+          </Animated.View>
+          {isZoomMode ? (
+            <View style={styles.zoomHint}>
+              <ThemedText style={styles.zoomHintText}>
+                Pinch to zoom, drag to pan, double-tap to reset
+              </ThemedText>
             </View>
-          </ViewShot>
+          ) : null}
         </View>
       </GestureDetector>
 
       {showToolbar ? (
         <View style={[styles.toolbar, { paddingBottom: insets.bottom + Spacing.md }]}>
           <View style={styles.toolRow}>
+            <Pressable
+              style={[
+                styles.toolButton,
+                isZoomMode && { backgroundColor: BrandColors.primary },
+              ]}
+              onPress={() => setIsZoomMode(!isZoomMode)}
+            >
+              <Feather
+                name={isZoomMode ? "zoom-out" : "zoom-in"}
+                size={20}
+                color={isZoomMode ? "#FFFFFF" : "#AAAAAA"}
+              />
+            </Pressable>
+            <View style={styles.toolDivider} />
             {TOOLS.map((tool) => (
               <Pressable
                 key={tool.type}
                 style={[
                   styles.toolButton,
-                  selectedTool === tool.type && { backgroundColor: selectedColor },
+                  selectedTool === tool.type && !isZoomMode && { backgroundColor: selectedColor },
+                  isZoomMode && { opacity: 0.5 },
                 ]}
-                onPress={() => setSelectedTool(tool.type)}
+                onPress={() => {
+                  if (isZoomMode) setIsZoomMode(false);
+                  setSelectedTool(tool.type);
+                }}
+                disabled={isZoomMode}
               >
                 <Feather
                   name={tool.icon as any}
                   size={20}
-                  color={selectedTool === tool.type ? "#FFFFFF" : "#AAAAAA"}
+                  color={selectedTool === tool.type && !isZoomMode ? "#FFFFFF" : "#AAAAAA"}
                 />
               </Pressable>
             ))}
@@ -622,9 +723,25 @@ const styles = StyleSheet.create({
   canvasContainer: {
     flex: 1,
     backgroundColor: "#000",
+    overflow: "hidden",
   },
   viewShot: {
     backgroundColor: "#000",
+  },
+  zoomHint: {
+    position: "absolute",
+    bottom: Spacing.lg,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  zoomHintText: {
+    ...Typography.caption,
+    color: "rgba(255,255,255,0.8)",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.md,
   },
   backgroundImage: {
     position: "absolute",
