@@ -1,0 +1,62 @@
+Prompt for OUVRO Agent: GPS Coordinate Strategy Review
+OUVRO Agent - ARCHIDOC Database Enhancement Proposal: GPS Coordinates
+
+ARCHIDOC is planning to add GPS coordinates to all address-bearing records in the database to enable geo-tracking functionality for the OUVRO mobile app. Before implementation, please review this strategy and confirm it meets your requirements.
+
+Proposed Database Schema Changes
+Tables to be modified:
+
+Table	Current Address Fields	New GPS Fields
+contractors	address, postalCode, city, country	latitude, longitude
+systemActors	contactAddress	latitude, longitude
+projects	address	latitude, longitude
+suppliers	address fields	latitude, longitude
+New columns per table:
+
+latitude        DOUBLE PRECISION  (e.g., 43.6047)
+longitude       DOUBLE PRECISION  (e.g., 1.4442)
+geocode_precision  VARCHAR        (e.g., 'housenumber', 'street', 'city')
+geocode_updated_at TIMESTAMP      (when coordinates were last verified)
+Geocoding Service
+Provider: Base Adresse Nationale (BAN) - France's official address API
+
+Endpoint: https://api-adresse.data.gouv.fr/search/
+Free, no API key required
+Optimized for French addresses
+Returns: latitude, longitude, confidence score, precision level
+Proposed API Endpoints for OUVRO
+Endpoint	Description	Response
+GET /api/contractors/nearby?lat=X&lng=Y&radiusKm=Z	Find contractors within radius	Array of contractors with distance
+GET /api/actors/nearby?lat=X&lng=Y&radiusKm=Z	Find partners/actors within radius	Array of actors with distance
+GET /api/projects/nearby?lat=X&lng=Y&radiusKm=Z	Find projects within radius	Array of projects with distance
+Response format example:
+
+{
+  "results": [
+    {
+      "id": "uuid",
+      "name": "Contractor Name",
+      "address": "123 Rue Example, 75001 Paris",
+      "latitude": 48.8566,
+      "longitude": 2.3522,
+      "distanceKm": 1.5
+    }
+  ]
+}
+Questions for OUVRO Agent
+Tables coverage: Are there additional tables OUVRO needs GPS coordinates for beyond contractors, systemActors, projects, and suppliers?
+
+Precision requirements: Is street-level geocoding sufficient, or do you need building-level accuracy?
+
+Nearby search radius: What default/max radius should the nearby search endpoints support?
+
+Sorting preferences: Should nearby results be sorted by distance, or should other sorting options be available?
+
+Offline caching: Does OUVRO need to cache GPS data locally for offline use?
+
+Real-time location: Will OUVRO send device GPS coordinates to find nearby records, or will it use manual location selection?
+
+Additional fields: Beyond lat/lng/distance, what other fields should the nearby endpoints return?
+
+Please review and confirm this strategy meets OUVRO's geo-tracking requirements, or suggest modifications before ARCHIDOC proceeds with implementation.
+
