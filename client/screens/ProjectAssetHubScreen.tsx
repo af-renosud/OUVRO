@@ -14,28 +14,16 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
-import Svg, { Path } from "react-native-svg";
+import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+const googleDriveLogo = require("../../attached_assets/google_drive_PNG4_1767526724030.png");
 
 const DRIVE_BORDER_COLOR = "#EA4335";
-
-function GoogleDriveIcon({ size }: { size: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 139 120.4" fill="none">
-      <Path d="M24.2 120.4l-24.2-41.9 45.3-78.5 24.2 0-45.3 120.4z" fill="#0066DA" />
-      <Path d="M24.2 120.4l24.2-41.9h66.5l-24.2 41.9h-66.5z" fill="#00AC47" />
-      <Path d="M114.9 78.5l24.2-0-45.3-78.5h-24.2l45.3 78.5z" fill="#EA4335" />
-      <Path d="M69.6 0l-45.3 78.5h24.2l45.3-78.5h-24.2z" fill="#FFBA00" />
-      <Path d="M0 78.5l24.2 41.9h0.1l24.1-41.9h-48.4z" fill="#2684FC" />
-      <Path d="M114.9 78.5h-66.5l24.2-41.8 42.3 41.8z" fill="#00832D" />
-    </Svg>
-  );
-}
 
 type Props = NativeStackScreenProps<RootStackParamList, "ProjectAssetHub">;
 
@@ -278,7 +266,11 @@ export default function ProjectAssetHubScreen() {
                   disabled={!enabled}
                 >
                   {isDrive ? (
-                    <GoogleDriveIcon size={buttonSize * 0.55} />
+                    <Image
+                      source={googleDriveLogo}
+                      style={{ width: buttonSize * 0.6, height: buttonSize * 0.6 }}
+                      contentFit="contain"
+                    />
                   ) : (
                     <Feather
                       name={button.icon}
