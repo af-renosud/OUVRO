@@ -13,8 +13,11 @@ import {
   fetchProjectById,
   fetchContractors,
   getUniqueLotCodes,
+  getFileDownloadUrl,
   type DQEItem,
+  type DQEAttachment,
   type Contractor,
+  type ProjectFile,
 } from "@/lib/archidoc-api";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -90,6 +93,72 @@ export default function DQEBrowserScreen() {
     return !!(item.attachments && item.attachments.length > 0);
   };
 
+  const [loadingAttachmentId, setLoadingAttachmentId] = useState<string | null>(null);
+
+  const getContentType = (fileName: string): string => {
+    const ext = fileName.split(".").pop()?.toLowerCase() || "";
+    const mimeTypes: Record<string, string> = {
+      pdf: "application/pdf",
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      gif: "image/gif",
+      webp: "image/webp",
+    };
+    return mimeTypes[ext] || "application/octet-stream";
+  };
+
+  const handleAttachmentPress = async (att: DQEAttachment) => {
+    setLoadingAttachmentId(att.id);
+    try {
+      let urlToUse = att.fileUrl;
+      
+      try {
+        const freshData = await getFileDownloadUrl(att.id);
+        if (freshData?.file?.freshUrl) {
+          urlToUse = freshData.file.freshUrl;
+        }
+      } catch (e) {
+        if (__DEV__) console.log("[DQE] Could not get fresh URL, using stored URL");
+      }
+
+      if (!urlToUse) {
+        if (__DEV__) console.log("[DQE] No URL available for attachment");
+        return;
+      }
+
+      const contentType = getContentType(att.fileName);
+      const projectFile: ProjectFile = {
+        objectId: att.id,
+        objectName: att.fileName,
+        originalName: att.fileName,
+        contentType,
+        size: 0,
+        projectId: projectId,
+        category: "general",
+        createdAt: new Date().toISOString(),
+      };
+
+      const isImage = contentType.startsWith("image/");
+      if (isImage) {
+        navigation.navigate("Annotation", {
+          file: projectFile,
+          signedUrl: urlToUse,
+          projectId,
+        });
+      } else {
+        navigation.navigate("FileViewer", {
+          file: projectFile,
+          signedUrl: urlToUse,
+        });
+      }
+    } catch (error: any) {
+      if (__DEV__) console.error("[DQE] Error opening attachment:", error);
+    } finally {
+      setLoadingAttachmentId(null);
+    }
+  };
+
   const renderFilterTab = (type: FilterType, label: string, count: number) => {
     const isActive = activeFilter === type;
     return (
@@ -135,10 +204,11 @@ export default function DQEBrowserScreen() {
     );
   };
 
-  const getContractorDisplayName = (contractorId: string): string => {
+  const getContractorDisplayName = (contractorId: string | null): string => {
+    if (!contractorId) return "Non assigné";
     const name = contractorMap.get(contractorId);
     if (name) return name;
-    return contractorId.length > 20 ? contractorId.substring(0, 8) + "..." : contractorId;
+    return "Non assigné";
   };
 
   const renderContractorTab = (contractorId: string) => {
@@ -234,16 +304,14 @@ export default function DQEBrowserScreen() {
                 </ThemedText>
               </View>
             ) : null}
-            {contractorId ? (
-              <View style={styles.detailRow}>
-                <ThemedText style={[styles.detailLabel, { color: theme.textSecondary }]}>
-                  Entreprise:
-                </ThemedText>
-                <ThemedText style={[styles.detailValue, { color: theme.text }]}>
-                  {getContractorDisplayName(contractorId)}
-                </ThemedText>
-              </View>
-            ) : null}
+            <View style={styles.detailRow}>
+              <ThemedText style={[styles.detailLabel, { color: theme.textSecondary }]}>
+                Entreprise:
+              </ThemedText>
+              <ThemedText style={[styles.detailValue, { color: theme.text, fontStyle: contractorId ? "normal" : "italic" }]}>
+                {getContractorDisplayName(contractorId)}
+              </ThemedText>
+            </View>
             {item.notes ? (
               <View style={styles.notesContainer}>
                 <ThemedText style={[styles.detailLabel, { color: theme.textSecondary }]}>
@@ -259,14 +327,30 @@ export default function DQEBrowserScreen() {
                 <ThemedText style={[styles.detailLabel, { color: theme.textSecondary }]}>
                   Fiches ({item.attachments?.length}):
                 </ThemedText>
-                {item.attachments?.map((att) => (
-                  <View key={att.id} style={styles.attachmentItem}>
-                    <Feather name="file" size={14} color={BrandColors.primary} />
-                    <ThemedText style={[styles.attachmentName, { color: BrandColors.primary }]} numberOfLines={1}>
-                      {att.fileName}
-                    </ThemedText>
-                  </View>
-                ))}
+                {item.attachments?.map((att) => {
+                  const isLoading = loadingAttachmentId === att.id;
+                  return (
+                    <Pressable
+                      key={att.id}
+                      style={styles.attachmentItem}
+                      onPress={() => handleAttachmentPress(att)}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <ActivityIndicator size={14} color={BrandColors.primary} />
+                      ) : (
+                        <Feather name="file" size={14} color={BrandColors.primary} />
+                      )}
+                      <ThemedText 
+                        style={[styles.attachmentName, { color: BrandColors.primary }]} 
+                        numberOfLines={1}
+                      >
+                        {att.fileName}
+                      </ThemedText>
+                      <Feather name="external-link" size={12} color={BrandColors.primary} />
+                    </Pressable>
+                  );
+                })}
               </View>
             ) : null}
           </View>
@@ -477,7 +561,7 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     ...Typography.caption,
-    width: 70,
+    width: 80,
   },
   detailValue: {
     ...Typography.body,
@@ -498,8 +582,11 @@ const styles = StyleSheet.create({
   attachmentItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
-    paddingLeft: Spacing.sm,
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: `${BrandColors.accent}15`,
+    borderRadius: BorderRadius.sm,
   },
   attachmentName: {
     ...Typography.caption,
