@@ -148,11 +148,17 @@ export default function ObservationDetailsScreen() {
         const base64 = (reader.result as string).split(",")[1];
         
         try {
-          const res = await apiRequest("POST", "/api/transcribe", { audioBase64: base64 });
+          const res = await apiRequest("POST", "/api/transcribe", { 
+            audioBase64: base64,
+            mimeType: "audio/mp4"
+          });
           const result = await res.json();
+          if (result.error) {
+            throw new Error(result.error);
+          }
           setTranscription(result.transcription);
-        } catch (error) {
-          Alert.alert("Error", "Failed to transcribe audio");
+        } catch (error: any) {
+          Alert.alert("Transcription Error", error?.message || "Failed to transcribe audio");
           console.error("Transcription error:", error);
         } finally {
           setIsTranscribing(false);

@@ -185,7 +185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/transcribe", async (req: Request, res: Response) => {
     try {
-      const { audioBase64 } = req.body;
+      const { audioBase64, mimeType = "audio/mp4" } = req.body;
       if (!audioBase64) {
         return res.status(400).json({ error: "Audio data is required" });
       }
@@ -199,7 +199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               { text: "Please transcribe the following audio accurately into English text. Only output the transcription, nothing else." },
               {
                 inlineData: {
-                  mimeType: "audio/mp3",
+                  mimeType: mimeType,
                   data: audioBase64,
                 },
               },
@@ -210,9 +210,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const transcription = response.text || "";
       res.json({ transcription });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error transcribing audio:", error);
-      res.status(500).json({ error: "Failed to transcribe audio" });
+      const errorMessage = error?.message || "Failed to transcribe audio";
+      res.status(500).json({ error: errorMessage });
     }
   });
 
