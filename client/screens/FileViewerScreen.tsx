@@ -316,6 +316,7 @@ export default function FileViewerScreen() {
                 source={{ uri: signedUrl }}
                 style={styles.image}
                 contentFit="contain"
+                pointerEvents="none"
                 onLoad={() => setIsLoading(false)}
                 onError={() => {
                   setIsLoading(false);
