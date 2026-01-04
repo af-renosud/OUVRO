@@ -109,7 +109,7 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="FileViewer"
         component={FileViewerScreen}
-        options={{ presentation: "modal", headerTitle: "View File" }}
+        options={{ presentation: "fullScreenModal", headerShown: false }}
       />
       <Stack.Screen
         name="Annotation"
