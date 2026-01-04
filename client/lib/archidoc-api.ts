@@ -312,7 +312,8 @@ export async function fetchArchidocProjects(): Promise<MappedProject[]> {
     location: p.address,
     status: p.status,
     clientName: p.clientName,
-    items: p.items,
+    // Normalize items using mapDQEItem so attachments are properly combined from projectAttachments
+    items: (p.items || []).map((item: any) => mapDQEItem(item as RawDQEItem)),
     links: p.links,
     lotContractors: p.lotContractors,
     photosUrl: p.photosUrl,
