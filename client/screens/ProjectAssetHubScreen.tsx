@@ -26,10 +26,13 @@ const DRIVE_BORDER_COLOR = "#EA4335";
 
 function GoogleDriveIcon({ size }: { size: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 87.3 78" fill="none">
-      <Path d="M6.6 66.85L0 56.5 27.6 10.9h18.3L6.6 66.85z" fill="#0066DA" />
-      <Path d="M29.9 78l13.5-21.9h38.4l-13.5 21.9H29.9z" fill="#00AC47" />
-      <Path d="M50.3 38l16.2 28h17.8L68.1 38 55.2 16.2H37.8L50.3 38z" fill="#FFBA00" />
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M4.433 22l1.524-2.5h12.086l-1.523 2.5H4.433z" fill="#00AC47" />
+      <Path d="M8.119 2l6.881 11.5H2.762L8.119 2z" fill="#0066DA" />
+      <Path d="M15.881 2L22 13.5h-6.881L8.881 2h7z" fill="#FFBA00" />
+      <Path d="M22 13.5l-1.524 2.5H6.39l-1.523-2.5H22z" fill="#00AC47" />
+      <Path d="M8.119 2h7l6.119 11.5H15L8.119 2z" fill="#FFBA00" />
+      <Path d="M2.762 13.5L1.238 16H6.39l1.524-2.5H2.762z" fill="#4285F4" />
     </Svg>
   );
 }
