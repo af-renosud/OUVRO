@@ -26,13 +26,13 @@ const DRIVE_BORDER_COLOR = "#EA4335";
 
 function GoogleDriveIcon({ size }: { size: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M4.433 22l1.524-2.5h12.086l-1.523 2.5H4.433z" fill="#00AC47" />
-      <Path d="M8.119 2l6.881 11.5H2.762L8.119 2z" fill="#0066DA" />
-      <Path d="M15.881 2L22 13.5h-6.881L8.881 2h7z" fill="#FFBA00" />
-      <Path d="M22 13.5l-1.524 2.5H6.39l-1.523-2.5H22z" fill="#00AC47" />
-      <Path d="M8.119 2h7l6.119 11.5H15L8.119 2z" fill="#FFBA00" />
-      <Path d="M2.762 13.5L1.238 16H6.39l1.524-2.5H2.762z" fill="#4285F4" />
+    <Svg width={size} height={size} viewBox="0 0 139 120.4" fill="none">
+      <Path d="M24.2 120.4l-24.2-41.9 45.3-78.5 24.2 0-45.3 120.4z" fill="#0066DA" />
+      <Path d="M24.2 120.4l24.2-41.9h66.5l-24.2 41.9h-66.5z" fill="#00AC47" />
+      <Path d="M114.9 78.5l24.2-0-45.3-78.5h-24.2l45.3 78.5z" fill="#EA4335" />
+      <Path d="M69.6 0l-45.3 78.5h24.2l45.3-78.5h-24.2z" fill="#FFBA00" />
+      <Path d="M0 78.5l24.2 41.9h0.1l24.1-41.9h-48.4z" fill="#2684FC" />
+      <Path d="M114.9 78.5h-66.5l24.2-41.8 42.3 41.8z" fill="#00832D" />
     </Svg>
   );
 }
