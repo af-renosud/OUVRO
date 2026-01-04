@@ -14,7 +14,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
-import Svg, { Path, G } from "react-native-svg";
+import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
@@ -22,25 +22,9 @@ import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/them
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
-const DRIVE_BORDER_COLOR = "#EA4335";
+const googleDriveLogo = require("../../attached_assets/google_drive_PNG4_1767526724030.png");
 
-function GoogleDriveIcon({ size }: { size: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 100 100">
-      <G transform="translate(5, 10)">
-        <Path d="M30 0 L60 0 L90 52 L75 75 L45 75 L15 23 Z" fill="#FFBA00" />
-        <Path d="M0 52 L15 75 L45 75 L30 52 Z" fill="#4285F4" />
-        <Path d="M30 0 L0 52 L15 75 L45 23 Z" fill="#34A853" />
-        <Path d="M45 75 L75 75 L90 52 L60 52 Z" fill="#4285F4" />
-        <Path d="M30 52 L60 52 L45 23 L15 23 Z" fill="#188038" />
-        <Path d="M60 0 L30 0 L45 23 L60 52 L90 52 Z" fill="#FFBA00" />
-        <Path d="M60 52 L45 23 L15 23 L30 52 Z" fill="#1967D2" />
-        <Path d="M45 23 L30 0 L0 52 L15 23 Z" fill="#34A853" />
-        <Path d="M60 0 L90 52 L75 23 Z" fill="#EA4335" />
-      </G>
-    </Svg>
-  );
-}
+const DRIVE_BORDER_COLOR = "#EA4335";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ProjectAssetHub">;
 
@@ -283,7 +267,11 @@ export default function ProjectAssetHubScreen() {
                   disabled={!enabled}
                 >
                   {isDrive ? (
-                    <GoogleDriveIcon size={buttonSize * 0.6} />
+                    <Image
+                      source={googleDriveLogo}
+                      style={{ width: buttonSize * 0.6, height: buttonSize * 0.6 }}
+                      contentFit="contain"
+                    />
                   ) : (
                     <Feather
                       name={button.icon}
