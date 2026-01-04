@@ -10,6 +10,9 @@ import { captureScreen } from "react-native-view-shot";
 import { StatusBar } from "expo-status-bar";
 import * as ScreenCapture from "expo-screen-capture";
 import * as MediaLibrary from "expo-media-library";
+import * as ScreenOrientation from "expo-screen-orientation";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
@@ -35,6 +38,101 @@ export default function FileViewerScreen() {
 
   const isImage = file.contentType.startsWith("image/");
   const isPdf = file.contentType === "application/pdf";
+
+  // Zoom/pan state for images
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+
+  const MIN_SCALE = 0.5;
+  const MAX_SCALE = 10;
+
+  const resetZoom = useCallback(() => {
+    scale.value = withSpring(1);
+    savedScale.value = 1;
+    translateX.value = withSpring(0);
+    translateY.value = withSpring(0);
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+  }, []);
+
+  // Unlock orientation when viewing images, lock back on unmount
+  useEffect(() => {
+    if (isImage && Platform.OS !== "web") {
+      ScreenOrientation.unlockAsync();
+      return () => {
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      };
+    }
+  }, [isImage]);
+
+  // Reset zoom when file changes
+  useEffect(() => {
+    resetZoom();
+  }, [signedUrl, resetZoom]);
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => {
+      const newScale = Math.min(Math.max(savedScale.value * e.scale, MIN_SCALE), MAX_SCALE);
+      scale.value = newScale;
+      
+      // Re-clamp translation when scale changes
+      const scaledWidth = width * newScale;
+      const scaledHeight = height * newScale;
+      const overflowX = Math.max(0, (scaledWidth - width) / 2);
+      const overflowY = Math.max(0, (scaledHeight - height) / 2);
+      
+      translateX.value = Math.max(-overflowX, Math.min(overflowX, translateX.value));
+      translateY.value = Math.max(-overflowY, Math.min(overflowY, translateY.value));
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    });
+
+  const panGesture = Gesture.Pan()
+    .averageTouches(true)
+    .onUpdate((e) => {
+      const currentScale = scale.value;
+      // Calculate overflow (how much larger the scaled image is than viewport)
+      const scaledWidth = width * currentScale;
+      const scaledHeight = height * currentScale;
+      const overflowX = Math.max(0, (scaledWidth - width) / 2);
+      const overflowY = Math.max(0, (scaledHeight - height) / 2);
+      
+      const newTranslateX = savedTranslateX.value + e.translationX;
+      const newTranslateY = savedTranslateY.value + e.translationY;
+      
+      translateX.value = Math.max(-overflowX, Math.min(overflowX, newTranslateX));
+      translateY.value = Math.max(-overflowY, Math.min(overflowY, newTranslateY));
+    })
+    .onEnd(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    });
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      runOnJS(resetZoom)();
+    });
+
+  const composedGesture = Gesture.Simultaneous(
+    doubleTapGesture,
+    Gesture.Simultaneous(pinchGesture, panGesture)
+  );
+
+  const animatedImageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
 
   const handleIOSScreenshotDetected = useCallback(async () => {
     if (hasNavigatedRef.current) {
@@ -212,16 +310,20 @@ export default function FileViewerScreen() {
           {isLoading ? (
             <ActivityIndicator size="large" color={BrandColors.primary} />
           ) : null}
-          <CrossPlatformImage
-            source={{ uri: signedUrl }}
-            style={styles.image}
-            contentFit="contain"
-            onLoad={() => setIsLoading(false)}
-            onError={() => {
-              setIsLoading(false);
-              setError("Failed to load image");
-            }}
-          />
+          <GestureDetector gesture={composedGesture}>
+            <Animated.View style={[styles.imageWrapper, animatedImageStyle]}>
+              <CrossPlatformImage
+                source={{ uri: signedUrl }}
+                style={styles.image}
+                contentFit="contain"
+                onLoad={() => setIsLoading(false)}
+                onError={() => {
+                  setIsLoading(false);
+                  setError("Failed to load image");
+                }}
+              />
+            </Animated.View>
+          </GestureDetector>
         </View>
       );
     }
@@ -412,6 +514,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
+  },
+  imageWrapper: {
+    width: "100%",
+    height: "100%",
   },
   image: {
     width: "100%",
