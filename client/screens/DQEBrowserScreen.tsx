@@ -514,12 +514,12 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   listContent: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.sm,
     paddingTop: Spacing.sm,
   },
   itemCard: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
   },
   itemHeader: {
     flexDirection: "row",
@@ -545,14 +545,14 @@ const styles = StyleSheet.create({
   },
   itemSummary: {
     marginTop: Spacing.sm,
-    marginLeft: 40,
+    marginLeft: 0,
   },
   summaryText: {
     ...Typography.caption,
   },
   itemDetails: {
     marginTop: Spacing.md,
-    marginLeft: 40,
+    marginLeft: 0,
     gap: Spacing.sm,
   },
   detailRow: {
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     ...Typography.caption,
-    width: 80,
+    width: 70,
   },
   detailValue: {
     ...Typography.body,
