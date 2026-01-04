@@ -275,7 +275,7 @@ export default function ProjectAssetHubScreen() {
                   disabled={!enabled}
                 >
                   {isDrive ? (
-                    <GoogleDriveIcon size={iconSize} />
+                    <GoogleDriveIcon size={buttonSize * 0.55} />
                   ) : (
                     <Feather
                       name={button.icon}
