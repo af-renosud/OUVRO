@@ -39,7 +39,7 @@ export type RootStackParamList = {
   ProjectDetail: { projectId: string };
   ProjectAssetHub: { projectId: string };
   ShareModal: { observation: ShareObservation; projectName: string; contractorName?: string };
-  FileViewer: { file: ProjectFile; signedUrl: string };
+  FileViewer: { file: ProjectFile; signedUrl: string; projectId?: string };
   Annotation: { file: ProjectFile; signedUrl: string; projectId: string };
   ProjectFiles: { projectId: string; projectName: string };
   DQEBrowser: { projectId: string; projectName: string };

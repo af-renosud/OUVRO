@@ -139,19 +139,12 @@ export default function DQEBrowserScreen() {
         createdAt: new Date().toISOString(),
       };
 
-      const isImage = contentType.startsWith("image/");
-      if (isImage) {
-        navigation.navigate("Annotation", {
-          file: projectFile,
-          signedUrl: urlToUse,
-          projectId,
-        });
-      } else {
-        navigation.navigate("FileViewer", {
-          file: projectFile,
-          signedUrl: urlToUse,
-        });
-      }
+      // All files open in FileViewer first - user can tap Annotate button if needed
+      navigation.navigate("FileViewer", {
+        file: projectFile,
+        signedUrl: urlToUse,
+        projectId,
+      });
     } catch (error: any) {
       if (__DEV__) console.error("[DQE] Error opening attachment:", error);
     } finally {
