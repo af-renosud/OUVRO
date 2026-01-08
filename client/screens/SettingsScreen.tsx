@@ -15,6 +15,7 @@ import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
 import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 
 type SettingsItem = {
@@ -32,8 +33,7 @@ export default function SettingsScreen() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
-  const [wifiOnly, setWifiOnly] = useState(true);
-  const [autoSync, setAutoSync] = useState(false);
+  const { settings, saveSettings, pendingCount, isNetworkAvailable } = useOfflineSync();
   const [defaultLanguage, setDefaultLanguage] = useState<"english" | "french">("english");
 
   const handleLogout = () => {
@@ -83,15 +83,20 @@ export default function SettingsScreen() {
           icon: "wifi",
           label: "WiFi Only",
           hasToggle: true,
-          toggleValue: wifiOnly,
-          onToggle: setWifiOnly,
+          toggleValue: settings.wifiOnly,
+          onToggle: (value) => saveSettings({ wifiOnly: value }),
         },
         {
           icon: "refresh-cw",
           label: "Auto Sync",
           hasToggle: true,
-          toggleValue: autoSync,
-          onToggle: setAutoSync,
+          toggleValue: settings.autoSync,
+          onToggle: (value) => saveSettings({ autoSync: value }),
+        },
+        {
+          icon: "cloud",
+          label: "Pending Observations",
+          value: `${pendingCount} ${isNetworkAvailable ? "(Online)" : "(Offline)"}`,
         },
       ],
     },

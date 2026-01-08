@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   FlatList,
@@ -8,341 +8,339 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import { File } from "expo-file-system";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
 import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
-import { apiRequest, getApiUrl } from "@/lib/query-client";
-import type { Observation, ObservationMedia } from "@shared/schema";
 import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNavigator";
+import type { OfflineObservation, ObservationSyncState } from "@/lib/offline-sync";
 
-type ObservationWithMedia = Observation & {
-  media?: ObservationMedia[];
-  projectName?: string;
-  contractorName?: string | null;
-  contractorEmail?: string | null;
-};
+function SyncProgressBar({ progress, isActive }: { progress: number; isActive: boolean }) {
+  const { theme } = useTheme();
+  
+  if (!isActive) return null;
+  
+  return (
+    <View style={styles.progressContainer}>
+      <View style={[styles.progressBarBg, { backgroundColor: theme.backgroundSecondary }]}>
+        <View 
+          style={[
+            styles.progressBarFill, 
+            { width: `${Math.max(progress, 0)}%`, backgroundColor: BrandColors.primary }
+          ]} 
+        />
+      </View>
+      <ThemedText style={[styles.progressText, { color: theme.textSecondary }]}>
+        {progress}% complete
+      </ThemedText>
+    </View>
+  );
+}
+
+function MediaProgress({ observation }: { observation: OfflineObservation }) {
+  const { theme } = useTheme();
+  
+  const completedMedia = observation.media.filter((m) => m.syncState === "complete").length;
+  const totalMedia = observation.media.length;
+  const uploadingMedia = observation.media.find((m) => m.syncState === "uploading");
+  
+  if (totalMedia === 0) return null;
+  
+  return (
+    <View style={styles.mediaProgressContainer}>
+      <View style={styles.mediaProgressRow}>
+        <ThemedText style={[styles.mediaProgressText, { color: theme.textTertiary }]}>
+          Files: {completedMedia}/{totalMedia}
+        </ThemedText>
+        {uploadingMedia ? (
+          <View style={styles.uploadingIndicator}>
+            <ActivityIndicator size="small" color={BrandColors.primary} />
+            <ThemedText style={[styles.uploadingText, { color: BrandColors.primary }]}>
+              {uploadingMedia.uploadProgress}%
+            </ThemedText>
+          </View>
+        ) : null}
+      </View>
+      <View style={[styles.miniProgressBg, { backgroundColor: theme.backgroundSecondary }]}>
+        <View 
+          style={[
+            styles.miniProgressFill, 
+            { 
+              width: `${totalMedia > 0 ? (completedMedia / totalMedia) * 100 : 0}%`, 
+              backgroundColor: BrandColors.success 
+            }
+          ]} 
+        />
+      </View>
+    </View>
+  );
+}
 
 export default function QueueScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
-  const queryClient = useQueryClient();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [syncingIds, setSyncingIds] = useState<Set<number>>(new Set());
+  
+  const {
+    observations,
+    pendingCount,
+    syncProgress,
+    isSyncing,
+    isNetworkAvailable,
+    startSync,
+    cancelSync,
+    retryObservation,
+    removeObservation,
+  } = useOfflineSync();
 
-  const { data: observations = [], isLoading, refetch, isRefetching } = useQuery<ObservationWithMedia[]>({
-    queryKey: ["/api/observations/pending"],
-  });
-
-  const getMimeType = (type: string): string => {
-    switch (type) {
-      case "photo": return "image/jpeg";
-      case "video": return "video/mp4";
-      case "audio": return "audio/m4a";
-      default: return "application/octet-stream";
+  const handleSync = async (observation: OfflineObservation) => {
+    if (observation.syncState === "failed") {
+      await retryObservation(observation.localId);
+    } else {
+      await startSync();
     }
   };
 
-  const uploadMediaToArchidoc = async (
-    archidocObservationId: number,
-    media: ObservationMedia
-  ): Promise<boolean> => {
-    if (!media.localUri) {
-      if (__DEV__) console.log("[Upload] Skipping media with no localUri");
-      return true;
+  const handleSyncAll = async () => {
+    if (!isNetworkAvailable) {
+      Alert.alert("No Connection", "Please connect to the internet to sync observations.");
+      return;
     }
-
-    if (media.localUri.startsWith("mock://") || media.localUri.startsWith("file://recording")) {
-      if (__DEV__) console.log("[Upload] Skipping mock/placeholder media:", media.localUri);
-      return true;
-    }
-
-    try {
-      const assetType = media.type as "photo" | "video" | "audio";
-      const fileName = media.localUri.split("/").pop() || `${assetType}_${Date.now()}`;
-      const contentType = getMimeType(assetType);
-
-      if (__DEV__) console.log(`[Upload] Starting upload for ${assetType}: ${fileName}`);
-      if (__DEV__) console.log(`[Upload] Local URI: ${media.localUri}`);
-
-      if (__DEV__) console.log(`[Upload] Reading file as base64...`);
-      const file = new File(media.localUri);
-      const fileBase64 = await file.base64();
-      if (__DEV__) console.log(`[Upload] File read, size: ${Math.round(fileBase64.length / 1024)}KB base64`);
-
-      if (__DEV__) console.log(`[Upload] Uploading via proxy...`);
-      const uploadRes = await apiRequest("POST", "/api/archidoc/proxy-upload", {
-        observationId: archidocObservationId,
-        fileName,
-        contentType,
-        assetType,
-        fileBase64,
-      });
-      
-      if (!uploadRes.ok) {
-        const errorData = await uploadRes.json().catch(() => ({ error: "Unknown error" }));
-        console.error(`[Upload] Proxy upload failed: ${uploadRes.status} - ${errorData.error}`);
-        return false;
-      }
-
-      const result = await uploadRes.json();
-      if (__DEV__) console.log(`[Upload] Asset uploaded and registered: ${fileName}, path: ${result.objectPath}`);
-      return true;
-    } catch (error) {
-      console.error("[Upload] Exception during upload:", error);
-      return false;
-    }
+    await startSync();
   };
 
-  const syncMutation = useMutation({
-    mutationFn: async (observation: ObservationWithMedia) => {
-      setSyncingIds((prev) => new Set(prev).add(observation.id));
-      
-      const syncRes = await apiRequest("POST", `/api/sync-observation/${observation.id}`);
-      const syncData = await syncRes.json();
-      
-      if (!syncRes.ok) {
-        throw new Error(syncData.error || "Failed to create observation in ARCHIDOC");
-      }
-      
-      const { archidocObservationId } = syncData;
-
-      if (!archidocObservationId) {
-        throw new Error("Failed to get ARCHIDOC observation ID");
-      }
-
-      const mediaItems = observation.media || [];
-      let uploadFailures = 0;
-      
-      for (const media of mediaItems) {
-        const success = await uploadMediaToArchidoc(archidocObservationId, media);
-        if (!success) {
-          uploadFailures++;
-        }
-      }
-
-      if (uploadFailures > 0) {
-        throw new Error(`Failed to upload ${uploadFailures} media file(s). Observation not marked as synced.`);
-      }
-
-      const markRes = await apiRequest("POST", `/api/mark-synced/${observation.id}`);
-      if (!markRes.ok) {
-        throw new Error("Failed to mark observation as synced");
-      }
-      
-      return { localId: observation.id, archidocObservationId };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/observations/pending"] });
-      Alert.alert("Success", "Observation synced to ARCHIDOC!");
-    },
-    onSettled: (_, __, observation) => {
-      setSyncingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(observation.id);
-        return next;
-      });
-    },
-    onError: (error) => {
-      console.error("Sync failed:", error);
-      Alert.alert("Sync Failed", error instanceof Error ? error.message : "Failed to sync observation. Please try again.");
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/observations/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/observations/pending"] });
-    },
-  });
-
-  const handleSync = (observation: ObservationWithMedia) => {
-    syncMutation.mutate(observation);
-  };
-
-  const handleSyncAll = () => {
-    observations.forEach((obs) => {
-      if (obs.syncStatus === "pending") {
-        syncMutation.mutate(obs);
-      }
-    });
-  };
-
-  const handleDelete = (id: number) => {
-    Alert.alert("Delete Observation", "Are you sure you want to delete this observation?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteMutation.mutate(id) },
+  const handleCancelSync = () => {
+    Alert.alert("Cancel Sync", "Are you sure you want to cancel the current sync?", [
+      { text: "Continue Syncing", style: "cancel" },
+      { text: "Cancel Sync", style: "destructive", onPress: cancelSync },
     ]);
   };
 
-  const handleShare = (observation: ObservationWithMedia) => {
-    const mediaItems: MediaItem[] = (observation.media || []).map((m) => ({
-      type: m.type as "photo" | "video" | "audio",
-      uri: m.localUri || m.remoteUrl || "",
-      duration: m.duration || undefined,
+  const handleDelete = (localId: string) => {
+    Alert.alert("Delete Observation", "Are you sure you want to delete this observation?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => removeObservation(localId) },
+    ]);
+  };
+
+  const handleShare = (observation: OfflineObservation) => {
+    const mediaItems: MediaItem[] = observation.media.map((m) => ({
+      type: m.type,
+      uri: m.localUri,
+      duration: undefined,
     }));
     
     navigation.navigate("ShareModal", {
       observation: {
-        id: observation.id,
+        id: parseInt(observation.localId.replace(/\D/g, "")) || 0,
         title: observation.title,
-        description: observation.description || undefined,
-        transcription: observation.transcription || undefined,
-        translatedText: observation.translatedText || undefined,
+        description: observation.description,
+        transcription: observation.transcription,
+        translatedText: observation.translatedText,
         mediaItems,
       },
-      projectName: observation.projectName || "Project",
-      contractorName: observation.contractorName || undefined,
+      projectName: observation.projectName,
+      contractorName: observation.contractorName,
     });
   };
 
-  const getSyncStatusColor = (status: string | null) => {
-    switch (status) {
+  const getSyncStateInfo = (state: ObservationSyncState): { color: string; icon: keyof typeof Feather.glyphMap; label: string } => {
+    switch (state) {
       case "pending":
-        return BrandColors.warning;
-      case "syncing":
-        return BrandColors.info;
-      case "synced":
-        return BrandColors.success;
+        return { color: BrandColors.warning, icon: "clock", label: "Pending" };
+      case "uploading_metadata":
+      case "uploading_media":
+        return { color: BrandColors.info, icon: "upload-cloud", label: "Syncing..." };
+      case "partial":
+        return { color: BrandColors.warning, icon: "alert-triangle", label: "Partial" };
+      case "complete":
+        return { color: BrandColors.success, icon: "check-circle", label: "Synced" };
       case "failed":
-        return BrandColors.error;
+        return { color: BrandColors.error, icon: "alert-circle", label: "Failed" };
       default:
-        return theme.textTertiary;
+        return { color: theme.textTertiary, icon: "clock", label: "Unknown" };
     }
   };
 
-  const getSyncStatusIcon = (status: string | null): keyof typeof Feather.glyphMap => {
-    switch (status) {
-      case "pending":
-        return "clock";
-      case "syncing":
-        return "refresh-cw";
-      case "synced":
-        return "check-circle";
-      case "failed":
-        return "alert-circle";
-      default:
-        return "clock";
-    }
-  };
-
-  const renderObservation = ({ item }: { item: ObservationWithMedia }) => (
-    <Card style={styles.observationCard}>
-      <View style={styles.observationHeader}>
-        <View style={styles.thumbnailPlaceholder}>
-          <Feather name="file-text" size={24} color={BrandColors.primary} />
-        </View>
-        <View style={styles.observationInfo}>
-          <ThemedText style={styles.observationTitle}>{item.title}</ThemedText>
-          <ThemedText style={[styles.observationDate, { color: theme.textSecondary }]}>
-            {item.projectName} - {new Date(item.createdAt).toLocaleDateString()}
-          </ThemedText>
-          {item.media && item.media.length > 0 ? (
-            <ThemedText style={[styles.mediaCount, { color: theme.textTertiary }]}>
-              {item.media.length} attachment{item.media.length > 1 ? "s" : ""}
+  const renderObservation = ({ item }: { item: OfflineObservation }) => {
+    const stateInfo = getSyncStateInfo(item.syncState);
+    const isCurrentlySyncing = item.syncState === "uploading_metadata" || item.syncState === "uploading_media";
+    
+    return (
+      <Card style={styles.observationCard}>
+        <View style={styles.observationHeader}>
+          <View style={styles.thumbnailPlaceholder}>
+            <Feather name="file-text" size={24} color={BrandColors.primary} />
+          </View>
+          <View style={styles.observationInfo}>
+            <ThemedText style={styles.observationTitle}>{item.title}</ThemedText>
+            <ThemedText style={[styles.observationDate, { color: theme.textSecondary }]}>
+              {item.projectName} - {new Date(item.createdAt).toLocaleDateString()}
             </ThemedText>
-          ) : null}
+            {item.media.length > 0 ? (
+              <ThemedText style={[styles.mediaCount, { color: theme.textTertiary }]}>
+                {item.media.length} attachment{item.media.length > 1 ? "s" : ""}
+              </ThemedText>
+            ) : null}
+          </View>
+          <View style={[styles.syncBadge, { backgroundColor: stateInfo.color }]}>
+            {isCurrentlySyncing ? (
+              <ActivityIndicator size={14} color="#FFFFFF" />
+            ) : (
+              <Feather name={stateInfo.icon} size={14} color="#FFFFFF" />
+            )}
+          </View>
         </View>
-        <View style={[styles.syncBadge, { backgroundColor: getSyncStatusColor(item.syncStatus) }]}>
-          <Feather name={getSyncStatusIcon(item.syncStatus)} size={14} color="#FFFFFF" />
-        </View>
-      </View>
-      
-      {item.description ? (
-        <ThemedText style={[styles.description, { color: theme.textSecondary }]} numberOfLines={2}>
-          {item.description}
-        </ThemedText>
-      ) : null}
 
-      <View style={styles.actionButtons}>
-        <Pressable
-          style={[styles.actionButton, { backgroundColor: "#10B981" }]}
-          onPress={() => handleShare(item)}
-        >
-          <Feather name="share-2" size={16} color="#FFFFFF" />
-          <ThemedText style={styles.actionButtonText}>Share</ThemedText>
-        </Pressable>
-        <Pressable
-          style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
-          onPress={() => handleSync(item)}
-          disabled={syncingIds.has(item.id)}
-        >
-          {syncingIds.has(item.id) ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Feather name="upload-cloud" size={16} color="#FFFFFF" />
-          )}
-          <ThemedText style={styles.actionButtonText}>
-            {syncingIds.has(item.id) ? "Syncing..." : "Sync"}
+        {isCurrentlySyncing ? (
+          <MediaProgress observation={item} />
+        ) : null}
+        
+        {item.description ? (
+          <ThemedText style={[styles.description, { color: theme.textSecondary }]} numberOfLines={2}>
+            {item.description}
           </ThemedText>
-        </Pressable>
-        <Pressable
-          style={[styles.actionButtonIcon, { backgroundColor: theme.backgroundSecondary }]}
-          onPress={() => handleDelete(item.id)}
-        >
-          <Feather name="trash-2" size={18} color={BrandColors.error} />
-        </Pressable>
-      </View>
-    </Card>
-  );
+        ) : null}
+
+        {item.lastSyncError ? (
+          <View style={[styles.errorBanner, { backgroundColor: `${BrandColors.error}20` }]}>
+            <Feather name="alert-circle" size={14} color={BrandColors.error} />
+            <ThemedText style={[styles.errorText, { color: BrandColors.error }]} numberOfLines={1}>
+              {item.lastSyncError}
+            </ThemedText>
+          </View>
+        ) : null}
+
+        <View style={styles.actionButtons}>
+          <Pressable
+            style={[styles.actionButton, { backgroundColor: "#10B981" }]}
+            onPress={() => handleShare(item)}
+          >
+            <Feather name="share-2" size={16} color="#FFFFFF" />
+            <ThemedText style={styles.actionButtonText}>Share</ThemedText>
+          </Pressable>
+          
+          {item.syncState === "failed" || item.syncState === "partial" ? (
+            <Pressable
+              style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+              onPress={() => handleSync(item)}
+              disabled={!isNetworkAvailable}
+            >
+              <Feather name="refresh-cw" size={16} color="#FFFFFF" />
+              <ThemedText style={styles.actionButtonText}>Retry</ThemedText>
+            </Pressable>
+          ) : item.syncState === "pending" ? (
+            <Pressable
+              style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+              onPress={() => handleSync(item)}
+              disabled={!isNetworkAvailable || isSyncing}
+            >
+              <Feather name="upload-cloud" size={16} color="#FFFFFF" />
+              <ThemedText style={styles.actionButtonText}>Sync</ThemedText>
+            </Pressable>
+          ) : isCurrentlySyncing ? (
+            <View style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}>
+              <ActivityIndicator size="small" color={BrandColors.primary} />
+              <ThemedText style={[styles.actionButtonText, { color: BrandColors.primary }]}>
+                Syncing...
+              </ThemedText>
+            </View>
+          ) : null}
+          
+          <Pressable
+            style={[styles.actionButtonIcon, { backgroundColor: theme.backgroundSecondary }]}
+            onPress={() => handleDelete(item.localId)}
+          >
+            <Feather name="trash-2" size={18} color={BrandColors.error} />
+          </Pressable>
+        </View>
+      </Card>
+    );
+  };
+
+  const pendingObservations = observations.filter((obs) => obs.syncState !== "complete");
 
   return (
     <BackgroundView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
         <HeaderTitle />
-        {observations.length > 0 ? (
-          <Pressable
-            style={[styles.syncAllButton, { backgroundColor: BrandColors.primary }]}
-            onPress={handleSyncAll}
-          >
-            <Feather name="upload-cloud" size={18} color="#FFFFFF" />
-            <ThemedText style={styles.syncAllText}>Sync All</ThemedText>
-          </Pressable>
+        
+        {!isNetworkAvailable ? (
+          <View style={[styles.networkBanner, { backgroundColor: `${BrandColors.warning}20` }]}>
+            <Feather name="wifi-off" size={16} color={BrandColors.warning} />
+            <ThemedText style={[styles.networkText, { color: BrandColors.warning }]}>
+              Offline - observations will sync when connected
+            </ThemedText>
+          </View>
+        ) : null}
+        
+        <SyncProgressBar progress={syncProgress.overallProgress} isActive={isSyncing} />
+        
+        {pendingCount > 0 ? (
+          <View style={styles.headerActions}>
+            {isSyncing ? (
+              <Pressable
+                style={[styles.syncAllButton, { backgroundColor: BrandColors.error }]}
+                onPress={handleCancelSync}
+              >
+                <Feather name="x" size={18} color="#FFFFFF" />
+                <ThemedText style={styles.syncAllText}>Cancel</ThemedText>
+              </Pressable>
+            ) : (
+              <Pressable
+                style={[
+                  styles.syncAllButton, 
+                  { backgroundColor: isNetworkAvailable ? BrandColors.primary : theme.backgroundSecondary }
+                ]}
+                onPress={handleSyncAll}
+                disabled={!isNetworkAvailable}
+              >
+                <Feather name="upload-cloud" size={18} color={isNetworkAvailable ? "#FFFFFF" : theme.textTertiary} />
+                <ThemedText style={[styles.syncAllText, { color: isNetworkAvailable ? "#FFFFFF" : theme.textTertiary }]}>
+                  Sync All ({pendingCount})
+                </ThemedText>
+              </Pressable>
+            )}
+          </View>
         ) : null}
       </View>
 
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={BrandColors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={observations}
-          renderItem={renderObservation}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: tabBarHeight + Spacing.xl + 80, flexGrow: 1 },
-          ]}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Feather name="check-circle" size={96} color={BrandColors.success} />
-              <ThemedText style={[styles.emptyTitle, { color: theme.text }]}>
-                All synced!
-              </ThemedText>
-              <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
-                No pending observations
-              </ThemedText>
-            </View>
-          }
-        />
-      )}
+      <FlatList
+        data={pendingObservations}
+        renderItem={renderObservation}
+        keyExtractor={(item) => item.localId}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: tabBarHeight + Spacing.xl + 80, flexGrow: 1 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={false} 
+            onRefresh={() => {}} 
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Feather name="check-circle" size={96} color={BrandColors.success} />
+            <ThemedText style={[styles.emptyTitle, { color: theme.text }]}>
+              All synced!
+            </ThemedText>
+            <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
+              No pending observations
+            </ThemedText>
+          </View>
+        }
+      />
     </BackgroundView>
   );
 }
@@ -356,6 +354,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.md,
   },
+  headerActions: {
+    marginTop: Spacing.md,
+  },
+  networkBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.md,
+    width: "100%",
+  },
+  networkText: {
+    ...Typography.bodySmall,
+    flex: 1,
+  },
+  progressContainer: {
+    width: "100%",
+    marginTop: Spacing.md,
+  },
+  progressBarBg: {
+    height: 8,
+    borderRadius: BorderRadius.full,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: BorderRadius.full,
+  },
+  progressText: {
+    ...Typography.bodySmall,
+    textAlign: "center",
+    marginTop: Spacing.xs,
+  },
   syncAllButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -363,7 +396,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
-    marginTop: Spacing.md,
   },
   syncAllText: {
     ...Typography.label,
@@ -412,9 +444,52 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  mediaProgressContainer: {
+    marginBottom: Spacing.sm,
+  },
+  mediaProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.xs,
+  },
+  mediaProgressText: {
+    ...Typography.bodySmall,
+  },
+  uploadingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  uploadingText: {
+    ...Typography.bodySmall,
+    fontWeight: "600",
+  },
+  miniProgressBg: {
+    height: 4,
+    borderRadius: BorderRadius.full,
+    overflow: "hidden",
+  },
+  miniProgressFill: {
+    height: "100%",
+    borderRadius: BorderRadius.full,
+  },
   description: {
     ...Typography.bodySmall,
     marginBottom: Spacing.md,
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
+  },
+  errorText: {
+    ...Typography.bodySmall,
+    flex: 1,
   },
   actionButtons: {
     flexDirection: "row",
@@ -436,11 +511,6 @@ const styles = StyleSheet.create({
   actionButtonIcon: {
     padding: Spacing.sm,
     borderRadius: BorderRadius.sm,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
   },
   emptyContainer: {
     flex: 1,

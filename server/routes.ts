@@ -371,6 +371,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/archidoc/create-observation", async (req: Request, res: Response) => {
+    try {
+      const { projectId, title, description, transcription, translatedText, contractorName, contractorEmail } = req.body;
+      
+      const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
+      if (!archidocApiUrl) {
+        return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
+      }
+
+      if (!projectId) {
+        return res.status(400).json({ error: "projectId is required" });
+      }
+
+      const archidocPayload = {
+        projectId,
+        observedBy: contractorName || "OUVRO Field User",
+        summary: title + (description ? `: ${description}` : ""),
+        observedAt: new Date().toISOString(),
+        classification: "general",
+        status: "pending",
+        priority: "normal",
+        transcription: transcription || undefined,
+        translatedText: translatedText || undefined,
+      };
+
+      console.log("[CreateObs] Sending to ARCHIDOC:", JSON.stringify(archidocPayload));
+
+      const archidocResponse = await fetch(`${archidocApiUrl}/api/field-observations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(archidocPayload),
+      });
+
+      if (!archidocResponse.ok) {
+        const errorText = await archidocResponse.text();
+        console.error("[CreateObs] ARCHIDOC error:", errorText);
+        return res.status(500).json({ error: "Failed to create observation in ARCHIDOC" });
+      }
+      
+      const archidocResult = await archidocResponse.json();
+      console.log("[CreateObs] Created in ARCHIDOC, ID:", archidocResult.id);
+
+      res.json({ archidocObservationId: archidocResult.id });
+    } catch (error) {
+      console.error("[CreateObs] Error:", error);
+      res.status(500).json({ error: "Failed to create observation in ARCHIDOC" });
+    }
+  });
+
   app.post("/api/sync-observation/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
