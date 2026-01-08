@@ -9,7 +9,7 @@ import Svg, { Path, Circle, Rect, Line, G, Text as SvgText } from "react-native-
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
 import { runOnJS, useSharedValue } from "react-native-reanimated";
 import Animated, { useAnimatedStyle, withSpring } from "react-native-reanimated";
-import ViewShot from "react-native-view-shot";
+import ViewShot, { captureRef } from "react-native-view-shot";
 import * as FileSystem from "expo-file-system/legacy";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
@@ -60,6 +60,7 @@ export default function AnnotationScreen() {
   const [textInput, setTextInput] = useState("");
   const [pendingTextPosition, setPendingTextPosition] = useState<number[] | null>(null);
   const [isZoomMode, setIsZoomMode] = useState(false);
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
   
   // Zoom state using shared values for smooth animations
   const scale = useSharedValue(1);
@@ -83,8 +84,18 @@ export default function AnnotationScreen() {
     );
   }, [navigation]);
 
-  const canvasWidth = screenWidth;
-  const canvasHeight = screenHeight - insets.top - insets.bottom - 160;
+  // Use measured dimensions if available, otherwise fallback to calculated values
+  const fallbackWidth = screenWidth;
+  const fallbackHeight = Math.max(screenHeight - insets.top - insets.bottom - 160, 200);
+  const canvasWidth = canvasDimensions.width > 0 ? canvasDimensions.width : fallbackWidth;
+  const canvasHeight = canvasDimensions.height > 0 ? canvasDimensions.height : fallbackHeight;
+  
+  const handleCanvasLayout = useCallback((event: { nativeEvent: { layout: { width: number; height: number } } }) => {
+    const { width, height } = event.nativeEvent.layout;
+    if (width > 0 && height > 0) {
+      setCanvasDimensions({ width, height });
+    }
+  }, []);
 
   const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -258,6 +269,12 @@ export default function AnnotationScreen() {
       return;
     }
 
+    // Validate canvas dimensions before capture
+    if (canvasWidth <= 0 || canvasHeight <= 0) {
+      Alert.alert("Error", "Canvas not ready. Please wait a moment and try again.");
+      return;
+    }
+
     try {
       setIsSaving(true);
       
@@ -268,12 +285,23 @@ export default function AnnotationScreen() {
         translateX.value = 0;
         translateY.value = 0;
         // Wait for transform to apply
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 150));
       }
 
-      if (viewShotRef.current?.capture) {
-        if (__DEV__) console.log("[Annotation] Capturing view...");
-        const uri = await viewShotRef.current.capture();
+      if (viewShotRef.current) {
+        if (__DEV__) console.log("[Annotation] Capturing view with dimensions:", canvasWidth, "x", canvasHeight);
+        
+        // Wait a frame for layout to settle
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // Use captureRef with explicit dimensions to avoid (0,0) size issues on iOS
+        const uri = await captureRef(viewShotRef, {
+          format: "png",
+          quality: 1,
+          result: "tmpfile",
+          width: Math.max(canvasWidth, 100),
+          height: Math.max(canvasHeight, 100),
+        });
         if (__DEV__) console.log("[Annotation] Captured URI:", uri);
         
         const fileName = `annotated-${file.originalName.replace(/\.[^/.]+$/, "")}-${Date.now()}.png`;
@@ -518,12 +546,18 @@ export default function AnnotationScreen() {
       </View>
 
       <GestureDetector gesture={gesture}>
-        <View style={styles.canvasContainer}>
+        <View style={styles.canvasContainer} onLayout={handleCanvasLayout}>
           <Animated.View style={animatedCanvasStyle}>
             <ViewShot
               ref={viewShotRef}
               style={[styles.viewShot, { width: canvasWidth, height: canvasHeight }]}
-              options={{ format: "png", quality: 1, result: "tmpfile" }}
+              options={{ 
+                format: "png", 
+                quality: 1, 
+                result: "tmpfile",
+                width: canvasWidth > 0 ? canvasWidth : undefined,
+                height: canvasHeight > 0 ? canvasHeight : undefined,
+              }}
             >
               <View style={{ width: canvasWidth, height: canvasHeight }}>
                 <CrossPlatformImage
