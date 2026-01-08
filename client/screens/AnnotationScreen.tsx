@@ -277,6 +277,7 @@ export default function AnnotationScreen() {
 
     try {
       setIsSaving(true);
+      const startTime = Date.now();
       
       // Reset zoom before capture to ensure full image is saved
       const wasZoomed = scale.value !== 1 || translateX.value !== 0 || translateY.value !== 0;
@@ -284,73 +285,66 @@ export default function AnnotationScreen() {
         scale.value = 1;
         translateX.value = 0;
         translateY.value = 0;
-        // Wait for transform to apply
-        await new Promise(resolve => setTimeout(resolve, 150));
+        // Minimal wait for transform - just one frame
+        await new Promise(resolve => requestAnimationFrame(resolve));
       }
 
       if (viewShotRef.current) {
-        if (__DEV__) console.log("[Annotation] Capturing view with dimensions:", canvasWidth, "x", canvasHeight);
+        if (__DEV__) console.log("[Annotation] Starting capture...");
         
-        // Wait a frame for layout to settle
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-        // Use captureRef with explicit dimensions to avoid (0,0) size issues on iOS
+        // Use JPEG format for faster encoding and smaller file size
+        // Quality 0.85 provides good balance of quality vs speed
         const uri = await captureRef(viewShotRef, {
-          format: "png",
-          quality: 1,
+          format: "jpg",
+          quality: 0.85,
           result: "tmpfile",
           width: Math.max(canvasWidth, 100),
           height: Math.max(canvasHeight, 100),
         });
-        if (__DEV__) console.log("[Annotation] Captured URI:", uri);
+        if (__DEV__) console.log("[Annotation] Captured in", Date.now() - startTime, "ms");
         
-        const fileName = `annotated-${file.originalName.replace(/\.[^/.]+$/, "")}-${Date.now()}.png`;
+        const fileName = `annotated-${file.originalName.replace(/\.[^/.]+$/, "")}-${Date.now()}.jpg`;
 
-        const fileInfo = await FileSystem.getInfoAsync(uri);
+        // Get file info while preparing upload URL request in parallel
+        const [fileInfo, uploadInfo] = await Promise.all([
+          FileSystem.getInfoAsync(uri),
+          requestUploadUrl(fileName, "image/jpeg", 0), // Size unknown yet, but not critical for URL request
+        ]);
+        
         const fileSize = (fileInfo as any).size || 0;
-        if (__DEV__) console.log("[Annotation] File size:", fileSize);
+        if (__DEV__) console.log("[Annotation] File size:", fileSize, "- Got upload URL in", Date.now() - startTime, "ms");
 
-        if (__DEV__) console.log("[Annotation] Requesting upload URL...");
-        const uploadInfo = await requestUploadUrl(fileName, "image/png", fileSize);
-        if (__DEV__) console.log("[Annotation] Upload info:", JSON.stringify(uploadInfo, null, 2));
-
-        if (__DEV__) console.log("[Annotation] Uploading to storage...");
+        // Upload using native binary upload for maximum speed
         const uploadResult = await FileSystem.uploadAsync(uploadInfo.uploadURL, uri, {
           httpMethod: "PUT",
           uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-          headers: { "Content-Type": "image/png" },
+          headers: { "Content-Type": "image/jpeg" },
         });
-        if (__DEV__) console.log("[Annotation] Upload result status:", uploadResult.status, "body:", uploadResult.body);
+        if (__DEV__) console.log("[Annotation] Upload complete in", Date.now() - startTime, "ms");
 
         // Verify upload succeeded (200 or 201)
         if (uploadResult.status < 200 || uploadResult.status >= 300) {
           throw new Error(`Upload failed with status ${uploadResult.status}: ${uploadResult.body}`);
         }
 
-        if (__DEV__) console.log("[Annotation] Archiving file with projectId:", projectId);
-        try {
-          await archiveUploadedFile({
-            objectId: uploadInfo.objectId,
-            bucketName: uploadInfo.bucketName,
-            objectName: uploadInfo.objectName,
-            originalName: fileName,
-            contentType: "image/png",
-            size: fileSize,
-            projectId,
-            category: "annotations",
-          });
-          if (__DEV__) console.log("[Annotation] Archive complete!");
+        // Archive the file
+        await archiveUploadedFile({
+          objectId: uploadInfo.objectId,
+          bucketName: uploadInfo.bucketName,
+          objectName: uploadInfo.objectName,
+          originalName: fileName,
+          contentType: "image/jpeg",
+          size: fileSize,
+          projectId,
+          category: "annotations",
+        });
+        if (__DEV__) console.log("[Annotation] Total time:", Date.now() - startTime, "ms");
 
-          Alert.alert(
-            "Saved",
-            "Annotation saved to project files.",
-            [{ text: "OK", onPress: () => navigation.goBack() }]
-          );
-        } catch (archiveError) {
-          console.error("[Annotation] Archive failed:", archiveError);
-          const archiveErrorMsg = archiveError instanceof Error ? archiveError.message : "Archive failed";
-          throw new Error(`File uploaded but failed to register: ${archiveErrorMsg}`);
-        }
+        Alert.alert(
+          "Saved",
+          "Annotation saved to project files.",
+          [{ text: "OK", onPress: () => navigation.goBack() }]
+        );
       }
     } catch (error) {
       console.error("Save error:", error);

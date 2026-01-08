@@ -462,55 +462,91 @@ class OfflineSyncService {
         throw new Error("File not found: " + media.localUri);
       }
 
-      const fileBase64 = await FileSystem.readAsStringAsync(media.localUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      const chunkSize = 512 * 1024;
-      const totalChunks = Math.ceil(fileBase64.length / chunkSize);
+      const fileSize = (fileInfo as any).size || media.fileSize || 0;
       
-      for (let i = 0; i < totalChunks; i++) {
-        if (this.currentAbortController?.signal.aborted) {
-          throw new Error("Upload cancelled");
-        }
+      // Set initial progress
+      media.uploadProgress = 5;
+      this.syncProgress.currentFileProgress = 5;
+      this.emit("progressUpdated", this.syncProgress);
 
-        const progress = Math.round(((i + 1) / totalChunks) * 100);
-        media.uploadProgress = progress;
-        this.syncProgress.currentFileProgress = progress;
-        
-        const bytesForThisMedia = (fileInfo.size || 0) * (progress / 100);
-        const previousMediaBytes = obs.media
-          .filter((m) => m.syncState === "complete")
-          .reduce((sum, m) => sum + (m.fileSize || 0), 0);
-        
-        this.syncProgress.bytesUploaded = previousMediaBytes + bytesForThisMedia;
-        this.syncProgress.overallProgress = Math.round(
-          (this.syncProgress.bytesUploaded / this.syncProgress.bytesTotal) * 100
-        );
-        
-        this.emit("progressUpdated", this.syncProgress);
+      if (this.currentAbortController?.signal.aborted) {
+        throw new Error("Upload cancelled");
       }
 
-      const response = await apiRequest("POST", "/api/archidoc/proxy-upload", {
-        observationId: obs.remoteObservationId,
+      // Step 1: Get signed upload URL from server (fast, small request)
+      const urlResponse = await apiRequest("POST", "/api/archidoc/get-upload-url", {
         fileName: media.fileName,
         contentType: media.contentType,
         assetType: media.type,
-        fileBase64,
       });
+      
+      if (!urlResponse.ok) {
+        throw new Error("Failed to get upload URL");
+      }
+      
+      const { uploadURL, objectPath } = await urlResponse.json();
+      
+      media.uploadProgress = 10;
+      this.syncProgress.currentFileProgress = 10;
+      this.emit("progressUpdated", this.syncProgress);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || "Upload failed");
+      // Step 2: Upload directly to storage using native binary upload (fastest method)
+      const uploadTask = FileSystem.createUploadTask(
+        uploadURL,
+        media.localUri,
+        {
+          httpMethod: "PUT",
+          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+          headers: { "Content-Type": media.contentType },
+        },
+        (progress) => {
+          // Map progress from 10-90% range (leaving room for URL request and registration)
+          const percent = 10 + Math.round((progress.totalBytesSent / progress.totalBytesExpectedToSend) * 80);
+          media.uploadProgress = percent;
+          this.syncProgress.currentFileProgress = percent;
+          
+          const previousMediaBytes = obs.media
+            .filter((m) => m.syncState === "complete")
+            .reduce((sum, m) => sum + (m.fileSize || 0), 0);
+          
+          this.syncProgress.bytesUploaded = previousMediaBytes + progress.totalBytesSent;
+          this.syncProgress.overallProgress = Math.round(
+            (this.syncProgress.bytesUploaded / this.syncProgress.bytesTotal) * 100
+          );
+          
+          this.emit("progressUpdated", this.syncProgress);
+        }
+      );
+
+      const uploadResult = await uploadTask.uploadAsync();
+      
+      if (!uploadResult || uploadResult.status < 200 || uploadResult.status >= 300) {
+        throw new Error(`Storage upload failed with status ${uploadResult?.status}`);
       }
 
-      const result = await response.json();
-      media.remoteUrl = result.objectPath;
+      media.uploadProgress = 95;
+      this.syncProgress.currentFileProgress = 95;
+      this.emit("progressUpdated", this.syncProgress);
+
+      // Step 3: Register asset in ARCHIDOC (fast, small request)
+      const registerResponse = await apiRequest("POST", "/api/archidoc/register-asset", {
+        observationId: obs.remoteObservationId,
+        assetType: media.type,
+        objectPath,
+        fileName: media.fileName,
+        mimeType: media.contentType,
+      });
+
+      if (!registerResponse.ok) {
+        throw new Error("Failed to register asset");
+      }
+
+      media.remoteUrl = objectPath;
       media.syncState = "complete";
       media.uploadProgress = 100;
       
       this.syncProgress.filesUploaded++;
-      obs.uploadedMediaSize += media.fileSize || 0;
+      obs.uploadedMediaSize += fileSize;
       
       this.emit("progressUpdated", this.syncProgress);
       await this.persist();
