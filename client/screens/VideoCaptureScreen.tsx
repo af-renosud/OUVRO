@@ -17,7 +17,7 @@ export default function VideoCaptureScreen() {
   const { width, height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "VideoCapture">>();
-  const { projectId } = route.params;
+  const { projectId, projectName } = route.params;
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
@@ -61,6 +61,7 @@ export default function VideoCaptureScreen() {
         if (video) {
           navigation.navigate("ObservationDetails", {
             projectId,
+            projectName,
             mediaItems: [{ type: "video", uri: video.uri, duration: recordingDuration }],
           });
         }

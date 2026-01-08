@@ -23,7 +23,7 @@ export default function AudioCaptureScreen() {
   const { width } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "AudioCapture">>();
-  const { projectId } = route.params;
+  const { projectId, projectName } = route.params;
 
   const [permissionStatus, setPermissionStatus] = useState<"loading" | "granted" | "denied">("loading");
   const [isRecording, setIsRecording] = useState(false);
@@ -191,6 +191,7 @@ export default function AudioCaptureScreen() {
       if (__DEV__) console.log("[Audio] Navigating with URI:", recordingUri);
       navigation.navigate("ObservationDetails", {
         projectId,
+        projectName,
         mediaItems: [{ type: "audio", uri: recordingUri, duration: recordingDuration }],
       });
     }

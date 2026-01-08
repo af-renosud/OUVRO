@@ -12,8 +12,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -21,6 +21,7 @@ import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { useOfflineSync, createOfflineMedia } from "@/hooks/useOfflineSync";
 import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNavigator";
 import type { ProjectFile } from "@/lib/archidoc-api";
 
@@ -30,10 +31,11 @@ export default function ObservationDetailsScreen() {
   const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "ObservationDetails">>();
-  const { projectId, mediaItems = [] } = route.params;
-  const queryClient = useQueryClient();
+  const { projectId, projectName = "Unknown Project", mediaItems = [] } = route.params;
+  const { addObservation } = useOfflineSync();
 
   const [title, setTitle] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [description, setDescription] = useState("");
   const [transcription, setTranscription] = useState("");
   const [translatedText, setTranslatedText] = useState("");
@@ -96,40 +98,45 @@ export default function ObservationDetailsScreen() {
     setDescription(cleaned);
   }, [detectAndRemoveDuplication]);
 
-  const createObservationMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/observations", {
-        projectId: 1,
+  const saveToOfflineQueue = async () => {
+    setIsSaving(true);
+    try {
+      const offlineMediaItems = await Promise.all(
+        mediaItems.map(async (media: MediaItem) => {
+          let fileSize: number | undefined;
+          try {
+            const fileInfo = await FileSystem.getInfoAsync(media.uri);
+            if (fileInfo.exists && 'size' in fileInfo) {
+              fileSize = fileInfo.size;
+            }
+          } catch (e) {
+            if (__DEV__) console.warn("Could not get file size:", e);
+          }
+          return createOfflineMedia(media.type, media.uri, fileSize);
+        })
+      );
+
+      await addObservation({
+        projectId: projectId,
         archidocProjectId: projectId,
+        projectName,
         title: title || "Untitled Observation",
         description,
         transcription,
         translatedText,
-        syncStatus: "pending",
+        media: offlineMediaItems,
       });
-      const observation = await res.json();
 
-      for (const media of mediaItems) {
-        await apiRequest("POST", `/api/observations/${observation.id}/media`, {
-          type: media.type,
-          localUri: media.uri,
-          duration: media.duration,
-        });
-      }
-
-      return observation;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/observations/pending"] });
       if (navigation.canGoBack()) {
         navigation.popToTop();
       }
-    },
-    onError: (error) => {
+    } catch (error) {
       Alert.alert("Error", "Failed to save observation. Please try again.");
-      console.error("Error creating observation:", error);
-    },
-  });
+      if (__DEV__) console.error("Error saving observation:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleTranscribe = async () => {
     const audioItem = mediaItems.find((m: MediaItem) => m.type === "audio");
@@ -197,7 +204,7 @@ export default function ObservationDetailsScreen() {
       Alert.alert("Title Required", "Please enter a title for this observation");
       return;
     }
-    createObservationMutation.mutate();
+    saveToOfflineQueue();
   };
 
   const getMediaIcon = (type: string): keyof typeof Feather.glyphMap => {
@@ -387,17 +394,17 @@ export default function ObservationDetailsScreen() {
           style={[
             styles.saveButton,
             { backgroundColor: BrandColors.primary },
-            createObservationMutation.isPending && styles.saveButtonDisabled,
+            isSaving && styles.saveButtonDisabled,
           ]}
           onPress={handleSave}
-          disabled={createObservationMutation.isPending}
+          disabled={isSaving}
         >
-          {createObservationMutation.isPending ? (
+          {isSaving ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <>
               <Feather name="save" size={20} color="#FFFFFF" />
-              <ThemedText style={styles.saveButtonText}>Save Observation</ThemedText>
+              <ThemedText style={styles.saveButtonText}>Save to Queue</ThemedText>
             </>
           )}
         </Pressable>

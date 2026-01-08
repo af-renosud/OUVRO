@@ -32,10 +32,10 @@ export type ShareObservation = {
 export type RootStackParamList = {
   Main: undefined;
   CaptureModal: undefined;
-  PhotoCapture: { projectId: string };
-  VideoCapture: { projectId: string };
-  AudioCapture: { projectId: string };
-  ObservationDetails: { projectId: string; mediaItems?: MediaItem[] };
+  PhotoCapture: { projectId: string; projectName?: string };
+  VideoCapture: { projectId: string; projectName?: string };
+  AudioCapture: { projectId: string; projectName?: string };
+  ObservationDetails: { projectId: string; projectName?: string; mediaItems?: MediaItem[] };
   ProjectDetail: { projectId: string };
   ProjectAssetHub: { projectId: string };
   ShareModal: { observation: ShareObservation; projectName: string; contractorName?: string };

@@ -73,13 +73,13 @@ export default function CaptureModalScreen() {
 
     switch (type) {
       case "photo":
-        navigation.navigate("PhotoCapture", { projectId: project.id });
+        navigation.navigate("PhotoCapture", { projectId: project.id, projectName: project.name });
         break;
       case "video":
-        navigation.navigate("VideoCapture", { projectId: project.id });
+        navigation.navigate("VideoCapture", { projectId: project.id, projectName: project.name });
         break;
       case "audio":
-        navigation.navigate("AudioCapture", { projectId: project.id });
+        navigation.navigate("AudioCapture", { projectId: project.id, projectName: project.name });
         break;
     }
   };

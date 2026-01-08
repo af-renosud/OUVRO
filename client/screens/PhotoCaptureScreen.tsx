@@ -18,7 +18,7 @@ export default function PhotoCaptureScreen() {
   const { width, height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "PhotoCapture">>();
-  const { projectId } = route.params;
+  const { projectId, projectName } = route.params;
 
   const [permission, requestPermission] = useCameraPermissions();
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
@@ -53,6 +53,7 @@ export default function PhotoCaptureScreen() {
     if (capturedPhoto) {
       navigation.navigate("ObservationDetails", {
         projectId,
+        projectName,
         mediaItems: [{ type: "photo", uri: capturedPhoto }],
       });
     }
