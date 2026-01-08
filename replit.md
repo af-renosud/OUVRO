@@ -31,7 +31,7 @@ Key features include:
 The application structure separates client (navigation, screens, components, constants, lib), server (routes, storage, index), and shared (schema) concerns.
 
 ## External Dependencies
-- **ARCHIDOC API**: `https://workspace-lbailloeuil.replit.app` (production) for project data, file listing, file download URLs, and observation syncing. Configurable via `EXPO_PUBLIC_ARCHIDOC_API_URL`.
+- **ARCHIDOC API**: `https://archidoc-app-archidoc.replit.app` (production) for project data, file listing, file download URLs, and observation syncing. Configurable via `EXPO_PUBLIC_ARCHIDOC_API_URL`.
     - `GET /api/ouvro/projects` (project list)
     - `GET /api/ouvro/projects/{projectId}` (single project with DQE items)
     - `GET /api/archive/files?projectId={id}&category={cat}`
