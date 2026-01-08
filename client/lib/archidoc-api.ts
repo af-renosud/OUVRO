@@ -305,21 +305,36 @@ export async function fetchArchidocProjects(): Promise<MappedProject[]> {
   if (!response.ok) {
     throw new Error("Failed to fetch projects from OUVRO");
   }
-  const projects: ArchidocProject[] = await response.json();
-  return projects.map((p) => ({
-    id: p.id,
-    name: p.projectName,
+  const data = await response.json();
+  
+  if (__DEV__) {
+    console.log("[ARCHIDOC] Raw projects response:", JSON.stringify(data).substring(0, 500));
+  }
+  
+  // ARCHIDOC returns { projects: [...] } wrapper with snake_case fields
+  const projects = data.projects;
+  
+  // Validate that we received an array of projects
+  if (!Array.isArray(projects)) {
+    console.warn("[ARCHIDOC] Unexpected response format - expected { projects: [...] }, got:", typeof data);
+    return [];
+  }
+  
+  return projects.map((p: any) => ({
+    // Map snake_case to camelCase: project_id -> id, project_name -> projectName
+    id: p.project_id || p.id,
+    name: p.project_name || p.projectName,
     location: p.address,
     status: p.status,
-    clientName: p.clientName,
+    clientName: p.client_name || p.clientName,
     // Normalize items using mapDQEItem so attachments are properly combined from projectAttachments
     items: (p.items || []).map((item: any) => mapDQEItem(item as RawDQEItem)),
     links: p.links,
-    lotContractors: p.lotContractors,
-    photosUrl: p.photosUrl,
-    model3dUrl: p.model3dUrl,
-    tour3dUrl: p.tour3dUrl,
-    googleDriveUrl: p.googleDriveUrl,
+    lotContractors: p.lot_contractors || p.lotContractors,
+    photosUrl: p.photos_url || p.photosUrl,
+    model3dUrl: p.model_3d_url || p.model3dUrl,
+    tour3dUrl: p.tour_3d_url || p.tour3dUrl,
+    googleDriveUrl: p.google_drive_url || p.googleDriveUrl,
   }));
 }
 
@@ -372,7 +387,7 @@ export async function fetchProjectById(projectId: string): Promise<MappedProject
   }));
   
   return {
-    id: rawData.id,
+    id: rawData.project_id || rawData.id,
     name: rawData.projectName || rawData.project_name || "",
     location: rawData.address || "",
     status: rawData.status || "",
