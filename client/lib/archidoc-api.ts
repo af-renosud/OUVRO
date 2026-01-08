@@ -301,7 +301,7 @@ export async function fetchArchidocProjects(): Promise<MappedProject[]> {
     return [];
   }
   
-  const response = await fetch(`${ARCHIDOC_API_URL}/api/projects`);
+  const response = await fetch(`${ARCHIDOC_API_URL}/api/ouvro/projects`);
   if (!response.ok) {
     throw new Error("Failed to fetch projects from OUVRO");
   }
@@ -329,7 +329,7 @@ export async function fetchProjectById(projectId: string): Promise<MappedProject
     return null;
   }
   
-  const response = await fetch(`${ARCHIDOC_API_URL}/api/projects/${projectId}`, {
+  const response = await fetch(`${ARCHIDOC_API_URL}/api/ouvro/projects/${projectId}`, {
     credentials: "include",
   });
   if (!response.ok) {
