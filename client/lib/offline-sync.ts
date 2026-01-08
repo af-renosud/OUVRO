@@ -474,7 +474,7 @@ class OfflineSyncService {
       }
 
       // Step 1: Get signed upload URL from server (fast, small request)
-      const urlResponse = await apiRequest("POST", "/api/archidoc/get-upload-url", {
+      const urlResponse = await apiRequest("POST", "/api/archidoc/upload-url", {
         fileName: media.fileName,
         contentType: media.contentType,
         assetType: media.type,
