@@ -123,7 +123,25 @@ class OfflineSyncService {
 
       if (obsData) {
         const parsed = JSON.parse(obsData) as OfflineObservation[];
-        parsed.forEach((obs) => this.observations.set(obs.localId, obs));
+        parsed.forEach((obs) => {
+          // CRASH RECOVERY: Reset any items stuck in "uploading" state back to "pending"
+          // This ensures interrupted uploads can be retried after app restart
+          if (obs.syncState === "uploading_metadata" || obs.syncState === "uploading_media") {
+            obs.syncState = "pending";
+            obs.lastSyncError = "Upload interrupted - will retry";
+          }
+          
+          // Reset any media items stuck in "uploading" state
+          obs.media.forEach((media) => {
+            if (media.syncState === "uploading") {
+              media.syncState = "pending";
+              media.uploadProgress = 0;
+              media.lastError = "Upload interrupted - will retry";
+            }
+          });
+          
+          this.observations.set(obs.localId, obs);
+        });
       }
 
       if (settingsData) {
@@ -173,6 +191,37 @@ class OfflineSyncService {
     }
   }
 
+  // Copy media from temp cache to durable document directory to prevent iOS cache eviction
+  private async copyToDurableStorage(uri: string, fileName: string): Promise<string> {
+    try {
+      // Skip mock URIs or already-durable paths
+      if (uri.startsWith("mock://") || uri.includes("/ouvro_media/")) {
+        return uri;
+      }
+
+      // Create durable directory if it doesn't exist
+      const durableDir = `${FileSystem.documentDirectory}ouvro_media/`;
+      const dirInfo = await FileSystem.getInfoAsync(durableDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(durableDir, { intermediates: true });
+      }
+
+      // Generate unique filename to prevent collisions
+      const uniqueFileName = `${Date.now()}_${fileName}`;
+      const durableUri = `${durableDir}${uniqueFileName}`;
+
+      // Copy file to durable location
+      await FileSystem.copyAsync({ from: uri, to: durableUri });
+      
+      if (__DEV__) console.log("[OfflineSync] Copied to durable storage:", durableUri);
+      return durableUri;
+    } catch (error) {
+      console.error("[OfflineSync] Failed to copy to durable storage:", error);
+      // Return original URI as fallback - better than failing completely
+      return uri;
+    }
+  }
+
   async saveSettings(settings: Partial<SyncSettings>): Promise<void> {
     this.settings = { ...this.settings, ...settings };
     await AsyncStorage.setItem(
@@ -190,7 +239,21 @@ class OfflineSyncService {
     const localId = `obs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
     
-    const totalMediaSize = observation.media.reduce((sum, m) => sum + (m.fileSize || 0), 0);
+    // Copy all media to durable storage to prevent iOS cache eviction
+    const durableMedia = await Promise.all(
+      observation.media.map(async (m) => {
+        const durableUri = await this.copyToDurableStorage(m.localUri, m.fileName);
+        return {
+          ...m,
+          localUri: durableUri,
+          syncState: "pending" as MediaSyncState,
+          uploadProgress: 0,
+          retryCount: 0,
+        };
+      })
+    );
+    
+    const totalMediaSize = durableMedia.reduce((sum, m) => sum + (m.fileSize || 0), 0);
     
     const offlineObs: OfflineObservation = {
       ...observation,
@@ -201,12 +264,7 @@ class OfflineSyncService {
       uploadedMediaSize: 0,
       createdAt: now,
       modifiedAt: now,
-      media: observation.media.map((m) => ({
-        ...m,
-        syncState: "pending" as MediaSyncState,
-        uploadProgress: 0,
-        retryCount: 0,
-      })),
+      media: durableMedia,
     };
 
     this.observations.set(localId, offlineObs);
@@ -571,10 +629,27 @@ class OfflineSyncService {
 
   async clearCompleted(): Promise<void> {
     const completed = Array.from(this.observations.entries())
-      .filter(([_, obs]) => obs.syncState === "complete")
-      .map(([id]) => id);
+      .filter(([_, obs]) => obs.syncState === "complete");
     
-    completed.forEach((id) => this.observations.delete(id));
+    // Delete local media files only for fully completed observations
+    for (const [id, obs] of completed) {
+      for (const media of obs.media) {
+        if (media.localUri && media.syncState === "complete" && media.remoteUrl) {
+          try {
+            const fileInfo = await FileSystem.getInfoAsync(media.localUri);
+            if (fileInfo.exists) {
+              await FileSystem.deleteAsync(media.localUri, { idempotent: true });
+              if (__DEV__) console.log("[OfflineSync] Cleaned up local file:", media.localUri);
+            }
+          } catch (error) {
+            // Non-critical - file cleanup failed but sync is complete
+            if (__DEV__) console.warn("[OfflineSync] Failed to clean up file:", error);
+          }
+        }
+      }
+      this.observations.delete(id);
+    }
+    
     await this.persist();
     this.emit("stateChanged");
   }
