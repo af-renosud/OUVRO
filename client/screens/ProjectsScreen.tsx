@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   FlatList,
@@ -23,22 +23,41 @@ import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/consta
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
 
+type StatusFilter = "active" | "archived" | "all";
+
+const isArchivedStatus = (status: string | null): boolean => {
+  const s = status?.toUpperCase() || "";
+  return s.includes("ARCHIVED") || s.includes("ARCHIVE");
+};
+
 export default function ProjectsScreen() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
 
   const { data: projects = [], isLoading, refetch, isRefetching } = useQuery<MappedProject[]>({
     queryKey: ["archidoc-projects"],
     queryFn: fetchArchidocProjects,
   });
 
-  const filteredProjects = projects.filter((project) =>
-    project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    project.clientName?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProjects = useMemo(() => {
+    return projects.filter((project) => {
+      const matchesSearch = 
+        project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        project.clientName?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      if (!matchesSearch) return false;
+      
+      const isArchived = isArchivedStatus(project.status);
+      
+      if (statusFilter === "active") return !isArchived;
+      if (statusFilter === "archived") return isArchived;
+      return true;
+    });
+  }, [projects, searchQuery, statusFilter]);
 
   const renderProject = ({ item }: { item: MappedProject }) => (
     <Card 
@@ -105,6 +124,59 @@ export default function ProjectsScreen() {
             </Pressable>
           ) : null}
         </View>
+        <View style={styles.filterRow}>
+          <Pressable
+            style={[
+              styles.filterPill,
+              { backgroundColor: theme.backgroundSecondary },
+              statusFilter === "active" && styles.filterPillActive,
+            ]}
+            onPress={() => setStatusFilter("active")}
+          >
+            <ThemedText
+              style={[
+                styles.filterPillText,
+                { color: statusFilter === "active" ? "#FFFFFF" : theme.text },
+              ]}
+            >
+              Active
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.filterPill,
+              { backgroundColor: theme.backgroundSecondary },
+              statusFilter === "all" && styles.filterPillActive,
+            ]}
+            onPress={() => setStatusFilter("all")}
+          >
+            <ThemedText
+              style={[
+                styles.filterPillText,
+                { color: statusFilter === "all" ? "#FFFFFF" : theme.text },
+              ]}
+            >
+              All
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.filterPill,
+              { backgroundColor: theme.backgroundSecondary },
+              statusFilter === "archived" && styles.filterPillActive,
+            ]}
+            onPress={() => setStatusFilter("archived")}
+          >
+            <ThemedText
+              style={[
+                styles.filterPillText,
+                { color: statusFilter === "archived" ? "#FFFFFF" : theme.text },
+              ]}
+            >
+              Archived
+            </ThemedText>
+          </Pressable>
+        </View>
       </View>
 
       {isLoading ? (
@@ -165,6 +237,23 @@ const styles = StyleSheet.create({
     flex: 1,
     ...Typography.body,
     padding: 0,
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  filterPill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  filterPillActive: {
+    backgroundColor: BrandColors.primary,
+  },
+  filterPillText: {
+    ...Typography.bodySmall,
+    fontWeight: "500",
   },
   listContent: {
     paddingHorizontal: Spacing.lg,
