@@ -107,7 +107,7 @@ export default function ProjectsScreen() {
 
   return (
     <BackgroundView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <HeaderTitle />
         <View style={[styles.searchContainer, { backgroundColor: theme.backgroundSecondary }]}>
           <Feather name="search" size={20} color={theme.textTertiary} />
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.xs,
   },
   searchContainer: {
     flexDirection: "row",
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
-    marginTop: Spacing.xl + Spacing.md,
+    marginTop: Spacing.sm,
     gap: Spacing.sm,
   },
   searchInput: {
