@@ -10,15 +10,22 @@ build = ["sh", "-c", "npm run expo:static:build && npm run server:build"]
 run = ["npm", "run", "server:prod"]
 
 [[ports]]
-localPort = 8081
+localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
 
 [env]
 PORT = "5000"
 
 [agent]
 stack = "EXPO"
-integrations = ["javascript_database:1.0.0", "javascript_gemini_ai_integrations:2.0.0"]
+integrations = [
+  "javascript_database:1.0.0",
+  "javascript_gemini_ai_integrations:2.0.0",
+]
 
 [workflows]
 runButton = "Project"
