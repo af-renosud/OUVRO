@@ -22,7 +22,7 @@ function setupCors(app: express.Application) {
     }
 
     if (process.env.REPLIT_DOMAINS) {
-      process.env.REPLIT_DOMAINS.split(",").forEach((d) => {
+      process.env.REPLIT_DOMAINS.split(",").forEach((d: string) => {
         origins.add(`https://${d.trim()}`);
       });
     }
@@ -221,6 +221,11 @@ function setupErrorHandler(app: express.Application) {
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
+
+  // Health check endpoint for Replit workflow
+  app.get("/status", (_req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
 
   configureExpoAndLanding(app);
 
