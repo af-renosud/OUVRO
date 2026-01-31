@@ -1,0 +1,124 @@
+{
+  "id": "ecc55097-8a13-4499-b3eb-4ee9b8689d2d",
+  "createdAt": "2026-01-31T07:51:16.915Z",
+  "runtimeVersion": "exposdk:54.0.0",
+  "launchAsset": {
+    "key": "bundle-1769845876915-2500",
+    "contentType": "application/javascript",
+    "url": "https://1bc12285-51be-45e6-8280-f1108f78c1ea-00-1m5ohoxt9q835.kirk.replit.dev/1769845876915-2500/_expo/static/js/android/bundle.js"
+  },
+  "assets": [],
+  "metadata": {},
+  "extra": {
+    "eas": {},
+    "expoClient": {
+      "name": "OUVRO",
+      "slug": "ouvro",
+      "version": "1.0.1",
+      "orientation": "default",
+      "icon": "./assets/images/icon.png",
+      "scheme": "ouvro",
+      "userInterfaceStyle": "automatic",
+      "newArchEnabled": true,
+      "ios": {
+        "supportsTablet": true,
+        "bundleIdentifier": "com.ouvro.field",
+        "infoPlist": {
+          "NSMicrophoneUsageDescription": "OUVRO needs microphone access to record audio observations on site",
+          "NSCameraUsageDescription": "OUVRO needs camera access to capture photos and videos of site observations",
+          "NSPhotoLibraryUsageDescription": "OUVRO needs photo library access to save and select observation media"
+        }
+      },
+      "android": {
+        "adaptiveIcon": {
+          "backgroundColor": "#4299E1",
+          "foregroundImage": "./assets/images/android-icon-foreground.png",
+          "backgroundImage": "./assets/images/android-icon-background.png",
+          "monochromeImage": "./assets/images/android-icon-monochrome.png",
+          "foregroundImageUrl": "http://127.0.0.1:8081/assets/./assets/images/android-icon-foreground.png",
+          "monochromeImageUrl": "http://127.0.0.1:8081/assets/./assets/images/android-icon-monochrome.png",
+          "backgroundImageUrl": "http://127.0.0.1:8081/assets/./assets/images/android-icon-background.png"
+        },
+        "package": "com.ouvro.field",
+        "edgeToEdgeEnabled": true,
+        "predictiveBackGestureEnabled": false,
+        "permissions": [
+          "android.permission.RECORD_AUDIO",
+          "android.permission.MODIFY_AUDIO_SETTINGS"
+        ]
+      },
+      "web": {
+        "output": "single",
+        "favicon": "./assets/images/favicon.png"
+      },
+      "plugins": [
+        [
+          "expo-splash-screen",
+          {
+            "image": "./assets/images/ouvro-logo.png",
+            "imageWidth": 200,
+            "resizeMode": "contain",
+            "backgroundColor": "#F7FAFC",
+            "dark": {
+              "backgroundColor": "#1A202C"
+            }
+          }
+        ],
+        [
+          "expo-av",
+          {
+            "microphonePermission": "OUVRO needs microphone access to record audio observations on site"
+          }
+        ],
+        "expo-web-browser"
+      ],
+      "experiments": {
+        "reactCompiler": true
+      },
+      "_internal": {
+        "isDebug": false,
+        "projectRoot": "/home/runner/workspace",
+        "dynamicConfigPath": {},
+        "staticConfigPath": "/home/runner/workspace/app.json",
+        "packageJsonPath": "/home/runner/workspace/package.json",
+        "pluginHistory": {
+          "expo-splash-screen": {
+            "name": "expo-splash-screen",
+            "version": "31.0.11"
+          },
+          "expo-av": {
+            "name": "expo-av",
+            "version": "16.0.8"
+          },
+          "expo-web-browser": {
+            "name": "expo-web-browser",
+            "version": "15.0.9"
+          }
+        }
+      },
+      "sdkVersion": "54.0.0",
+      "platforms": [
+        "ios",
+        "android",
+        "web"
+      ],
+      "androidStatusBar": {
+        "backgroundColor": "#F7FAFC"
+      },
+      "iconUrl": "http://127.0.0.1:8081/assets/./assets/images/icon.png",
+      "hostUri": "1bc12285-51be-45e6-8280-f1108f78c1ea-00-1m5ohoxt9q835.kirk.replit.dev/android"
+    },
+    "expoGo": {
+      "debuggerHost": "1bc12285-51be-45e6-8280-f1108f78c1ea-00-1m5ohoxt9q835.kirk.replit.dev/android",
+      "developer": {
+        "tool": "expo-cli",
+        "projectRoot": "/home/runner/workspace"
+      },
+      "packagerOpts": {
+        "dev": false
+      },
+      "mainModuleName": "client/index"
+    },
+    "scopeKey": "@anonymous/ouvro-befac590-b044-49d1-a754-f23ea679286f"
+  }
+}
