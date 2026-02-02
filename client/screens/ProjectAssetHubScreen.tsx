@@ -19,7 +19,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
-import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
+import { fetchArchidocProjects, fetchProjectById, type MappedProject } from "@/lib/archidoc-api";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 const googleDriveLogo = require("../../attached_assets/google_drive_PNG4_1767526724030.png");
@@ -66,12 +66,22 @@ export default function ProjectAssetHubScreen() {
   const { projectId } = route.params;
   const [linksModalVisible, setLinksModalVisible] = useState(false);
 
+  // Fetch basic project list for fallback
   const { data: projects = [] } = useQuery<MappedProject[]>({
     queryKey: ["archidoc-projects"],
     queryFn: fetchArchidocProjects,
   });
 
-  const project = projects.find((p) => p.id === projectId);
+  // Fetch full project data with DQE items
+  const { data: fullProject, isLoading: isLoadingProject } = useQuery<MappedProject | null>({
+    queryKey: ["archidoc-project", projectId],
+    queryFn: () => fetchProjectById(projectId),
+    enabled: !!projectId,
+  });
+
+  // Use full project data if available, fallback to list data
+  const listProject = projects.find((p) => p.id === projectId);
+  const project = fullProject || listProject;
 
   const availableHeight = height - insets.top - insets.bottom - 120;
   const availableWidth = width - Spacing.lg * 2;
@@ -226,7 +236,7 @@ export default function ProjectAssetHubScreen() {
     );
   };
 
-  if (!project) {
+  if (!project || isLoadingProject) {
     return (
       <BackgroundView style={styles.container}>
         <View style={styles.loadingContainer}>
