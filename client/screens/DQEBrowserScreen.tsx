@@ -228,10 +228,17 @@ export default function DQEBrowserScreen() {
     );
   };
 
-  const renderItem = ({ item }: { item: DQEItem }) => {
+  const truncateText = (text: string, maxLength: number = 50): string => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength).trim() + "...";
+  };
+
+  const renderItem = ({ item, index }: { item: DQEItem; index: number }) => {
     const isExpanded = expandedItemId === item.id;
     const hasFiles = hasAttachments(item);
     const contractorId = getContractorForItem(item);
+    const itemNumber = index + 1;
+    const showLotBadge = activeFilter !== "lot" || !selectedLot;
 
     return (
       <Pressable
@@ -239,43 +246,53 @@ export default function DQEBrowserScreen() {
         onPress={() => setExpandedItemId(isExpanded ? null : item.id)}
       >
         <View style={styles.itemHeader}>
-          <View style={[styles.lotBadge, { backgroundColor: BrandColors.primary }]}>
-            <ThemedText style={styles.lotBadgeText}>
-              {item.lotCode}
+          <View style={[styles.itemNumberBadge, { backgroundColor: theme.backgroundTertiary }]}>
+            <ThemedText style={[styles.itemNumberText, { color: theme.textSecondary }]}>
+              {itemNumber}
             </ThemedText>
           </View>
           <View style={styles.itemTitleContainer}>
-            <ThemedText style={[styles.itemTitle, { color: theme.text }]} numberOfLines={isExpanded ? undefined : 2}>
-              {item.description}
+            <ThemedText style={[styles.itemTitle, { color: theme.text }]} numberOfLines={isExpanded ? undefined : 1}>
+              {isExpanded ? item.description : truncateText(item.description, 45)}
             </ThemedText>
+            {!isExpanded ? (
+              <View style={styles.compactMeta}>
+                {showLotBadge ? (
+                  <View style={[styles.metaBadge, { backgroundColor: BrandColors.primary }]}>
+                    <ThemedText style={styles.metaBadgeText}>{item.lotCode}</ThemedText>
+                  </View>
+                ) : null}
+                <View style={[styles.metaBadge, { backgroundColor: theme.backgroundTertiary }]}>
+                  <ThemedText style={[styles.metaBadgeTextDark, { color: theme.textSecondary }]}>
+                    {item.quantity} {item.unit}
+                  </ThemedText>
+                </View>
+                {hasFiles ? (
+                  <Feather name="paperclip" size={14} color={BrandColors.accent} />
+                ) : null}
+              </View>
+            ) : null}
           </View>
-          {hasFiles ? (
-            <Feather name="paperclip" size={16} color={BrandColors.primary} style={{ marginRight: 4 }} />
-          ) : null}
           <Feather
             name={isExpanded ? "chevron-up" : "chevron-down"}
-            size={20}
+            size={18}
             color={theme.textTertiary}
           />
         </View>
         
         {isExpanded ? (
           <View style={styles.itemDetails}>
-            <View style={styles.detailRow}>
-              <ThemedText style={[styles.detailLabel, { color: theme.textSecondary }]}>
-                Unité:
-              </ThemedText>
-              <ThemedText style={[styles.detailValue, { color: theme.text }]}>
-                {item.unit}
-              </ThemedText>
-            </View>
-            <View style={styles.detailRow}>
-              <ThemedText style={[styles.detailLabel, { color: theme.textSecondary }]}>
-                Quantité:
-              </ThemedText>
-              <ThemedText style={[styles.detailValue, { color: theme.text }]}>
-                {item.quantity}
-              </ThemedText>
+            <View style={styles.expandedMetaRow}>
+              {showLotBadge ? (
+                <View style={[styles.metaBadgeLarge, { backgroundColor: BrandColors.primary }]}>
+                  <ThemedText style={styles.metaBadgeText}>{item.lotCode}</ThemedText>
+                </View>
+              ) : null}
+              <View style={[styles.metaBadgeLarge, { backgroundColor: theme.backgroundTertiary }]}>
+                <ThemedText style={[styles.metaBadgeTextDark, { color: theme.text }]}>
+                  {item.quantity} {item.unit}
+                </ThemedText>
+              </View>
             </View>
             {item.zone ? (
               <View style={styles.detailRow}>
@@ -347,13 +364,7 @@ export default function DQEBrowserScreen() {
               </View>
             ) : null}
           </View>
-        ) : (
-          <View style={styles.itemSummary}>
-            <ThemedText style={[styles.summaryText, { color: theme.textSecondary }]}>
-              {item.quantity} {item.unit}
-            </ThemedText>
-          </View>
-        )}
+        ) : null}
       </Pressable>
     );
   };
@@ -511,7 +522,7 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
   },
   itemCard: {
-    padding: Spacing.sm,
+    padding: Spacing.md,
     borderRadius: BorderRadius.md,
   },
   itemHeader: {
@@ -519,29 +530,56 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: Spacing.sm,
   },
-  lotBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
+  itemNumberBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  lotBadgeText: {
+  itemNumberText: {
     ...Typography.caption,
-    color: "#FFFFFF",
     fontWeight: "700",
   },
   itemTitleContainer: {
     flex: 1,
+    gap: Spacing.xs,
   },
   itemTitle: {
     ...Typography.body,
     fontWeight: "500",
+    lineHeight: 20,
   },
-  itemSummary: {
-    marginTop: Spacing.sm,
-    marginLeft: 0,
+  compactMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    flexWrap: "wrap",
+    marginTop: 2,
   },
-  summaryText: {
-    ...Typography.caption,
+  metaBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  metaBadgeLarge: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  metaBadgeText: {
+    fontSize: 10,
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  metaBadgeTextDark: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  expandedMetaRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   itemDetails: {
     marginTop: Spacing.md,
