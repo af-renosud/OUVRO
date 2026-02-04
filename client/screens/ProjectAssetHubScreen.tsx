@@ -82,6 +82,22 @@ export default function ProjectAssetHubScreen() {
   // Use full project data if available, fallback to list data
   const listProject = projects.find((p) => p.id === projectId);
   const project = fullProject || listProject;
+  
+  // Debug logging for button states
+  if (__DEV__ && project) {
+    console.log("[ProjectAssetHub] Project data received:", JSON.stringify({
+      id: project.id,
+      name: project.name,
+      itemsCount: project.items?.length ?? 0,
+      photosUrl: project.photosUrl,
+      model3dUrl: project.model3dUrl,
+      tour3dUrl: project.tour3dUrl,
+      googleDriveUrl: project.googleDriveUrl,
+      hasAnyLink: !!(project.photosUrl || project.model3dUrl || project.tour3dUrl),
+      hasGoogleDrive: !!project.googleDriveUrl,
+      itemsWithAttachments: (project.items || []).filter(item => item.attachments && item.attachments.length > 0).length,
+    }));
+  }
 
   const availableHeight = height - insets.top - insets.bottom - 120;
   const availableWidth = width - Spacing.lg * 2;

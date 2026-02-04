@@ -320,22 +320,50 @@ export async function fetchArchidocProjects(): Promise<MappedProject[]> {
     return [];
   }
   
-  return projects.map((p: any) => ({
-    // Map snake_case to camelCase: project_id -> id, project_name -> projectName
-    id: p.project_id || p.id,
-    name: p.project_name || p.projectName,
-    location: p.address,
-    status: p.status,
-    clientName: p.client_name || p.clientName,
-    // Normalize items using mapDQEItem so attachments are properly combined from projectAttachments
-    items: (p.items || []).map((item: any) => mapDQEItem(item as RawDQEItem)),
-    links: p.links,
-    lotContractors: p.lot_contractors || p.lotContractors,
-    photosUrl: p.photos_url || p.photosUrl,
-    model3dUrl: p.model_3d_url || p.model3dUrl,
-    tour3dUrl: p.tour_3d_url || p.tour3dUrl,
-    googleDriveUrl: p.google_drive_url || p.googleDriveUrl,
-  }));
+  return projects.map((p: any) => {
+    // Extract external links - check multiple possible structures
+    const externalLinks = p.externalLinks || p.external_links || p.links || {};
+    
+    const photosUrl = p.photosUrl || p.photos_url || 
+      p.photoUrl || p.photo_url ||
+      externalLinks.photosUrl || externalLinks.photos_url ||
+      externalLinks.photos || externalLinks.photo;
+      
+    const model3dUrl = p.model3dUrl || p.model_3d_url ||
+      p.modelUrl || p.model_url ||
+      p['3dModelUrl'] || p['3d_model_url'] ||
+      externalLinks.model3dUrl || externalLinks.model_3d_url ||
+      externalLinks.model3d || externalLinks['3dModel'];
+      
+    const tour3dUrl = p.tour3dUrl || p.tour_3d_url ||
+      p.tourUrl || p.tour_url ||
+      p.virtualTourUrl || p.virtual_tour_url ||
+      externalLinks.tour3dUrl || externalLinks.tour_3d_url ||
+      externalLinks.tour3d || externalLinks.virtualTour;
+      
+    const googleDriveUrl = p.googleDriveUrl || p.google_drive_url ||
+      p.driveUrl || p.drive_url ||
+      p.gdriveUrl || p.gdrive_url ||
+      externalLinks.googleDriveUrl || externalLinks.google_drive_url ||
+      externalLinks.googleDrive || externalLinks.drive;
+
+    return {
+      // Map snake_case to camelCase: project_id -> id, project_name -> projectName
+      id: p.project_id || p.id,
+      name: p.project_name || p.projectName,
+      location: p.address,
+      status: p.status,
+      clientName: p.client_name || p.clientName,
+      // Normalize items using mapDQEItem so attachments are properly combined from projectAttachments
+      items: (p.items || []).map((item: any) => mapDQEItem(item as RawDQEItem)),
+      links: p.links,
+      lotContractors: p.lot_contractors || p.lotContractors,
+      photosUrl,
+      model3dUrl,
+      tour3dUrl,
+      googleDriveUrl,
+    };
+  });
 }
 
 export async function fetchProjectById(projectId: string): Promise<MappedProject | null> {
@@ -355,6 +383,19 @@ export async function fetchProjectById(projectId: string): Promise<MappedProject
   
   // Log raw response to check field names
   if (__DEV__) console.log("[ARCHIDOC API] Raw JSON keys:", Object.keys(rawData));
+  if (__DEV__) console.log("[ARCHIDOC API] FULL RAW DATA for debugging links:", JSON.stringify({
+    photos_url: rawData.photos_url,
+    photosUrl: rawData.photosUrl,
+    model_3d_url: rawData.model_3d_url,
+    model3dUrl: rawData.model3dUrl,
+    tour_3d_url: rawData.tour_3d_url,
+    tour3dUrl: rawData.tour3dUrl,
+    google_drive_url: rawData.google_drive_url,
+    googleDriveUrl: rawData.googleDriveUrl,
+    links: rawData.links,
+    externalLinks: rawData.externalLinks,
+    external_links: rawData.external_links,
+  }));
   if (rawData.items?.[0]) {
     if (__DEV__) console.log("[ARCHIDOC API] First item raw keys:", Object.keys(rawData.items[0]));
     if (__DEV__) console.log("[ARCHIDOC API] First item raw data:", JSON.stringify(rawData.items[0]));
@@ -386,6 +427,40 @@ export async function fetchProjectById(projectId: string): Promise<MappedProject
     allContractorIds: [...new Set(mappedItems.map(item => item.assignedContractorId).filter(Boolean))],
   }));
   
+  // Extract external links - check multiple possible structures
+  // ARCHIDOC might return these in various ways: direct fields, nested in 'links', or in 'externalLinks'
+  const externalLinks = rawData.externalLinks || rawData.external_links || rawData.links || {};
+  
+  const photosUrl = rawData.photosUrl || rawData.photos_url || 
+    rawData.photoUrl || rawData.photo_url ||
+    externalLinks.photosUrl || externalLinks.photos_url ||
+    externalLinks.photos || externalLinks.photo;
+    
+  const model3dUrl = rawData.model3dUrl || rawData.model_3d_url ||
+    rawData.modelUrl || rawData.model_url ||
+    rawData['3dModelUrl'] || rawData['3d_model_url'] ||
+    externalLinks.model3dUrl || externalLinks.model_3d_url ||
+    externalLinks.model3d || externalLinks['3dModel'];
+    
+  const tour3dUrl = rawData.tour3dUrl || rawData.tour_3d_url ||
+    rawData.tourUrl || rawData.tour_url ||
+    rawData.virtualTourUrl || rawData.virtual_tour_url ||
+    externalLinks.tour3dUrl || externalLinks.tour_3d_url ||
+    externalLinks.tour3d || externalLinks.virtualTour;
+    
+  const googleDriveUrl = rawData.googleDriveUrl || rawData.google_drive_url ||
+    rawData.driveUrl || rawData.drive_url ||
+    rawData.gdriveUrl || rawData.gdrive_url ||
+    externalLinks.googleDriveUrl || externalLinks.google_drive_url ||
+    externalLinks.googleDrive || externalLinks.drive;
+
+  if (__DEV__) console.log("[ARCHIDOC API] Resolved external links:", JSON.stringify({
+    photosUrl,
+    model3dUrl,
+    tour3dUrl,
+    googleDriveUrl,
+  }));
+
   return {
     id: rawData.project_id || rawData.id,
     name: rawData.projectName || rawData.project_name || "",
@@ -395,10 +470,10 @@ export async function fetchProjectById(projectId: string): Promise<MappedProject
     items: mappedItems,
     links: rawData.links,
     lotContractors: lotContractors,
-    photosUrl: rawData.photosUrl || rawData.photos_url,
-    model3dUrl: rawData.model3dUrl || rawData.model_3d_url,
-    tour3dUrl: rawData.tour3dUrl || rawData.tour_3d_url,
-    googleDriveUrl: rawData.googleDriveUrl || rawData.google_drive_url,
+    photosUrl,
+    model3dUrl,
+    tour3dUrl,
+    googleDriveUrl,
   };
 }
 
