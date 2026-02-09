@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import * as FileSystem from "expo-file-system/legacy";
-import { apiRequest } from "./query-client";
+import { apiRequest, getApiUrl } from "./query-client";
 
 const STORAGE_KEYS = {
   PENDING_OBSERVATIONS: "ouvro_pending_observations",
@@ -51,6 +51,7 @@ export interface OfflineObservation {
   modifiedAt: string;
   lastSyncAttempt?: string;
   lastSyncError?: string;
+  syncCompletedAt?: string;
   retryCount: number;
   totalMediaSize: number;
   uploadedMediaSize: number;
@@ -90,9 +91,40 @@ type SyncEventListener = (event: SyncEventType, data?: any) => void;
 const DEFAULT_SETTINGS: SyncSettings = {
   wifiOnly: false,
   autoSync: false,
-  maxRetries: 3,
+  maxRetries: 10,
   retryDelayMs: 5000,
 };
+
+const AUTO_RETRY_INTERVAL_MS = 120000;
+const AUTO_RETRY_MAX_ATTEMPTS = 20;
+const AUTO_RETRY_MAX_BACKOFF_MS = 600000;
+
+function parseErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const msg = error.message;
+
+    if (msg.includes("<!DOCTYPE") || msg.includes("<html") || msg.includes("502") || msg.includes("503") || msg.includes("504")) {
+      if (msg.includes("502")) return "Server temporarily unavailable (502). Will retry automatically.";
+      if (msg.includes("503")) return "Server is restarting (503). Will retry automatically.";
+      if (msg.includes("504")) return "Server took too long to respond (504). Will retry automatically.";
+      return "Server returned an error page. Will retry automatically.";
+    }
+
+    if (msg.includes("timed out") || msg.includes("AbortError") || msg.includes("timeout")) {
+      return "Request timed out. Will retry automatically.";
+    }
+
+    if (msg.includes("Network request failed") || msg.includes("network") || msg.includes("fetch")) {
+      return "No internet connection. Will retry when connected.";
+    }
+
+    const jsonMatch = msg.match(/\{.*"error"\s*:\s*"([^"]+)"/);
+    if (jsonMatch) return jsonMatch[1];
+
+    return msg;
+  }
+  return "Unknown error occurred. Will retry automatically.";
+}
 
 class OfflineSyncService {
   private observations: Map<string, OfflineObservation> = new Map();
@@ -102,6 +134,8 @@ class OfflineSyncService {
   private isSyncing = false;
   private currentAbortController?: AbortController;
   private networkState: NetInfoState | null = null;
+  private autoRetryTimer?: ReturnType<typeof setTimeout>;
+  private autoRetryAttempts = 0;
   private syncProgress: SyncProgress = {
     isActive: false,
     overallProgress: 0,
@@ -124,14 +158,11 @@ class OfflineSyncService {
       if (obsData) {
         const parsed = JSON.parse(obsData) as OfflineObservation[];
         parsed.forEach((obs) => {
-          // CRASH RECOVERY: Reset any items stuck in "uploading" state back to "pending"
-          // This ensures interrupted uploads can be retried after app restart
           if (obs.syncState === "uploading_metadata" || obs.syncState === "uploading_media") {
             obs.syncState = "pending";
             obs.lastSyncError = "Upload interrupted - will retry";
           }
           
-          // Reset any media items stuck in "uploading" state
           obs.media.forEach((media) => {
             if (media.syncState === "uploading") {
               media.syncState = "pending";
@@ -156,8 +187,13 @@ class OfflineSyncService {
           isWifi: state.type === "wifi" 
         });
 
-        if (!wasConnected && state.isConnected && this.settings.autoSync) {
-          this.startSync();
+        if (!wasConnected && state.isConnected) {
+          this.autoRetryAttempts = 0;
+          if (this.settings.autoSync) {
+            this.startSync();
+          } else if (this.getPendingCount() > 0) {
+            this.scheduleAutoRetry();
+          }
         }
       });
 
@@ -165,6 +201,10 @@ class OfflineSyncService {
       this.isInitialized = true;
       
       if (__DEV__) console.log("[OfflineSync] Initialized with", this.observations.size, "pending observations");
+
+      if (this.getPendingCount() > 0 && this.isNetworkAvailable()) {
+        this.scheduleAutoRetry();
+      }
     } catch (error) {
       console.error("[OfflineSync] Initialization error:", error);
     }
@@ -191,33 +231,27 @@ class OfflineSyncService {
     }
   }
 
-  // Copy media from temp cache to durable document directory to prevent iOS cache eviction
   private async copyToDurableStorage(uri: string, fileName: string): Promise<string> {
     try {
-      // Skip mock URIs or already-durable paths
       if (uri.startsWith("mock://") || uri.includes("/ouvro_media/")) {
         return uri;
       }
 
-      // Create durable directory if it doesn't exist
       const durableDir = `${FileSystem.documentDirectory}ouvro_media/`;
       const dirInfo = await FileSystem.getInfoAsync(durableDir);
       if (!dirInfo.exists) {
         await FileSystem.makeDirectoryAsync(durableDir, { intermediates: true });
       }
 
-      // Generate unique filename to prevent collisions
       const uniqueFileName = `${Date.now()}_${fileName}`;
       const durableUri = `${durableDir}${uniqueFileName}`;
 
-      // Copy file to durable location
       await FileSystem.copyAsync({ from: uri, to: durableUri });
       
       if (__DEV__) console.log("[OfflineSync] Copied to durable storage:", durableUri);
       return durableUri;
     } catch (error) {
       console.error("[OfflineSync] Failed to copy to durable storage:", error);
-      // Return original URI as fallback - better than failing completely
       return uri;
     }
   }
@@ -225,7 +259,7 @@ class OfflineSyncService {
   async saveSettings(settings: Partial<SyncSettings>): Promise<void> {
     this.settings = { ...this.settings, ...settings };
     await AsyncStorage.setItem(
-      STORAGE_KEYS.SYNC_SETTINGS,
+      SYNC_SETTINGS_KEY,
       JSON.stringify(this.settings)
     );
     this.emit("stateChanged");
@@ -239,7 +273,6 @@ class OfflineSyncService {
     const localId = `obs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
     
-    // Copy all media to durable storage to prevent iOS cache eviction
     const durableMedia = await Promise.all(
       observation.media.map(async (m) => {
         const durableUri = await this.copyToDurableStorage(m.localUri, m.fileName);
@@ -275,6 +308,8 @@ class OfflineSyncService {
     
     if (this.settings.autoSync && this.canSync()) {
       this.startSync();
+    } else if (this.canSync()) {
+      this.scheduleAutoRetry();
     }
     
     return localId;
@@ -344,6 +379,59 @@ class OfflineSyncService {
     return this.isNetworkAvailable() && !this.isSyncing;
   }
 
+  private async preflightCheck(): Promise<boolean> {
+    try {
+      const baseUrl = getApiUrl();
+      const url = new URL("/api/health", baseUrl);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      
+      const response = await fetch(url.toString(), { 
+        method: "GET",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      
+      return response.ok || response.status === 404;
+    } catch (error) {
+      console.warn("[OfflineSync] Pre-flight check failed:", error);
+      return false;
+    }
+  }
+
+  private scheduleAutoRetry(): void {
+    if (this.autoRetryTimer) {
+      clearTimeout(this.autoRetryTimer);
+    }
+
+    if (this.autoRetryAttempts >= AUTO_RETRY_MAX_ATTEMPTS) {
+      console.warn("[OfflineSync] Max auto-retry attempts reached. Manual sync required.");
+      return;
+    }
+
+    const backoffMs = Math.min(
+      AUTO_RETRY_INTERVAL_MS * Math.pow(1.5, this.autoRetryAttempts),
+      AUTO_RETRY_MAX_BACKOFF_MS
+    );
+
+    if (__DEV__) {
+      console.log(`[OfflineSync] Scheduling auto-retry #${this.autoRetryAttempts + 1} in ${Math.round(backoffMs / 1000)}s`);
+    }
+
+    this.autoRetryTimer = setTimeout(async () => {
+      if (this.getPendingCount() > 0 && this.canSync()) {
+        this.autoRetryAttempts++;
+        await this.startSync();
+        
+        if (this.getPendingCount() > 0) {
+          this.scheduleAutoRetry();
+        } else {
+          this.autoRetryAttempts = 0;
+        }
+      }
+    }, backoffMs);
+  }
+
   async startSync(): Promise<void> {
     if (this.isSyncing) {
       if (__DEV__) console.log("[OfflineSync] Sync already in progress");
@@ -364,6 +452,18 @@ class OfflineSyncService {
       return;
     }
 
+    const serverReachable = await this.preflightCheck();
+    if (!serverReachable) {
+      console.warn("[OfflineSync] Server unreachable, will retry later");
+      pendingObs.forEach(obs => {
+        obs.lastSyncError = "Server unreachable. Will retry automatically.";
+      });
+      await this.persist();
+      this.emit("stateChanged");
+      this.scheduleAutoRetry();
+      return;
+    }
+
     this.isSyncing = true;
     this.currentAbortController = new AbortController();
     
@@ -380,21 +480,34 @@ class OfflineSyncService {
     this.emit("syncStarted");
     this.emit("progressUpdated", this.syncProgress);
 
+    let allSucceeded = true;
+
     try {
       for (const obs of pendingObs) {
         if (this.currentAbortController.signal.aborted) break;
         
-        await this.syncObservation(obs);
+        try {
+          await this.syncObservation(obs);
+        } catch {
+          allSucceeded = false;
+        }
       }
       
       this.emit("syncCompleted");
     } catch (error) {
+      allSucceeded = false;
       console.error("[OfflineSync] Sync error:", error);
       this.emit("syncError", error);
     } finally {
       this.isSyncing = false;
       this.syncProgress.isActive = false;
       this.emit("progressUpdated", this.syncProgress);
+
+      if (!allSucceeded && this.getPendingCount() > 0) {
+        this.scheduleAutoRetry();
+      } else {
+        this.autoRetryAttempts = 0;
+      }
     }
   }
 
@@ -426,6 +539,7 @@ class OfflineSyncService {
     await this.persist();
     this.emit("stateChanged");
     
+    this.autoRetryAttempts = 0;
     if (this.canSync()) {
       this.startSync();
     }
@@ -454,8 +568,17 @@ class OfflineSyncService {
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-          throw new Error(errorData.error || "Failed to create observation");
+          let errorMsg = "Failed to create observation";
+          try {
+            const text = await response.text();
+            try {
+              const json = JSON.parse(text);
+              errorMsg = json.error || json.message || errorMsg;
+            } catch {
+              errorMsg = parseErrorMessage(new Error(text));
+            }
+          } catch {}
+          throw new Error(errorMsg);
         }
 
         const result = await response.json();
@@ -474,7 +597,13 @@ class OfflineSyncService {
           throw new Error("Sync cancelled");
         }
 
-        await this.uploadMedia(obs, media);
+        try {
+          await this.uploadMedia(obs, media);
+        } catch (mediaError) {
+          console.error(`[OfflineSync] Media ${media.fileName} failed:`, mediaError);
+          media.syncState = "failed";
+          media.lastError = parseErrorMessage(mediaError);
+        }
       }
 
       const allComplete = obs.media.every((m) => m.syncState === "complete");
@@ -482,16 +611,21 @@ class OfflineSyncService {
       if (allComplete) {
         obs.syncState = "complete";
         obs.uploadedMediaSize = obs.totalMediaSize;
+        obs.syncCompletedAt = new Date().toISOString();
         this.emit("observationSynced", { localId, remoteId: obs.remoteObservationId });
       } else {
-        obs.syncState = "partial";
-        this.emit("observationFailed", { localId, error: "Some media failed to upload" });
+        const someComplete = obs.media.some((m) => m.syncState === "complete");
+        obs.syncState = someComplete ? "partial" : "failed";
+        obs.retryCount++;
+        const failedFiles = obs.media.filter(m => m.syncState === "failed").map(m => m.fileName).join(", ");
+        obs.lastSyncError = `Failed files: ${failedFiles}. Will retry automatically.`;
+        this.emit("observationFailed", { localId, error: obs.lastSyncError });
       }
 
     } catch (error) {
       obs.syncState = "failed";
       obs.retryCount++;
-      obs.lastSyncError = error instanceof Error ? error.message : "Unknown error";
+      obs.lastSyncError = parseErrorMessage(error);
       this.emit("observationFailed", { localId, error: obs.lastSyncError });
     }
 
@@ -522,7 +656,6 @@ class OfflineSyncService {
 
       const fileSize = (fileInfo as any).size || media.fileSize || 0;
       
-      // Set initial progress
       media.uploadProgress = 5;
       this.syncProgress.currentFileProgress = 5;
       this.emit("progressUpdated", this.syncProgress);
@@ -531,7 +664,6 @@ class OfflineSyncService {
         throw new Error("Upload cancelled");
       }
 
-      // Step 1: Get signed upload URL from server (fast, small request)
       const urlResponse = await apiRequest("POST", "/api/archidoc/upload-url", {
         fileName: media.fileName,
         contentType: media.contentType,
@@ -539,7 +671,17 @@ class OfflineSyncService {
       });
       
       if (!urlResponse.ok) {
-        throw new Error("Failed to get upload URL");
+        let errorMsg = "Failed to get upload URL";
+        try {
+          const text = await urlResponse.text();
+          try {
+            const json = JSON.parse(text);
+            errorMsg = json.error || errorMsg;
+          } catch {
+            errorMsg = parseErrorMessage(new Error(text));
+          }
+        } catch {}
+        throw new Error(errorMsg);
       }
       
       const { uploadURL, objectPath } = await urlResponse.json();
@@ -548,7 +690,6 @@ class OfflineSyncService {
       this.syncProgress.currentFileProgress = 10;
       this.emit("progressUpdated", this.syncProgress);
 
-      // Step 2: Upload directly to storage using native binary upload (fastest method)
       const uploadTask = FileSystem.createUploadTask(
         uploadURL,
         media.localUri,
@@ -558,7 +699,6 @@ class OfflineSyncService {
           headers: { "Content-Type": media.contentType },
         },
         (progress) => {
-          // Map progress from 10-90% range (leaving room for URL request and registration)
           const percent = 10 + Math.round((progress.totalBytesSent / progress.totalBytesExpectedToSend) * 80);
           media.uploadProgress = percent;
           this.syncProgress.currentFileProgress = percent;
@@ -586,7 +726,6 @@ class OfflineSyncService {
       this.syncProgress.currentFileProgress = 95;
       this.emit("progressUpdated", this.syncProgress);
 
-      // Step 3: Register asset in ARCHIDOC (fast, small request)
       const registerResponse = await apiRequest("POST", "/api/archidoc/register-asset", {
         observationId: obs.remoteObservationId,
         assetType: media.type,
@@ -596,7 +735,17 @@ class OfflineSyncService {
       });
 
       if (!registerResponse.ok) {
-        throw new Error("Failed to register asset");
+        let errorMsg = "Failed to register asset";
+        try {
+          const text = await registerResponse.text();
+          try {
+            const json = JSON.parse(text);
+            errorMsg = json.error || errorMsg;
+          } catch {
+            errorMsg = parseErrorMessage(new Error(text));
+          }
+        } catch {}
+        throw new Error(errorMsg);
       }
 
       media.remoteUrl = objectPath;
@@ -612,10 +761,13 @@ class OfflineSyncService {
     } catch (error) {
       media.syncState = "failed";
       media.retryCount++;
-      media.lastError = error instanceof Error ? error.message : "Unknown error";
+      media.lastError = parseErrorMessage(error);
       
       if (media.retryCount < this.settings.maxRetries) {
-        await this.delay(this.settings.retryDelayMs * Math.pow(2, media.retryCount - 1));
+        const backoffMs = this.settings.retryDelayMs * Math.pow(2, Math.min(media.retryCount - 1, 5));
+        if (__DEV__) console.log(`[OfflineSync] Retrying media ${media.fileName} in ${backoffMs}ms (attempt ${media.retryCount}/${this.settings.maxRetries})`);
+        await this.delay(backoffMs);
+        media.syncState = "pending";
         return this.uploadMedia(obs, media);
       }
       
@@ -631,7 +783,6 @@ class OfflineSyncService {
     const completed = Array.from(this.observations.entries())
       .filter(([_, obs]) => obs.syncState === "complete");
     
-    // Delete local media files only for fully completed observations
     for (const [id, obs] of completed) {
       for (const media of obs.media) {
         if (media.localUri && media.syncState === "complete" && media.remoteUrl) {
@@ -642,7 +793,6 @@ class OfflineSyncService {
               if (__DEV__) console.log("[OfflineSync] Cleaned up local file:", media.localUri);
             }
           } catch (error) {
-            // Non-critical - file cleanup failed but sync is complete
             if (__DEV__) console.warn("[OfflineSync] Failed to clean up file:", error);
           }
         }
@@ -653,6 +803,16 @@ class OfflineSyncService {
     await this.persist();
     this.emit("stateChanged");
   }
+
+  getAutoRetryInfo(): { attempts: number; maxAttempts: number; isScheduled: boolean } {
+    return {
+      attempts: this.autoRetryAttempts,
+      maxAttempts: AUTO_RETRY_MAX_ATTEMPTS,
+      isScheduled: !!this.autoRetryTimer,
+    };
+  }
 }
+
+const SYNC_SETTINGS_KEY = STORAGE_KEYS.SYNC_SETTINGS;
 
 export const offlineSyncService = new OfflineSyncService();
