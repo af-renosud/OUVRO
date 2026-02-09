@@ -1,126 +1,53 @@
 # OUVRO - Mobile Companion App
 
 ## Overview
-OUVRO is a responsive mobile companion app (iOS/Android) built with Expo and React Native, designed for architects and project managers to capture media-rich site observations. It features annotation capabilities, automatic transcription, translation, and dual branding (OUVRO + Architects-France). The app integrates with the ARCHIDOC system for project data and file management, streamlining on-site documentation and communication.
+OUVRO is a mobile companion app for architects and project managers, built with Expo/React Native, designed for on-site documentation. It integrates with the ARCHIDOC construction management platform, enabling media capture, annotation, transcription, translation, and synchronization of field observations. The app supports dual branding (OUVRO + Architects-France) and aims to streamline on-site reporting workflows.
 
 ## User Preferences
-I prefer simple language and iterative development. Ask before making major changes. I prefer detailed explanations.
+- Simple language and iterative development
+- Ask before making major changes
+- Detailed explanations preferred
 
 ## System Architecture
-The application uses an Expo SDK 54, React Native frontend with React Navigation 7. The backend is an Express.js server with TypeScript, utilizing PostgreSQL with Drizzle ORM. AI capabilities for transcription and translation are powered by Gemini AI. The UI/UX adheres to an iOS 26 Liquid Glass design aesthetic with a specific color palette (Primary Dark Blue: #0B2545, Accent: #319795, Error: #EA526F, Success: #10B981, Background: #F8F9FA, Text: #2D3748) and ensures touch targets of 48-56pt minimum.
 
-Key features include:
-- **3-tab navigation**: Projects, Queue, Settings (simplified from 4 tabs).
-- **Floating capture button**: Central FAB for quick observation capture.
-- **Media Capture**: Photo, video, and audio capture with device permissions, retake options, and waveform visualization for audio.
-- **Observation Workflow**: Capture media, add title/description, transcribe audio (English), translate to French.
-- **Sync Queue**: Manual sync control, view pending observations, share via WhatsApp/SMS.
-- **Project Management**: Browse projects, tap to access Project Asset Hub directly.
-- **Dual Branding**: ARCHIDOC and Architects-France branding in the header.
-- **Project Asset Hub**: Tap a project to see a 2x3 grid with 6 large buttons:
-    - **PLANS**: Browse plans & drawings (category: "plans").
-    - **DQE**: DQE item list with lot and contractor filtering.
-    - **DOCS**: Browse general documents (category: "general").
-    - **LINKS**: Modal with external links (Photos du Site, Modèles 3D, Visite 3D).
-    - **FICHES**: View all DQE item attachments.
-    - **DRIVE**: Opens project Google Drive folder.
-- **File Viewer**: View PDFs and images with zoom.
-- **Annotations**: Draw markups on images (pen, arrow, shapes, text, measurement) with French construction standard colors, saving annotations by flattening them onto the image.
-- **PDF Clip-to-Annotate**: While viewing PDFs, architects can pinch/zoom to the desired area, tap "Capture for Annotation" to capture the current view as an image, annotate it, and save. Supports taking multiple clips from a single PDF.
+### UI/UX Decisions
+- **Color Palette:** Primary Dark Blue (`#0B2545`), Medium Blue (`#4299E1`), Accent Teal (`#319795`), Coral Red (`#EA526F` for FAB), Success Green (`#10B981`), Warning Orange (`#DD6B20`), Tab Icon Amber (`#F59E0B`).
+- **Typography Scale:** Defined hierarchy from `hero` (34px, 700) to `caption` (13px, 400).
+- **Touch Targets:** Minimum 48pt, preferred 56pt, with a 92px diameter Floating Action Button (FAB).
+- **Shadows:** Platform-specific implementations (`boxShadow` for web, native `shadow*` for iOS/Android) for cards, modals, and FAB.
+- **Dual Branding:** Custom header component `HeaderTitle.tsx` handles "OUVRO" and "Architects-France" logos.
 
-The application structure separates client (navigation, screens, components, constants, lib), server (routes, storage, index), and shared (schema) concerns.
+### Technical Implementations
+- **Frontend:** Expo SDK 54 and React Native for cross-platform mobile development.
+- **Navigation:** React Navigation 7+ using native stack and bottom tabs.
+- **Data Fetching:** TanStack Query for efficient data management and caching.
+- **Backend:** Express.js server (TypeScript) serving an API on port 5000 and a static landing page.
+- **Database:** PostgreSQL with Drizzle ORM for local data persistence, hosted on Neon.
+- **Offline Sync:** Observations and media stored locally using AsyncStorage, with a manual sync mechanism. States include pending, uploading_metadata, uploading_media, partial, complete, failed.
+- **Annotation System:** In-app annotation tools (pen, arrow, circle, rectangle, freehand, text, measurement) with construction-standard colors. Supports pinch-to-zoom and flattens annotations onto images.
+- **PDF Viewing:** PDFs rendered in `react-native-webview` with a "Capture for Annotation" feature. iOS uses native screenshot detection for clipping.
+- **API Field Mapping:** Extensive mapping logic in `archidoc-api.ts` to convert snake_case API responses to camelCase for app consistency, including resilience for multiple field name variants.
+
+### Feature Specifications
+- **Observation Capture:** Floating capture button (FAB) for Photo, Video, or Audio. Includes observation details form, Gemini AI-powered transcription (audio to English) and translation (to French).
+- **Project Asset Hub:** A 2x3 grid of buttons (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE) with dynamic enablement logic based on project data availability.
+- **DQE Browser:** Displays DQE items, filterable by lot code or contractor (data fetched from `/api/contractors`).
+
+### System Design Choices
+- **Modularity:** Clear separation of concerns with dedicated folders for components, hooks, libraries, navigation, and screens.
+- **Environment Management:** Utilizes Expo environment variables for API URLs and secrets for database credentials and AI keys.
+- **Error Handling:** App-wide `ErrorBoundary.tsx` with a `ErrorFallback.tsx` UI for graceful error management.
+- **Keyboard Avoidance:** `KeyboardAwareScrollViewCompat.tsx` for optimal input experience.
 
 ## External Dependencies
-- **ARCHIDOC API**: `https://archidoc-app-archidoc.replit.app` (production) for project data, file listing, file download URLs, and observation syncing. Configurable via `EXPO_PUBLIC_ARCHIDOC_API_URL`.
-    - `GET /api/ouvro/projects` (project list)
-    - `GET /api/ouvro/projects/{projectId}` (single project with DQE items)
-    - `GET /api/archive/files?projectId={id}&category={cat}`
-    - `GET /api/archive/files/{objectId}`
-    - `POST /api/uploads/request-url`
-    - `POST /api/archive/files`
-    - `POST /api/field-observations` (for syncing observations)
-- **Gemini AI**: Integrated for audio transcription (English to text) and text translation (to French).
-- **PostgreSQL**: Database used with Drizzle ORM.
-- **Expo**: For development and building mobile applications.
-- **React Native**: For UI development.
-- **React Navigation**: For screen navigation.
-- **expo-mail-composer**: For email sharing functionality.
-- **expo-sharing**: For sharing files via WhatsApp/SMS.
-- **react-native-svg**: For vector graphics.
-- **react-native-webview**: For displaying PDFs.
-- **react-native-view-shot**: For capturing views as images (used in annotations).
 
-## ARCHIDOC API Field Mappings
-
-### File API (snake_case → camelCase)
-ARCHIDOC `/api/archive/files` returns snake_case. OUVRO transforms in `fetchProjectFiles()`:
-- `object_id` → `objectId`
-- `object_name` → `objectName`
-- `original_name` → `originalName`
-- `content_type` → `contentType`
-- `project_id` → `projectId`
-- `uploaded_at` → `createdAt`
-
-Response format: `{ files: [...] }` (wrapped array)
-
-### DQE Item Fields (ARCHIDOC → OUVRO mapping in `archidoc-api.ts`)
-- `lotNumber` → `lotCode` - lot identifier (e.g., "GO", "VRD", "SO")
-- `lotName` - full lot name (e.g., "GROS OEUVRE MAÇONNERIE")
-- `description` or `title` → `description` - work item description
-- `category` → `zone` - building location/category
-- `tags` - array of tag strings
-- `internalNotes` → `notes` - optional notes (array of `{ text }`)
-- `projectAttachments` → `attachments` - actual file attachments (ARCHIDOC uses `projectAttachments`, not `attachments`)
-  - Format: `{ id, name, url, type }`
-- Project-level `lotContractors` maps lot codes to contractor IDs (items don't have individual contractor assignments)
-
-### File Category Values
-| Screen | Category Query |
-|--------|---------------|
-| PlansScreen | `plans` |
-| DocsScreen | `general` |
-| ProjectFilesScreen | `00` - `08` (Loi MOP phases) |
-
-## Recent Changes (January 3, 2026)
-- **Pinch-to-zoom for image annotations**: Added zoom functionality to AnnotationScreen for image files:
-  - Tap the zoom icon (magnifying glass) in the toolbar to toggle zoom mode
-  - In zoom mode: pinch to zoom (0.5x-5x), drag to pan, double-tap to reset
-  - Tool buttons are dimmed and disabled in zoom mode - tap any tool to exit zoom mode
-  - Zoom is automatically reset before saving to ensure full image is captured
-- **iOS PDF Screenshot-to-Annotate**: Enabled PDF annotation on iOS using native screenshot detection:
-  - When viewing PDFs on iOS, users see a hint: "Pinch to zoom, then take a screenshot to annotate"
-  - Uses `expo-screen-capture` to detect when user takes a native screenshot (Power + Volume Up)
-  - Uses `expo-media-library` to retrieve the screenshot from the camera roll
-  - Automatically navigates to Annotation screen with the captured image
-  - Requires photo library permission (requested on first use)
-- **Pre-deployment audit completed**: All critical issues resolved for production release
-- **CrossPlatformImage component**: Created to handle expo-image web compatibility issues, forwards onLoad/onError callbacks
-- **Shadow props updated**: Platform-specific implementation using boxShadow for web and native shadow* props for iOS/Android
-- **Debug logging production-safe**: All console.log statements gated with __DEV__ to prevent production logging
-- **Simplified navigation to 3 tabs**: Removed Files tab, now Projects/Queue/Settings only
-- **New ProjectAssetHubScreen**: Tapping a project now opens a 2x3 grid with 6 large buttons (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE)
-- **Removed FilesScreen**: No longer needed with new direct-access Asset Hub design
-- **Updated ProjectsScreen routing**: Now navigates directly to ProjectAssetHub on project tap
-
-## Changes (January 2, 2026)
-- **Fixed DQE Browser contractor display**: Contractor chips now show company names (fetched from `/api/contractors` endpoint) instead of UUID codes
-- **Fixed DQE lot filtering**: Selecting different lots (GO, SO, VRD) now correctly shows items for each lot - fixed by applying only the active filter (lot OR contractor) instead of both simultaneously
-- Fixed file access: snake_case → camelCase field mapping for `/api/archive/files`
-- Fixed DQE Browser: `designation` → `description` field name
-- Added DQE fields: `zone`, `stageCode`, `tags`, `assignedContractorId`
-- Contractor lookup uses `lotContractors` mapping from project data
-- Fixed iOS dictation duplicate text bug with smart detection algorithm
-- Fixed React key warnings in DQE Browser list items
-- **Fixed DQE attachment (Fiches) stale URL issue**: Now fetches fresh signed URLs via `/api/archive/files/{objectId}` before opening files, with fallback to stored `fileUrl` if fresh URL unavailable
-- **Extended annotation tools**: Now available across all usage points:
-  - FichesScreen: Images open directly in annotation screen
-  - ObservationDetailsScreen: Captured photos can be annotated with tap-to-annotate UI
-  - PlansScreen/DocsScreen: Images open directly in annotation screen
-  - FileViewerScreen: Images have annotate button in header
-  - ProjectFilesScreen: Routes through FileViewer with annotation access
-- **Fixed iOS annotation tool crash**: Wrapped gesture handler state updates with `runOnJS` from react-native-reanimated to prevent cross-thread violations
-- **Fixed annotation save failure**: Updated `expo-file-system` import to use legacy API for SDK 54 compatibility
-- **Added PDF Clip-to-Annotate**: FileViewerScreen now shows a "Capture for Annotation" button when viewing PDFs, allowing architects to pinch/zoom and capture the current view for annotation. Uses `captureScreen()` with status bar and UI chrome hidden during capture for clean PDF-only screenshots. Note: Feature disabled on iOS due to Quick Look rendering limitations.
-- **Fixed annotation save API**: Updated ARCHIDOC upload API call to use correct field names (`name` instead of `fileName`, `uploadURL` instead of `uploadUrl`) and use dynamic `bucketName`/`objectName` from response.
-
-**Note:** Files uploaded before January 2, 2026 may have empty `category`/`projectId` and won't appear in filtered queries.
+- **ARCHIDOC API:** `https://archidoc-app-archidoc.replit.app` - Core construction management platform API for projects, files, uploads, and field observations.
+- **PostgreSQL (Neon):** Primary database for the Express.js backend, managed by Drizzle ORM.
+- **Gemini AI:** Used for audio transcription (audio to English text) and translation (to French text) services.
+- **TanStack Query:** Client-side data fetching and state management.
+- **React Navigation:** Library for navigation in React Native applications.
+- **AsyncStorage:** For local persistence of observation queues and media references in the mobile app.
+- **`react-native-webview`:** For rendering PDFs and web content within the app.
+- **`expo-image`:** For cross-platform image handling.
+- **`expo-screen-capture` & `expo-media-library`:** Used on iOS for PDF clip-to-annotate functionality.
+- **`react-native-reanimated`:** For gesture handling in annotation system.
