@@ -211,9 +211,11 @@ function setupErrorHandler(app: express.Application) {
     const status = error.status || error.statusCode || 500;
     const message = error.message || "Internal Server Error";
 
-    res.status(status).json({ message });
+    console.error(`[ErrorHandler] ${status}: ${message}`, err);
 
-    throw err;
+    if (!res.headersSent) {
+      res.status(status).json({ message });
+    }
   });
 }
 
