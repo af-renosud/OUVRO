@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   FlatList,
@@ -7,12 +7,14 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { Card } from "@/components/Card";
@@ -84,11 +86,37 @@ function MediaProgress({ observation }: { observation: OfflineObservation }) {
   );
 }
 
+function SyncSuccessBanner({ count, onClear }: { count: number; onClear: () => void }) {
+  const { theme } = useTheme();
+  
+  if (count === 0) return null;
+  
+  return (
+    <View style={[styles.successBanner, { backgroundColor: `${BrandColors.success}15` }]}>
+      <View style={styles.successBannerContent}>
+        <Feather name="check-circle" size={18} color={BrandColors.success} />
+        <ThemedText style={[styles.successBannerText, { color: BrandColors.success }]}>
+          {count} observation{count > 1 ? "s" : ""} synced successfully
+        </ThemedText>
+      </View>
+      <Pressable 
+        style={[styles.clearButton, { backgroundColor: `${BrandColors.success}20` }]}
+        onPress={onClear}
+      >
+        <ThemedText style={[styles.clearButtonText, { color: BrandColors.success }]}>
+          Clear
+        </ThemedText>
+      </Pressable>
+    </View>
+  );
+}
+
 export default function QueueScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const previousSyncingRef = useRef(false);
   
   const {
     observations,
@@ -100,39 +128,90 @@ export default function QueueScreen() {
     cancelSync,
     retryObservation,
     removeObservation,
+    clearCompleted,
   } = useOfflineSync();
 
-  const handleSync = async (observation: OfflineObservation) => {
+  const completedObservations = observations.filter((obs) => obs.syncState === "complete");
+  const pendingObservations = observations.filter((obs) => obs.syncState !== "complete");
+
+  useEffect(() => {
+    if (previousSyncingRef.current && !isSyncing && pendingCount === 0 && completedObservations.length > 0) {
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    }
+    previousSyncingRef.current = isSyncing;
+  }, [isSyncing, pendingCount, completedObservations.length]);
+
+  const handleSync = useCallback(async (observation: OfflineObservation) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
     if (observation.syncState === "failed") {
       await retryObservation(observation.localId);
     } else {
       await startSync();
     }
-  };
+  }, [retryObservation, startSync]);
 
-  const handleSyncAll = async () => {
+  const handleSyncAll = useCallback(async () => {
     if (!isNetworkAvailable) {
       Alert.alert("No Connection", "Please connect to the internet to sync observations.");
       return;
     }
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
     await startSync();
-  };
+  }, [isNetworkAvailable, startSync]);
 
-  const handleCancelSync = () => {
+  const handleCancelSync = useCallback(() => {
     Alert.alert("Cancel Sync", "Are you sure you want to cancel the current sync?", [
       { text: "Continue Syncing", style: "cancel" },
       { text: "Cancel Sync", style: "destructive", onPress: cancelSync },
     ]);
-  };
+  }, [cancelSync]);
 
-  const handleDelete = (localId: string) => {
-    Alert.alert("Delete Observation", "Are you sure you want to delete this observation?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => removeObservation(localId) },
-    ]);
-  };
+  const handleDelete = useCallback((localId: string) => {
+    Alert.alert(
+      "Delete Observation",
+      "This will permanently delete the observation and its media from your device. This cannot be undone.",
+      [
+        { text: "Keep", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive", 
+          onPress: () => {
+            if (Platform.OS !== "web") {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            }
+            removeObservation(localId);
+          },
+        },
+      ]
+    );
+  }, [removeObservation]);
 
-  const handleShare = (observation: OfflineObservation) => {
+  const handleClearCompleted = useCallback(() => {
+    Alert.alert(
+      "Clear Synced Observations",
+      `Remove ${completedObservations.length} synced observation${completedObservations.length > 1 ? "s" : ""} from this list? They are safely stored in ARCHIDOC.`,
+      [
+        { text: "Keep", style: "cancel" },
+        { 
+          text: "Clear", 
+          onPress: () => {
+            clearCompleted();
+            if (Platform.OS !== "web") {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+          },
+        },
+      ]
+    );
+  }, [completedObservations.length, clearCompleted]);
+
+  const handleShare = useCallback((observation: OfflineObservation) => {
     const mediaItems: MediaItem[] = observation.media.map((m) => ({
       type: m.type,
       uri: m.localUri,
@@ -151,7 +230,7 @@ export default function QueueScreen() {
       projectName: observation.projectName,
       contractorName: observation.contractorName,
     });
-  };
+  }, [navigation]);
 
   const getSyncStateInfo = (state: ObservationSyncState): { color: string; icon: keyof typeof Feather.glyphMap; label: string } => {
     switch (state) {
@@ -174,12 +253,17 @@ export default function QueueScreen() {
   const renderObservation = ({ item }: { item: OfflineObservation }) => {
     const stateInfo = getSyncStateInfo(item.syncState);
     const isCurrentlySyncing = item.syncState === "uploading_metadata" || item.syncState === "uploading_media";
+    const isComplete = item.syncState === "complete";
     
     return (
-      <Card style={styles.observationCard}>
+      <Card style={isComplete ? { ...styles.observationCard, ...styles.completedCard } : styles.observationCard}>
         <View style={styles.observationHeader}>
-          <View style={styles.thumbnailPlaceholder}>
-            <Feather name="file-text" size={24} color={BrandColors.primary} />
+          <View style={[styles.thumbnailPlaceholder, isComplete && { backgroundColor: `${BrandColors.success}15` }]}>
+            <Feather 
+              name={isComplete ? "check-circle" : "file-text"} 
+              size={24} 
+              color={isComplete ? BrandColors.success : BrandColors.primary} 
+            />
           </View>
           <View style={styles.observationInfo}>
             <ThemedText style={styles.observationTitle}>{item.title}</ThemedText>
@@ -189,6 +273,11 @@ export default function QueueScreen() {
             {item.media.length > 0 ? (
               <ThemedText style={[styles.mediaCount, { color: theme.textTertiary }]}>
                 {item.media.length} attachment{item.media.length > 1 ? "s" : ""}
+              </ThemedText>
+            ) : null}
+            {isComplete && item.syncCompletedAt ? (
+              <ThemedText style={[styles.syncTimestamp, { color: BrandColors.success }]}>
+                Synced {new Date(item.syncCompletedAt).toLocaleString()}
               </ThemedText>
             ) : null}
           </View>
@@ -211,63 +300,81 @@ export default function QueueScreen() {
           </ThemedText>
         ) : null}
 
-        {item.lastSyncError ? (
+        {item.lastSyncError && !isComplete ? (
           <View style={[styles.errorBanner, { backgroundColor: `${BrandColors.error}20` }]}>
             <Feather name="alert-circle" size={14} color={BrandColors.error} />
-            <ThemedText style={[styles.errorText, { color: BrandColors.error }]} numberOfLines={1}>
+            <ThemedText style={[styles.errorText, { color: BrandColors.error }]} numberOfLines={2}>
               {item.lastSyncError}
             </ThemedText>
           </View>
         ) : null}
 
+        {item.retryCount > 0 && !isComplete ? (
+          <ThemedText style={[styles.retryCountText, { color: theme.textTertiary }]}>
+            Retry attempts: {item.retryCount}/10
+          </ThemedText>
+        ) : null}
+
         <View style={styles.actionButtons}>
-          <Pressable
-            style={[styles.actionButton, { backgroundColor: "#10B981" }]}
-            onPress={() => handleShare(item)}
-          >
-            <Feather name="share-2" size={16} color="#FFFFFF" />
-            <ThemedText style={styles.actionButtonText}>Share</ThemedText>
-          </Pressable>
-          
-          {item.syncState === "failed" || item.syncState === "partial" ? (
+          {!isComplete ? (
+            <>
+              <Pressable
+                style={[styles.actionButton, { backgroundColor: "#10B981" }]}
+                onPress={() => handleShare(item)}
+              >
+                <Feather name="share-2" size={16} color="#FFFFFF" />
+                <ThemedText style={styles.actionButtonText}>Share</ThemedText>
+              </Pressable>
+              
+              {item.syncState === "failed" || item.syncState === "partial" ? (
+                <Pressable
+                  style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+                  onPress={() => handleSync(item)}
+                  disabled={!isNetworkAvailable}
+                >
+                  <Feather name="refresh-cw" size={16} color="#FFFFFF" />
+                  <ThemedText style={styles.actionButtonText}>Retry</ThemedText>
+                </Pressable>
+              ) : item.syncState === "pending" ? (
+                <Pressable
+                  style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+                  onPress={() => handleSync(item)}
+                  disabled={!isNetworkAvailable || isSyncing}
+                >
+                  <Feather name="upload-cloud" size={16} color="#FFFFFF" />
+                  <ThemedText style={styles.actionButtonText}>Sync</ThemedText>
+                </Pressable>
+              ) : isCurrentlySyncing ? (
+                <View style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}>
+                  <ActivityIndicator size="small" color={BrandColors.primary} />
+                  <ThemedText style={[styles.actionButtonText, { color: BrandColors.primary }]}>
+                    Syncing...
+                  </ThemedText>
+                </View>
+              ) : null}
+              
+              <Pressable
+                style={[styles.actionButtonIcon, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={() => handleDelete(item.localId)}
+              >
+                <Feather name="trash-2" size={18} color={BrandColors.error} />
+              </Pressable>
+            </>
+          ) : (
             <Pressable
-              style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
-              onPress={() => handleSync(item)}
-              disabled={!isNetworkAvailable}
+              style={[styles.actionButton, { backgroundColor: "#10B981" }]}
+              onPress={() => handleShare(item)}
             >
-              <Feather name="refresh-cw" size={16} color="#FFFFFF" />
-              <ThemedText style={styles.actionButtonText}>Retry</ThemedText>
+              <Feather name="share-2" size={16} color="#FFFFFF" />
+              <ThemedText style={styles.actionButtonText}>Share</ThemedText>
             </Pressable>
-          ) : item.syncState === "pending" ? (
-            <Pressable
-              style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
-              onPress={() => handleSync(item)}
-              disabled={!isNetworkAvailable || isSyncing}
-            >
-              <Feather name="upload-cloud" size={16} color="#FFFFFF" />
-              <ThemedText style={styles.actionButtonText}>Sync</ThemedText>
-            </Pressable>
-          ) : isCurrentlySyncing ? (
-            <View style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}>
-              <ActivityIndicator size="small" color={BrandColors.primary} />
-              <ThemedText style={[styles.actionButtonText, { color: BrandColors.primary }]}>
-                Syncing...
-              </ThemedText>
-            </View>
-          ) : null}
-          
-          <Pressable
-            style={[styles.actionButtonIcon, { backgroundColor: theme.backgroundSecondary }]}
-            onPress={() => handleDelete(item.localId)}
-          >
-            <Feather name="trash-2" size={18} color={BrandColors.error} />
-          </Pressable>
+          )}
         </View>
       </Card>
     );
   };
 
-  const pendingObservations = observations.filter((obs) => obs.syncState !== "complete");
+  const allObservations = [...pendingObservations, ...completedObservations];
 
   return (
     <BackgroundView style={styles.container}>
@@ -284,6 +391,8 @@ export default function QueueScreen() {
         ) : null}
         
         <SyncProgressBar progress={syncProgress.overallProgress} isActive={isSyncing} />
+        
+        <SyncSuccessBanner count={completedObservations.length} onClear={handleClearCompleted} />
         
         {pendingCount > 0 ? (
           <View style={styles.headerActions}>
@@ -315,7 +424,7 @@ export default function QueueScreen() {
       </View>
 
       <FlatList
-        data={pendingObservations}
+        data={allObservations}
         renderItem={renderObservation}
         keyExtractor={(item) => item.localId}
         contentContainerStyle={[
@@ -389,6 +498,36 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: Spacing.xs,
   },
+  successBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.md,
+    width: "100%",
+  },
+  successBannerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  successBannerText: {
+    ...Typography.bodySmall,
+    fontWeight: "600",
+  },
+  clearButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    marginLeft: Spacing.sm,
+  },
+  clearButtonText: {
+    ...Typography.label,
+    fontWeight: "600",
+  },
   syncAllButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -408,6 +547,9 @@ const styles = StyleSheet.create({
   observationCard: {
     padding: Spacing.md,
     marginBottom: Spacing.md,
+  },
+  completedCard: {
+    opacity: 0.85,
   },
   observationHeader: {
     flexDirection: "row",
@@ -435,6 +577,10 @@ const styles = StyleSheet.create({
   },
   mediaCount: {
     ...Typography.bodySmall,
+    marginTop: 2,
+  },
+  syncTimestamp: {
+    ...Typography.caption,
     marginTop: 2,
   },
   syncBadge: {
@@ -490,6 +636,10 @@ const styles = StyleSheet.create({
   errorText: {
     ...Typography.bodySmall,
     flex: 1,
+  },
+  retryCountText: {
+    ...Typography.caption,
+    marginBottom: Spacing.xs,
   },
   actionButtons: {
     flexDirection: "row",

@@ -61,6 +61,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerChatRoutes(app);
   registerImageRoutes(app);
 
+  app.get("/api/health", (_req: Request, res: Response) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString(), uptime: process.uptime() });
+  });
+
   app.get("/api/projects", async (req: Request, res: Response) => {
     try {
       const projects = await storage.getProjects();
