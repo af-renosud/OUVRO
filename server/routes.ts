@@ -14,6 +14,49 @@ const ai = new GoogleGenAI({
   },
 });
 
+const ARCHIDOC_TIMEOUT_MS = 15000;
+const ARCHIDOC_UPLOAD_TIMEOUT_MS = 60000;
+
+function archidocFetch(url: string, options: RequestInit & { timeout?: number } = {}): Promise<globalThis.Response> {
+  const timeoutMs = options.timeout || ARCHIDOC_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  return fetch(url, {
+    ...options,
+    signal: controller.signal,
+  }).then((response) => {
+    clearTimeout(timeoutId);
+    return response;
+  }).catch((error) => {
+    clearTimeout(timeoutId);
+    if (error.name === "AbortError") {
+      throw new Error(`ARCHIDOC request timed out after ${timeoutMs / 1000}s: ${url}`);
+    }
+    throw error;
+  });
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && (
+    error.message.includes("timed out") ||
+    error.name === "AbortError"
+  );
+}
+
+function formatServerError(error: unknown, context: string): { status: number; message: string } {
+  if (isTimeoutError(error)) {
+    console.error(`[${context}] Timeout:`, error);
+    return { status: 504, message: `ARCHIDOC server took too long to respond. Please retry.` };
+  }
+  if (error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("network"))) {
+    console.error(`[${context}] Network error:`, error);
+    return { status: 503, message: `Cannot reach ARCHIDOC server. Please retry shortly.` };
+  }
+  console.error(`[${context}] Error:`, error);
+  return { status: 500, message: `${context} failed. Please retry.` };
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   registerChatRoutes(app);
   registerImageRoutes(app);
@@ -253,7 +296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
       }
 
-      const response = await fetch(`${archidocApiUrl}/api/field-observations/upload-url`, {
+      const response = await archidocFetch(`${archidocApiUrl}/api/field-observations/upload-url`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -270,8 +313,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = await response.json();
       res.json(data);
     } catch (error) {
-      console.error("Error getting upload URL:", error);
-      res.status(500).json({ error: "Failed to get upload URL" });
+      const { status, message } = formatServerError(error, "Upload URL request");
+      res.status(status).json({ error: message });
     }
   });
 
@@ -286,7 +329,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[Proxy Upload] Starting upload for ${assetType}: ${fileName}`);
 
-      const urlResponse = await fetch(`${archidocApiUrl}/api/field-observations/upload-url`, {
+      const urlResponse = await archidocFetch(`${archidocApiUrl}/api/field-observations/upload-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileName, contentType, assetType }),
@@ -304,10 +347,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileBuffer = Buffer.from(fileBase64, "base64");
       console.log(`[Proxy Upload] Uploading ${fileBuffer.length} bytes to storage...`);
 
-      const uploadResponse = await fetch(uploadURL, {
+      const uploadResponse = await archidocFetch(uploadURL, {
         method: "PUT",
         headers: { "Content-Type": contentType },
         body: fileBuffer,
+        timeout: ARCHIDOC_UPLOAD_TIMEOUT_MS,
       });
 
       if (!uploadResponse.ok) {
@@ -318,7 +362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[Proxy Upload] Upload successful, registering asset...`);
 
-      const registerResponse = await fetch(`${archidocApiUrl}/api/field-observations/${observationId}/assets`, {
+      const registerResponse = await archidocFetch(`${archidocApiUrl}/api/field-observations/${observationId}/assets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assetType, objectPath, fileName, mimeType: contentType }),
@@ -335,8 +379,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ success: true, asset: assetData, objectPath });
     } catch (error) {
-      console.error("[Proxy Upload] Exception:", error);
-      res.status(500).json({ error: "Failed to upload file" });
+      const { status, message } = formatServerError(error, "Proxy Upload");
+      res.status(status).json({ error: message });
     }
   });
 
@@ -349,7 +393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
       }
 
-      const response = await fetch(`${archidocApiUrl}/api/field-observations/${observationId}/assets`, {
+      const response = await archidocFetch(`${archidocApiUrl}/api/field-observations/${observationId}/assets`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -366,8 +410,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = await response.json();
       res.json(data);
     } catch (error) {
-      console.error("Error registering asset:", error);
-      res.status(500).json({ error: "Failed to register asset" });
+      const { status, message } = formatServerError(error, "Register asset");
+      res.status(status).json({ error: message });
     }
   });
 
@@ -398,7 +442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("[CreateObs] Sending to ARCHIDOC:", JSON.stringify(archidocPayload));
 
-      const archidocResponse = await fetch(`${archidocApiUrl}/api/field-observations`, {
+      const archidocResponse = await archidocFetch(`${archidocApiUrl}/api/field-observations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(archidocPayload),
@@ -415,8 +459,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ archidocObservationId: archidocResult.id });
     } catch (error) {
-      console.error("[CreateObs] Error:", error);
-      res.status(500).json({ error: "Failed to create observation in ARCHIDOC" });
+      const { status, message } = formatServerError(error, "Create observation");
+      res.status(status).json({ error: message });
     }
   });
 
@@ -460,7 +504,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let archidocObservationId: number | null = null;
 
       try {
-        const archidocResponse = await fetch(`${archidocApiUrl}/api/field-observations`, {
+        const archidocResponse = await archidocFetch(`${archidocApiUrl}/api/field-observations`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -478,8 +522,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         archidocObservationId = archidocResult.id;
         console.log("Successfully created observation in ARCHIDOC, ID:", archidocObservationId);
       } catch (fetchError) {
-        console.error("ARCHIDOC API unreachable:", fetchError);
-        return res.status(500).json({ error: "ARCHIDOC API unreachable" });
+        const { status, message } = formatServerError(fetchError, "Sync observation");
+        return res.status(status).json({ error: message });
       }
 
       res.json({ 
@@ -488,8 +532,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         observation 
       });
     } catch (error) {
-      console.error("Error syncing observation:", error);
-      res.status(500).json({ error: "Failed to sync observation" });
+      const { status, message } = formatServerError(error, "Sync observation");
+      res.status(status).json({ error: message });
     }
   });
 
