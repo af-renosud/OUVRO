@@ -9,6 +9,8 @@ const STORAGE_KEYS = {
   UPLOAD_PROGRESS: "ouvro_upload_progress",
 };
 
+const SYNC_SETTINGS_KEY = STORAGE_KEYS.SYNC_SETTINGS;
+
 export type MediaSyncState = "pending" | "uploading" | "complete" | "failed";
 
 export interface OfflineMedia {
@@ -812,7 +814,5 @@ class OfflineSyncService {
     };
   }
 }
-
-const SYNC_SETTINGS_KEY = STORAGE_KEYS.SYNC_SETTINGS;
 
 export const offlineSyncService = new OfflineSyncService();

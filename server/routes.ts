@@ -181,6 +181,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/observations/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      const existing = await storage.getObservation(id);
+      if (!existing) {
+        return res.status(204).send();
+      }
       await storage.deleteObservation(id);
       res.status(204).send();
     } catch (error) {
