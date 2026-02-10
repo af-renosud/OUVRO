@@ -5,6 +5,7 @@ import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { Feather } from "@expo/vector-icons";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
@@ -23,13 +24,24 @@ export default function VideoCaptureScreen() {
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [capturedVideoUri, setCapturedVideoUri] = useState<string | null>(null);
+  const [finalDuration, setFinalDuration] = useState(0);
   const [facing, setFacing] = useState<"front" | "back">("back");
   const cameraRef = useRef<CameraView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const durationRef = useRef(0);
 
   const isLandscape = width > height;
   const isPhone = width < 500;
   const buttonSize = isPhone ? 64 : 80;
+
+  const videoSource = capturedVideoUri || "";
+  const player = useVideoPlayer(videoSource, (p: any) => {
+    if (capturedVideoUri) {
+      p.loop = true;
+      p.play();
+    }
+  });
 
   useEffect(() => {
     return () => {
@@ -49,7 +61,9 @@ export default function VideoCaptureScreen() {
     if (cameraRef.current) {
       setIsRecording(true);
       setRecordingDuration(0);
+      durationRef.current = 0;
       timerRef.current = setInterval(() => {
+        durationRef.current += 1;
         setRecordingDuration((d) => d + 1);
       }, 1000);
       
@@ -59,11 +73,8 @@ export default function VideoCaptureScreen() {
           maxFileSize: 50 * 1024 * 1024,
         });
         if (video) {
-          navigation.navigate("ObservationDetails", {
-            projectId,
-            projectName,
-            mediaItems: [{ type: "video", uri: video.uri, duration: recordingDuration }],
-          });
+          setCapturedVideoUri(video.uri);
+          setFinalDuration(durationRef.current);
         }
       } catch (error) {
         console.error("Error recording video:", error);
@@ -79,6 +90,22 @@ export default function VideoCaptureScreen() {
         clearInterval(timerRef.current);
       }
     }
+  };
+
+  const handleUseVideo = () => {
+    if (capturedVideoUri) {
+      navigation.navigate("ObservationDetails", {
+        projectId,
+        projectName,
+        mediaItems: [{ type: "video", uri: capturedVideoUri, duration: finalDuration }],
+      });
+    }
+  };
+
+  const handleDiscard = () => {
+    setCapturedVideoUri(null);
+    setFinalDuration(0);
+    setRecordingDuration(0);
   };
 
   const handleClose = () => {
@@ -119,6 +146,96 @@ export default function VideoCaptureScreen() {
           <ThemedText style={styles.permissionButtonText}>Grant Permission</ThemedText>
         </Pressable>
       </ThemedView>
+    );
+  }
+
+  if (capturedVideoUri) {
+    if (isLandscape) {
+      return (
+        <View style={styles.landscapeContainer}>
+          <View style={[styles.landscapeTopBar, { paddingTop: insets.top + Spacing.sm, paddingLeft: insets.left + Spacing.md }]}>
+            <Pressable style={styles.closeButton} onPress={handleClose}>
+              <Feather name="x" size={28} color="#FFFFFF" />
+            </Pressable>
+            <View style={[styles.recordingIndicator, { marginLeft: Spacing.md }]}>
+              <Feather name="film" size={14} color="#FFFFFF" />
+              <ThemedText style={styles.recordingTime}>
+                {formatDuration(finalDuration)}
+              </ThemedText>
+            </View>
+          </View>
+          
+          <View style={styles.landscapeMain}>
+            <VideoView
+              style={styles.camera}
+              player={player}
+              contentFit="contain"
+              nativeControls={false}
+            />
+          </View>
+
+          <View style={[styles.landscapeSideControls, { paddingRight: insets.right + Spacing.md }]}>
+            <Pressable
+              style={[styles.actionButton, { backgroundColor: "rgba(255,255,255,0.2)" }]}
+              onPress={handleDiscard}
+            >
+              <Feather name="trash-2" size={22} color="#FFFFFF" />
+            </Pressable>
+            <Pressable
+              style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+              onPress={handleUseVideo}
+            >
+              <Feather name="check" size={22} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.container}>
+        <VideoView
+          style={styles.previewVideo}
+          player={player}
+          contentFit="contain"
+          nativeControls={false}
+        />
+        <View style={[styles.previewOverlay, { paddingTop: insets.top + Spacing.md }]}>
+          <Pressable style={styles.closeButton} onPress={handleClose}>
+            <Feather name="x" size={28} color="#FFFFFF" />
+          </Pressable>
+          <View style={styles.recordingIndicator}>
+            <Feather name="film" size={14} color="#FFFFFF" />
+            <ThemedText style={styles.recordingTime}>
+              {formatDuration(finalDuration)}
+            </ThemedText>
+          </View>
+        </View>
+        <View
+          style={[
+            styles.previewControls,
+            {
+              paddingBottom: Math.max(insets.bottom, 20) + Spacing.lg,
+              backgroundColor: "#0B2545",
+            },
+          ]}
+        >
+          <Pressable
+            style={[styles.actionButton, { backgroundColor: "rgba(255,255,255,0.2)" }]}
+            onPress={handleDiscard}
+          >
+            <Feather name="trash-2" size={22} color="#FFFFFF" />
+            <ThemedText style={styles.actionButtonText}>Discard</ThemedText>
+          </Pressable>
+          <Pressable
+            style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+            onPress={handleUseVideo}
+          >
+            <Feather name="check" size={22} color="#FFFFFF" />
+            <ThemedText style={styles.actionButtonText}>Use Video</ThemedText>
+          </Pressable>
+        </View>
+      </View>
     );
   }
 
@@ -297,6 +414,30 @@ const styles = StyleSheet.create({
   camera: {
     flex: 1,
   },
+  previewVideo: {
+    flex: 1,
+  },
+  previewOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+  },
+  previewControls: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
+  },
   webPlaceholder: {
     flex: 1,
     alignItems: "center",
@@ -398,6 +539,20 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     width: 32,
     height: 32,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    minWidth: 120,
+    justifyContent: "center",
+  },
+  actionButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
   permissionContainer: {
     flex: 1,
