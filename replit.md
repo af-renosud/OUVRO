@@ -51,3 +51,22 @@ OUVRO is a mobile companion app for architects and project managers, built with 
 - **`expo-image`:** For cross-platform image handling.
 - **`expo-screen-capture` & `expo-media-library`:** Used on iOS for PDF clip-to-annotate functionality.
 - **`react-native-reanimated`:** For gesture handling in annotation system.
+- **`expo-clipboard`:** For copy-to-clipboard functionality in the audit prompts section.
+
+## Pre-Deployment Audit System
+
+### Overview
+The Settings screen contains a "Pre-Deployment Audits" section with three expandable audit prompt cards. Each prompt is a detailed, OUVRO-specific instruction set that can be copied to clipboard and pasted into an AI assistant to run the audit.
+
+### Audit Types
+1. **Database Audit** (`client/lib/audit-prompts.ts`) - Validates PostgreSQL schema against `shared/schema.ts`, checks foreign keys, cascade rules, orphaned records, and indexes.
+2. **Application Audit** - Tests all 21 server routes (CRUD, ARCHIDOC proxy, Gemini AI), verifies environment variables, timeout handling, and error responses.
+3. **Data Persistence Audit** - Validates offline sync state machine, AsyncStorage keys, durable media storage, network resilience, and interrupted upload recovery.
+
+### Agent Commands
+- **"update pre-deployment audits"** = Update the audit prompt text in `client/lib/audit-prompts.ts` to reflect any schema, route, or sync logic changes made to the codebase. Re-read the source files (shared/schema.ts, server/routes.ts, client/lib/offline-sync.ts) and regenerate the prompts accordingly.
+- **"RUN REDEPLOYMENT AUDITS"** = Execute all three audit prompts sequentially:
+  1. Run the Database Audit: query the actual PostgreSQL database using the execute_sql tool, compare against shared/schema.ts, and report findings.
+  2. Run the Application Audit: curl each server route on localhost:5000, check env vars, and report status.
+  3. Run the Data Persistence Audit: read client/lib/offline-sync.ts, verify state machine transitions, check AsyncStorage key usage, and report findings.
+  Produce a consolidated report with pass/fail for each category and recommendations.
