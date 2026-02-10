@@ -1,0 +1,589 @@
+ARCHIDOC Database Pre-Deployment Audit (V7.5)
+
+Role: You are a Senior DevOps and Database Engineer.
+
+Objective: Perform a comprehensive pre-deployment audit of the PostgreSQL database (95 tables) to ensure zero downtime and data integrity before deployment. This app contains REAL PRODUCTION DATA protected by DATABASE-FIRST PERSISTENCE PATTERN, STARTUP GUARDS, CENTRALIZED authFetch, SECURITY HARDENING, SHADOW-MODE SECURITY, PARTIAL UPDATE ARCHITECTURE, and BACKGROUND TASK PERSISTENCE.
+
+---
+
+⚠️ CRITICAL SAFETY RULES ⚠️
+
+NEVER execute these commands on production data:
+- npm run db:push --force
+- drizzle-kit push --force
+
+These commands can DELETE DATA if schema has changed. Use only regular "npm run db:push" (without --force).
+
+ALWAYS create a database snapshot in Replit Database panel BEFORE any deployment.
+ALWAYS create a JSON backup via Settings → Data Recovery BEFORE deployment.
+
+---
+
+1. Schema & Migration Audit
+
+- Pending Schema Changes: Compare shared/schema.ts against the current production database tables to identify any pending changes.
+- Destructive Change Detection: Scan the codebase for any changes that would generate:
+  - DROP TABLE / DROP COLUMN
+  - RENAME COLUMN / RENAME TABLE
+  - ALTER COLUMN (type changes)
+  - Changes to PRIMARY KEY ID column types (serial ↔ varchar)
+  
+  If found: STOP and request explicit user confirmation before proceeding.
+
+- Schema Synchronization: Verify all 95 tables in shared/schema.ts exist in the database with matching column types:
+  CORE: projects, dqe_library_items, contractors, suppliers, construction_tasks, grouped_works
+  CCTP: cctp_sections, cctp_clauses, cctp_clause_submissions, cctp_extraction_jobs, cctp_extracted_clauses, cctp_extraction_chunks, cctp_common_templates, cctp_template_versions
+  QUOTATIONS: contractor_quotations, devis_versions, quotation_line_items
+  ACTORS: system_actors, contractor_trades
+  TASKS: shared_tasks
+  WORKFLOW: workflow_planners, workflow_items, workflow_item_resource_assignments
+  WORK MODULES: work_modules, work_module_phases, work_module_deployments
+  FIELD: field_observations, field_observation_assets
+  PRODUCT FINDER: product_finder_sessions, product_finder_messages, product_finder_results
+  DOCUMENTS: document_templates, generated_documents, archived_files, extracted_documents, project_meeting_documents
+  FICHES TECHNIQUES: contractor_info_sheets, contractor_info_sheet_links
+  OUTSOURCING: outsourcing_tasks, outsourcing_resources, outsourcing_messages, outsourcing_deliverables
+  SPECIFICATION BUILDER: specification_fragments, spec_fragment_classification_history, spec_fragment_dqe_links, fragment_dependencies, project_zones
+  SITE SUPERVISION: site_checklists, project_checklists
+  DQE SYSTEM: dqe_library_items, dqe_item_versions, dqe_audit_jobs
+  WORK STAGES: work_stages, project_work_stages
+  DESIGN ENGINE (V7.0): design_buckets, design_snippets, snippet_conceptual_links, specification_seeds, seed_snippet_links
+  PASTE ALBUM (V7.1): paste_album_items (DB table + Object Storage for image files)
+  QUICK NOTES (V7.2): quick_notes (project-scoped rapid notes with optional images)
+  BACKGROUND TASKS (V7.2): background_tasks (persistent AI task tracking)
+  CONTRACTOR COLLABORATION (V7.2): contractor_dqe_notes, contractor_messages (shared DQE feedback)
+  URBANISME (V7.3): urbanisme_document_summaries (AI-generated summaries of planning documents)
+  F&F MODULE (V7.3): ff_item_types, ff_suppliers, ff_manufacturers, ff_items, ff_share_links, ff_decision_history
+  F&F ITEM OPTIONS (V7.5): ff_item_options (multiple product alternatives per fixture item with accept/reject workflow)
+  QUICK SIGN-OFF (V7.5): quick_signoffs, quick_signoff_responses (email-based client approval system)
+  SITE MEETINGS (V7.4): site_meetings, meeting_attendees, meeting_observations, french_technical_snippets (NF P 03-001 compliant Compte-Rendu de Chantier)
+  INSURANCE COMPLIANCE: insurance_renewal_reminders, contractor_email_history, insurance_audit_log
+  SYSTEM: notifications, system_resources, research_entries, advisor_exchanges, system_notes, regulatory_updates, resource_owners
+  ADMIN: users, sessions, bug_reports, wishlist_items, app_settings, system_prompts, placeholder_registry
+  RECOVERY: rollback_versions, shared_projects
+
+- Migration Readiness: Run `npm run db:check` to verify migration validity. Check /drizzle folder for pending migration files.
+- JSONB Compatibility: For JSONB columns, verify application code changes are backwards-compatible with existing stored data.
+- NEW V7.1 COLUMNS TO VERIFY ON dqe_library_items:
+  - is_option (boolean) - DQE Option Flag for grouped work items
+  - internal_notes (JSONB) - Internal notes array with isExternal flag per note for dual-track visibility
+    Structure: [{ id, text, author, timestamp, isError?, isExternal? }]
+  - contextual_notes (text) - Legacy contextual notes
+  - contextual_notes_en (text) - English contextual notes (bilingual)
+  - contextual_notes_fr (text) - French contextual notes (bilingual)
+  - contextual_notes_updated_at (timestamp) - When contextual notes were last updated
+  - translation_status (varchar) - Translation workflow status
+  - advisor_content (text) - Economist advisor generated content
+  - system_doc_links (JSONB) - Links to internal documents (Research, Adviser, Fiches Techniques)
+  - linked_checklist_ids (JSONB) - Links to site supervision checklists
+- NEW V7.3 URBANISME TABLE (urbanisme_document_summaries):
+  - id (serial) - Primary key
+  - project_id (varchar) - Foreign key to projects
+  - file_object_id (varchar) - Object Storage reference (unique)
+  - original_name (varchar) - Original filename
+  - summary (text) - AI-generated summary
+  - key_points (jsonb) - Array of extracted key points
+  - zone_info (text) - Zoning information
+  - created_at, updated_at (timestamp)
+- NEW V7.3 F&F MODULE TABLES:
+  - ff_item_types: code, name_fr, name_en, category, is_active, sort_order
+  - ff_suppliers: name, contact, website, notes, is_active
+  - ff_manufacturers: name, website, notes, is_active
+  - ff_items: project_id, building, floor, room, room_id, item_type_id, item_code, description, plan_description, supplier_id, supplier_ref, manufacturer_id, manufacturer_ref, product_link, on_plan, to_scale, data_sheet, stock_item, is_bespoke, is_reclaim, sourcing, decision_status, decision_notes, decision_date, order_status, order_date, order_ref, unit_price, quantity, attachments
+  - ff_share_links: project_id, share_token, share_name, client_email, client_name, filter_building, filter_floors, filter_rooms, filter_statuses, item_snapshot, is_signed_off, signed_off_at, signed_off_by_name, sign_off_notes, is_active, expires_at, email_sent_at, last_viewed_at, view_count
+  - ff_decision_history: item_id, option_id (nullable FK to ff_item_options, V7.5), share_link_id, previous_status, new_status, decision_by, notes
+- NEW V7.5 F&F ITEM OPTIONS TABLE (ff_item_options):
+  - id (serial PK), item_id (integer FK to ff_items, CASCADE DELETE)
+  - description (text), supplier_id (integer FK), manufacturer_id (integer FK)
+  - supplier_ref (varchar), manufacturer_ref (varchar), product_link (varchar)
+  - option_status (varchar: PENDING/ACCEPTED/REJECTED/NOT_SELECTED, default PENDING)
+  - status_changed_at (timestamp), status_changed_by (varchar), status_notes (text)
+  - sort_order (integer), created_at, updated_at
+  - Business rule: Only one option per item can have ACCEPTED status (enforced server-side in transaction)
+- NEW V7.5 QUICK SIGN-OFF TABLES:
+  - quick_signoffs: id (serial), project_id (varchar FK), subject, client_email, client_name, context_html (sanitized rich text), architect_note, attachments (JSONB), approval_token (unique), gmail_thread_id, gmail_message_id, status (draft/pending/approved/expired), reminder_interval_days, max_reminders, reminders_sent, last_reminder_at, sent_at, expires_at, created_at, updated_at
+  - quick_signoff_responses: id (serial), signoff_id (integer FK), response_type (approval/rejection/comment), response_text, response_source (button/email), responder_name, responder_email, created_at
+
+---
+
+2. DATA PROTECTION PROTOCOL VERIFICATION (MANDATORY)
+
+☑️ DATABASE-FIRST PERSISTENCE PATTERN (App.tsx):
+- Verify ALL entity creation handlers save to database FIRST, then update local state
+- Handlers to verify: handleCreateProject, handleAddContractor, handleAddSupplier, handleAddResearchEntry, handleAddResource, handleAddWorkModule, handleAddTask, handleSaveAdvisorExchange
+- Pattern: try { await dbApi.saveXxx(entity); setXxx(prev => [...prev, entity]); } catch { alert error; don't update state }
+- This prevents "local-only" entities that cause 404 errors on delete
+
+☑️ PARTIAL UPDATE ARCHITECTURE (V7.1):
+- Verify PATCH /api/dqe-library/:id endpoint exists for true partial updates
+- Verify PATCH endpoint checks item exists first (returns 404 if not)
+- Verify PATCH endpoint only updates fields explicitly provided in request body
+- Verify client-side updateLibraryItemPartial uses PATCH (not POST upsert)
+- Verify background sync computes changed fields and sends only those via PATCH
+- This prevents stale state from overwriting attachments/externalLinks
+
+☑️ CENTRALIZED authFetch UTILITY (V6.0+):
+- Verify client/src/lib/authFetch.ts exists and exports authFetch function
+- Verify authFetch automatically includes credentials: 'include' by default
+- Verify ALL authenticated API calls use authFetch instead of raw fetch
+- Exceptions allowed: Public* files (token-based), geocodingService (external), useAuth (manual credentials)
+- This ensures session cookies are sent with every request, preventing silent auth failures
+
+☑️ STARTUP GUARDS (App.tsx):
+- Verify dataHydrated state exists and is set true ONLY after successful DB load
+- Verify refsInitializedRef ref exists and is set true after refs are populated
+- Verify background sync effect checks: if (!dataHydrated) return;
+- Verify refs initialization effect populates prevProjectsRef, prevLibraryRef, etc. after hydration
+- Console log pattern: "[STARTUP GUARD] Data hydration complete", "[STARTUP GUARD] Refs initialized"
+
+☑️ INTEGRITY CHECKS (App.tsx):
+- Verify integrity checks block saves when: projects.length===0 && dbLoadedItemCounts.projects>0
+- Verify same integrity checks exist for library and groupedWorks
+- These prevent empty-state overwrites during republish
+
+☑️ SOFT-DELETE SCHEMA INTEGRITY:
+- Verify projects table has these columns: is_deleted (boolean), deleted_at (timestamp), deleted_by (varchar)
+- Verify index idx_projects_is_deleted exists
+- Query: SELECT column_name FROM information_schema.columns WHERE table_name = 'projects' AND column_name IN ('is_deleted', 'deleted_at', 'deleted_by');
+
+☑️ BULK DELETION SAFETY:
+- Verify handleDeleteProject has bulk deletion limit (max 10 or 50% of collection)
+- Verify same limits exist for library, contractors, suppliers
+
+☑️ BACKUP READINESS:
+- Check Object Storage for recent backup: PRIVATE_OBJECT_DIR/backups/archidoc-backup-*.json
+- Verify a backup exists from within the last 24 hours
+- If NO recent backup: BLOCKER - create backup via Settings → Data Recovery before proceeding
+
+☑️ MIGRATION STATE:
+- Check /drizzle/meta/_journal.json for migration history
+- Verify no uncommitted migration files exist
+- Run: npm run db:generate --dry-run to check for pending schema changes
+
+---
+
+3. Connection & Infrastructure Health
+
+- Connectivity Test: Verify the development database is reachable and responding.
+- Secret Verification: Confirm these secrets exist and are non-empty:
+  CORE SECRETS:
+  - DATABASE_URL
+  - PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE
+  - GEMINI_API_KEY
+  - SESSION_SECRET
+  - DEFAULT_OBJECT_STORAGE_BUCKET_ID
+  - PRIVATE_OBJECT_DIR
+  - PUBLIC_OBJECT_SEARCH_PATHS
+  
+  SMS NOTIFICATIONS (V7.0):
+  - TWILIO_ACCOUNT_SID
+  - TWILIO_AUTH_TOKEN
+  - TWILIO_PHONE_NUMBER
+  
+  EMAIL NOTIFICATIONS (V7.3):
+  - Gmail integration configured via Replit integration (OAuth-based)
+  
+  SECURITY (V7.0):
+  - SECURITY_MODE (should be 'AUDIT' or 'ENFORCE')
+
+- SSL/Security: Confirm connection uses SSL (Replit-managed PostgreSQL).
+- Connection Pool: Verify pool settings are production-appropriate (max 10 connections).
+
+---
+
+4. Data Integrity & Performance
+
+- Index Check: Verify all tables have appropriate indexes for common queries (check pg_indexes).
+- Orphaned Records: Scan for records violating foreign key relationships:
+  - quotation_line_items → contractor_quotations
+  - devis_versions → contractor_quotations
+  - cctp_clauses → cctp_sections
+  - cctp_clause_submissions → cctp_clauses
+  - cctp_extracted_clauses → cctp_extraction_jobs
+  - cctp_extraction_chunks → cctp_extraction_jobs
+  - product_finder_messages → product_finder_sessions
+  - product_finder_results → product_finder_sessions
+  - construction_tasks → projects (projectId)
+  - project_work_stages → projects (projectId)
+  - project_checklists → projects (projectId)
+  - field_observation_assets → field_observations (observationId)
+  - outsourcing_resources → outsourcing_tasks (taskId)
+  - outsourcing_messages → outsourcing_tasks (taskId)
+  - outsourcing_deliverables → outsourcing_tasks (taskId)
+  - specification_fragments → project_zones (zoneId) [if linked]
+  - spec_fragment_dqe_links → specification_fragments
+  - spec_fragment_classification_history → specification_fragments
+  - contractor_info_sheet_links → contractor_info_sheets (sheetId)
+  - workflow_item_resource_assignments → workflow_items (workflowItemId)
+  - dqe_item_versions → dqe_library_items (itemId)
+  - ff_items → ff_item_types (item_type_id), ff_suppliers (supplier_id), ff_manufacturers (manufacturer_id)
+  - ff_item_options → ff_items (item_id, CASCADE DELETE), ff_suppliers (supplier_id), ff_manufacturers (manufacturer_id)
+  - ff_share_links → projects (projectId)
+  - ff_decision_history → ff_items (item_id), ff_item_options (option_id, nullable), ff_share_links (share_link_id)
+  - quick_signoff_responses → quick_signoffs (signoff_id)
+  - quick_signoffs → projects (project_id)
+  - insurance_renewal_reminders → contractors (contractor_id)
+  - contractor_email_history → contractors (contractor_id)
+  - insurance_audit_log → contractors (contractor_id)
+- Record Counts: Report current record counts for critical tables (projects, contractors, dqe_library_items, construction_tasks, notifications, system_actors, field_observations, contractor_info_sheets, outsourcing_tasks, workflow_planners, site_checklists, project_checklists, specification_fragments, research_entries, ff_items, ff_item_options, quick_signoffs).
+- Soft-Deleted Projects: Query SELECT COUNT(*) FROM projects WHERE is_deleted = true; (for audit trail)
+
+---
+
+5. Production Data Protection
+
+- ID Column Safety: Confirm NO changes to primary key column types (serial/varchar).
+- Non-Destructive Pattern: Verify all schema changes are ADDITIVE only (new columns, new tables).
+- JSONB Preservation: Confirm no code changes that overwrite entire JSONB columns with partial data (externalEvents, comments, groupedWorkItems, documentPhases, checkboxStates, specificationSeeds, contextualNotes, attachments, etc.).
+- Soft-Delete Enforcement: Verify DELETE /api/projects/:id performs SOFT delete (sets is_deleted=true) NOT hard delete.
+- Circuit Breaker Handlers: Verify all delete handlers have dbLoadSuccess guard and circuit breaker on error.
+- Partial Update Enforcement (V7.1): Verify PATCH endpoint is used for existing DQE item updates to prevent attachment/link loss.
+
+---
+
+6. Notification System Integrity
+
+- Verify notifications table has records and isRead/severity fields are populated correctly.
+- Verify unreadExternalCount on construction_tasks increments when external events arrive.
+- Confirm notification polling endpoint (/api/notifications) returns valid data.
+- SMS NOTIFICATIONS (V7.0):
+  - Verify Twilio integration is configured when secrets are present
+  - Confirm SMS alerts trigger for outsourcing freelancer messages
+  - Verify SMS endpoints gracefully handle missing Twilio credentials
+- EMAIL NOTIFICATIONS (V7.3):
+  - Verify Gmail integration is configured via Replit integration
+  - Confirm email delivery for contractor share links
+  - Verify email endpoints gracefully handle missing Gmail configuration
+
+---
+
+7. SECURITY HARDENING VERIFICATION (V7.0+)
+
+☑️ RATE LIMITING (server.ts):
+- Verify express-rate-limit is imported and configured
+- API limiter: 1000 requests per 15 minutes on /api/ routes
+- AI limiter: 50 requests per 15 minutes on /api/ai/ and /api/product-finder/
+- Auth limiter: 20 requests per 15 minutes on /api/auth/
+- Verify rate limit error messages are in French
+
+☑️ CONTENT SECURITY POLICY (server.ts):
+- Verify Helmet CSP is enabled in production (isProd check)
+- CSP directives should include: defaultSrc, scriptSrc, styleSrc, imgSrc, connectSrc
+- Verify connectSrc allows Gemini API (generativelanguage.googleapis.com)
+- Verify CSP is disabled in development for Vite HMR
+
+☑️ SHADOW-MODE SECURITY (V7.0):
+- Verify SECURITY_MODE environment variable exists (AUDIT or ENFORCE)
+- In AUDIT mode: security violations are logged but not blocked
+- In ENFORCE mode: security violations are blocked with 403 response
+- Verify shadow block logging to notifications or console
+- Confirm zero-downtime deployment capability
+
+☑️ ACCESS CONTROL MIDDLEWARE (server.ts):
+- Verify requireAuthInProd middleware exists
+- Verify console log: "[Security] Access control middleware loaded"
+- Verify single-tenant RBAC model is documented
+- Verify role-based access control checks on sensitive endpoints
+
+☑️ INPUT VALIDATION (V7.0):
+- Verify Zod-based input validation on critical endpoints
+- Verify request body size limits are configured
+- Verify file upload size limits are enforced
+
+☑️ PASSWORD SECURITY (V7.0):
+- Verify Argon2id hashing is used for new passwords
+- Verify transparent password migration from legacy hashes
+- Verify SESSION_SECRET is strong and rotated
+
+☑️ CENTRALIZED AUTHENTICATION (V6.0+):
+- Verify authFetch utility (client/src/lib/authFetch.ts) exists
+- Verify all client-side authenticated API calls use authFetch
+- Verify credentials: 'include' is default for all requests
+- This prevents silent session expiration failures
+
+☑️ DEPENDENCY SECURITY:
+- Run: npm audit
+- Critical vulnerabilities: BLOCKER (must fix)
+- High vulnerabilities: WARN (review and document)
+- Moderate vulnerabilities: INFO (acceptable if in dev dependencies)
+
+---
+
+8. V7.5 NEW FEATURES - DATABASE IMPACT VERIFICATION
+
+This section ensures database-level support for all V7.0/V7.1/V7.2/V7.3/V7.4/V7.5 features:
+
+☑️ DESIGN ENGINE (MOTEUR CONCEPTION):
+- Verify projects table has specificationSeeds JSONB column (or design_ideas table if separate)
+- Confirm creative ideation data persists correctly
+
+☑️ SCREEN CAPTURE TOOL:
+- No dedicated database table required (clipboard-based)
+- Verify Object Storage configured for any saved captures if implemented
+
+☑️ DQE TEXT FORMATTER:
+- No dedicated database table required (client-side AI call)
+- Verify GEMINI_API_KEY available for formatting requests
+
+☑️ CONTEXTUAL NOTES (BILINGUAL):
+- Verify dqe_library_items table has contextual_notes, contextual_notes_en, contextual_notes_fr columns
+- Verify translation_status column exists for translation workflow
+- Query: SELECT column_name FROM information_schema.columns WHERE table_name = 'dqe_library_items' AND column_name LIKE 'contextual_notes%';
+
+☑️ RESEARCH LIBRARY WITH EXTERNAL ARTICLES:
+- Verify research_entries table supports external article fields (isExternal, sourceUrl, htmlContent)
+- Confirm dual-mode creation (AI-generated vs externally sourced) works
+
+☑️ SMS NOTIFICATION INTEGRATION:
+- No dedicated database table required (Twilio API)
+- Verify Twilio secrets are configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)
+
+☑️ EMAIL NOTIFICATION INTEGRATION (V7.3):
+- No dedicated database table required (Gmail API via integration)
+- Verify Gmail integration is active and configured
+- Endpoints: sendContractorShareEmail, sendFreelancerNotificationEmail
+
+☑️ LINKIFIED NOTES:
+- No database changes required (client-side URL detection)
+- Uses existing project notes/confidential notes fields
+
+☑️ SPECIFICATION BUILDER ENHANCEMENTS:
+- Verify project_zones table exists with floor prefix support
+- Verify specification_fragments table has status field for visual indicators
+- Confirm shared/roomRefUtils.ts floor parsing works with existing room_refs JSONB
+
+☑️ CUSTOMIZABLE SETTINGS:
+- Verify users table has preferences JSONB column
+- Query: SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'preferences';
+
+☑️ PASTE ALBUM (V7.1):
+- Verify Object Storage is configured for paste album images
+- Confirm project-level image organization works
+- Verify 10MB limit and MIME type validation on uploads
+
+☑️ DQE OPTION FLAG (V7.1):
+- Verify dqe_library_items table has is_option (boolean) column
+- Query: SELECT column_name FROM information_schema.columns WHERE table_name = 'dqe_library_items' AND column_name = 'is_option';
+- Confirm option items display with dashed yellow/amber border
+
+☑️ DUAL-TRACK NOTES SYSTEM (V7.1):
+- Verify dqe_library_items table has internal_notes (JSONB) column
+- Note structure: [{ id, text, author, timestamp, isError?, isExternal? }]
+- The isExternal flag per note determines visibility (internal vs external)
+- Query: SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'dqe_library_items' AND column_name = 'internal_notes';
+- Confirm external notes (isExternal=true) visible in sharing links and PDF exports
+
+☑️ PARTIAL UPDATE ARCHITECTURE (V7.1):
+- Verify PATCH /api/dqe-library/:id endpoint exists in server.ts
+- Verify endpoint uses dynamic field updates (only updates provided fields)
+- Confirm attachments and externalLinks persist correctly during edits
+
+☑️ QUICK NOTES (V7.2):
+- Verify quick_notes table exists with correct schema
+- Columns: id, project_id, title, content, images (JSONB), status, actioned_at, created_at, updated_at
+- Verify images JSONB supports QuickNoteImage structure: { objectId, url, thumbnailUrl, fileName }
+- Query: SELECT COUNT(*) FROM quick_notes;
+- Verify project-level isolation (notes are per-project)
+
+☑️ BACKGROUND TASKS (V7.2):
+- Verify background_tasks table exists for persistent AI task tracking
+- Columns: id, task_type, target_type, target_id, status, request_payload, result_payload, error_message, started_at, completed_at, acknowledged_at, created_at
+- Verify task_type supports: 'gemini_workflow', 'ai_classification', 'fiche_technique_generate', etc.
+- Verify status transitions: pending → processing → completed/failed
+- Query: SELECT task_type, status, COUNT(*) FROM background_tasks GROUP BY task_type, status;
+- This ensures AI tasks survive server restarts and deployments
+
+☑️ CONTRACTOR COLLABORATION (V7.2):
+- Verify contractor_dqe_notes table exists for per-item contractor notes
+- Verify contractor_messages table exists for contractor-to-architect messages
+- Columns on contractor_messages: status (unread/read/resolved), architect_reply, replied_at
+- Query: SELECT COUNT(*) FROM contractor_messages WHERE status = 'unread';
+- Verify share_id links to shared project links for context
+
+☑️ URBANISME DOCUMENT SUMMARIES (V7.3):
+- Verify urbanisme_document_summaries table exists
+- Columns: id, project_id, file_object_id (unique), original_name, summary, key_points (JSONB), zone_info
+- Query: SELECT COUNT(*) FROM urbanisme_document_summaries;
+- Verify AI-generated summaries persist correctly for planning documents
+
+☑️ FIXTURES & FITTINGS MODULE (V7.3):
+- Verify ff_item_types table exists (reference table for item categories)
+- Verify ff_suppliers table exists (reference table)
+- Verify ff_manufacturers table exists (reference table)
+- Verify ff_items table exists with all columns for project items
+- Verify ff_share_links table exists for client sign-off workflow
+- Verify ff_decision_history table exists for tracking client decisions
+- Query: SELECT COUNT(*) FROM ff_items;
+- Query: SELECT COUNT(*) FROM ff_share_links WHERE is_active = true;
+- Confirm decision workflow: AWAITING → CLIENT_PENDING → CLIENT_CONFIRMED/REJECTED
+
+☑️ CONTRACTOR INSURANCE COMPLIANCE (V7.3):
+- Verify contractors table has insurance columns (decennale_*, rc_pro_*, insurance_status)
+- Verify insurance_renewal_reminders table exists for scheduled email automation
+- Verify contractor_email_history table exists for tracking communications
+- Verify insurance_audit_log table exists for compliance tracking
+- Query: SELECT insurance_status, COUNT(*) FROM contractors GROUP BY insurance_status;
+
+☑️ SITE MEETING REPORTS / COMPTE-RENDU DE CHANTIER (V7.4):
+- Verify site_meetings table exists with NF P 03-001 compliant schema:
+  - id (varchar PK), project_id (varchar FK), meeting_number (integer), meeting_date (timestamp)
+  - meeting_type (varchar: chantier/coordination/reception/autre), prev_meeting_id (varchar FK for recursive observations)
+  - location, weather, temperature, start_time, end_time, agenda, general_notes
+  - status (draft/in_review/published/archived), revision (A/B/C...), published_at, published_by, locked_at
+  - pdf_object_path, pdf_generated_at (for PDF generation)
+  - local_id, sync_status, last_synced_at, device_info (JSONB) for offline support
+  - created_by, created_at, updated_at
+- Verify meeting_attendees table exists with attendance tracking:
+  - meeting_id (FK cascade), attendee_type, attendee_id, name, company, role, lot_number, email, phone
+  - attendance_status (P/A/E/D = Present/Absent/Excused/Delegated), delegate_name, delegate_role
+  - signature_data_url (Base64), signed_at, local_id
+- Verify meeting_observations table exists for observation items:
+  - meeting_id (FK cascade), ref_number, lot_number, location, description, description_draft (voice transcription)
+  - assigned_contractor_id, assigned_company_name, observation_status (open/in_progress/resolved/closed/deferred)
+  - priority (low/normal/high/urgent), deadline
+  - from_previous_meeting_id, original_observation_id (for carried-over observations)
+  - photos (JSONB), audio_object_path, transcription
+  - resolved_at, resolution_notes, local_id, sync_status
+- Verify french_technical_snippets table exists for voice-to-French translation:
+  - english_phrase, french_phrase, category, lot_number, usage_count, is_active, is_system
+- Verify indexes: idx_site_meetings_project_id, idx_site_meetings_date, idx_site_meetings_status, idx_site_meetings_number, idx_site_meetings_local_id
+- Verify indexes: idx_meeting_observations_meeting_id, idx_meeting_observations_lot, idx_meeting_observations_status
+- Query: SELECT COUNT(*) FROM site_meetings;
+- Query: SELECT status, COUNT(*) FROM site_meetings GROUP BY status;
+
+☑️ F&F ITEM OPTIONS SYSTEM (V7.5):
+- Verify ff_item_options table exists with correct schema:
+  - id (serial PK), item_id (integer FK to ff_items with CASCADE DELETE)
+  - description (text), supplier_id (integer FK nullable), manufacturer_id (integer FK nullable)
+  - supplier_ref (varchar), manufacturer_ref (varchar), product_link (varchar)
+  - option_status (varchar: PENDING/ACCEPTED/REJECTED/NOT_SELECTED, default PENDING)
+  - status_changed_at (timestamp), status_changed_by (varchar), status_notes (text)
+  - sort_order (integer, default 0), created_at, updated_at
+- Verify ff_decision_history.option_id column exists (integer, nullable FK to ff_item_options)
+- Verify cascade delete: deleting an ff_item deletes all its ff_item_options
+- Verify single-selection enforcement: only one option per item can have ACCEPTED status
+- Query: SELECT COUNT(*) FROM ff_item_options;
+- Query: SELECT option_status, COUNT(*) FROM ff_item_options GROUP BY option_status;
+- Query: SELECT COUNT(*) FROM ff_decision_history WHERE option_id IS NOT NULL;
+
+☑️ QUICK SIGN-OFF SYSTEM (V7.5):
+- Verify quick_signoffs table exists with complete schema:
+  - id (serial PK), project_id (varchar FK to projects)
+  - subject (varchar), client_email (varchar), client_name (varchar)
+  - context_html (text, sanitized), architect_note (text)
+  - attachments (JSONB), approval_token (varchar, unique)
+  - gmail_thread_id (varchar), gmail_message_id (varchar)
+  - status (varchar: draft/pending/approved/expired)
+  - reminder_interval_days (integer), max_reminders (integer), reminders_sent (integer), last_reminder_at (timestamp)
+  - sent_at, expires_at, created_at, updated_at
+- Verify quick_signoff_responses table exists:
+  - id (serial PK), signoff_id (integer FK to quick_signoffs)
+  - response_type (varchar: approval/rejection/comment)
+  - response_text (text), response_source (varchar: button/email)
+  - responder_name (varchar), responder_email (varchar), created_at
+- Verify HTML sanitization strips dangerous elements (scripts, iframes, event handlers)
+- Query: SELECT COUNT(*) FROM quick_signoffs;
+- Query: SELECT status, COUNT(*) FROM quick_signoffs GROUP BY status;
+
+☑️ GENERIC TASK ASSIGNMENT (V7.5):
+- Verify construction_tasks table has assignee (JSONB) column
+- Verify assignee structure supports: type, id, name, email, phone, organizationName
+- Verify notifiedAt and notificationHistory columns exist for email tracking
+- Query: SELECT COUNT(*) FROM construction_tasks WHERE assignee IS NOT NULL;
+
+☑️ GMAIL INTEGRATION & SIGNATURE (V7.5):
+- Verify Gmail API integration is configured via Replit integration
+- Verify signature caching mechanism works (10-minute TTL)
+- Verify 5 email template types: freelancer, contractor share, task notification, quick sign-off, reminder
+
+☑️ REPORT FORMATTER (V7.5):
+- No dedicated database table required (Puppeteer HTML-to-PDF)
+- Verify GEMINI_API_KEY available for content restructuring
+- Verify 5 report styles are available: Professional, Executive, Technical, Investment, Minimal
+
+☑️ DQE PHASING SYSTEM (V7.5):
+- Verify dqe_library_items supports phasing fields for multi-phase quotation generation
+- Verify phase assignments persist correctly
+
+---
+
+9. Output Format
+
+[PASS/FAIL/WARN] Schema Synchronization (95 tables)
+[PASS/FAIL/WARN] Destructive Change Detection  
+[PASS/FAIL/WARN] Connection & Secrets
+[PASS/FAIL/WARN] Data Integrity (orphaned records)
+[PASS/FAIL/WARN] Index Coverage
+[PASS/FAIL/WARN] ID Column Safety
+[PASS/FAIL/WARN] Notification System Integrity
+
+DATA PROTECTION PROTOCOL:
+[PASS/FAIL] Database-First Pattern Active (all handlers save to DB before state)
+[PASS/FAIL] Partial Update Architecture Active (PATCH for existing items)
+[PASS/FAIL] Centralized authFetch Utility Active (credentials: include by default)
+[PASS/FAIL] Startup Guards Active (dataHydrated flag blocks early writes)
+[PASS/FAIL] Refs Initialization Active (refsInitializedRef set after hydration)
+[PASS/FAIL] Integrity Checks Present (empty-state protection)
+[PASS/FAIL] Bulk Deletion Limits Active
+[PASS/FAIL] Soft-Delete Columns Present (is_deleted, deleted_at, deleted_by)
+[PASS/FAIL] Soft-Delete Index Present (idx_projects_is_deleted)
+[PASS/FAIL] Recent Backup Exists (<24h in Object Storage)
+[PASS/FAIL] Migration State Clean (no pending migrations)
+
+SECURITY HARDENING (V7.0+):
+[PASS/FAIL] Rate Limiting Active (express-rate-limit configured)
+[PASS/FAIL] API Rate Limit (1000 req/15min on /api/)
+[PASS/FAIL] AI Rate Limit (50 req/15min on /api/ai/)
+[PASS/FAIL] Auth Rate Limit (20 req/15min on /api/auth/)
+[PASS/FAIL] Helmet CSP Enabled in Production
+[PASS/FAIL] Shadow-Mode Security Configured (SECURITY_MODE env var)
+[PASS/FAIL] Access Control Middleware Loaded
+[PASS/FAIL] Zod Input Validation Active
+[PASS/FAIL] Argon2id Password Hashing Active
+[PASS/FAIL] Centralized authFetch Active
+[PASS/FAIL] No Critical npm Vulnerabilities
+
+SECRETS VERIFICATION (V7.3):
+[PASS/FAIL] Core Secrets Present (DATABASE_URL, GEMINI_API_KEY, SESSION_SECRET)
+[PASS/FAIL] Object Storage Secrets Present (BUCKET_ID, PRIVATE_DIR, PUBLIC_PATHS)
+[PASS/FAIL] Twilio SMS Secrets Present (ACCOUNT_SID, AUTH_TOKEN, PHONE_NUMBER) - WARN if optional
+[PASS/FAIL] Gmail Integration Configured - WARN if optional
+[PASS/FAIL] SECURITY_MODE Configured (AUDIT or ENFORCE)
+
+V7.1/V7.2/V7.3/V7.4/V7.5 NEW FEATURES - DATABASE SUPPORT:
+[PASS/FAIL] Design Engine (specificationSeeds JSONB column exists)
+[PASS/FAIL] Screen Capture Tool (no DB required / Object Storage if saving)
+[PASS/FAIL] DQE Text Formatter (no DB required / GEMINI_API_KEY present)
+[PASS/FAIL] Contextual Notes Bilingual (contextual_notes_en, contextual_notes_fr columns exist)
+[PASS/FAIL] Research Library External Articles (research_entries fields verified)
+[PASS/FAIL] SMS Integration (Twilio secrets present or graceful degradation)
+[PASS/FAIL] Email Integration (Gmail configured or graceful degradation)
+[PASS/FAIL] Linkified Notes (no DB required / existing notes fields used)
+[PASS/FAIL] Specification Builder Enhancements (project_zones, specification_fragments verified)
+[PASS/FAIL] Customizable Settings (users.preferences JSONB column exists)
+[PASS/FAIL] Paste Album (Object Storage configured for project images)
+[PASS/FAIL] DQE Option Flag (is_option column exists on dqe_library_items)
+[PASS/FAIL] Dual-Track Notes (internal_notes JSONB column with isExternal flag per note)
+[PASS/FAIL] Partial Update Architecture (PATCH endpoint exists and uses dynamic updates)
+[PASS/FAIL] Quick Notes (quick_notes table with images JSONB column)
+[PASS/FAIL] Background Tasks (background_tasks table for persistent AI task tracking)
+[PASS/FAIL] Contractor Collaboration (contractor_dqe_notes, contractor_messages tables exist)
+[PASS/FAIL] Urbanisme Summaries (urbanisme_document_summaries table exists)
+[PASS/FAIL] F&F Module (ff_item_types, ff_suppliers, ff_manufacturers, ff_items, ff_share_links, ff_decision_history tables exist)
+[PASS/FAIL] Insurance Compliance (insurance_renewal_reminders, contractor_email_history, insurance_audit_log tables exist)
+[PASS/FAIL] Site Meeting Reports (site_meetings, meeting_attendees, meeting_observations, french_technical_snippets tables exist) (V7.4)
+[PASS/FAIL] F&F Item Options (ff_item_options table with cascade delete, ff_decision_history.option_id column) (V7.5)
+[PASS/FAIL] Quick Sign-Off (quick_signoffs, quick_signoff_responses tables exist) (V7.5)
+[PASS/FAIL] Generic Task Assignment (construction_tasks.assignee JSONB column exists) (V7.5)
+[PASS/FAIL] Gmail Signature Integration (Gmail API configured, 5 email templates verified) (V7.5)
+[PASS/FAIL] Report Formatter (GEMINI_API_KEY present for AI formatting) (V7.5)
+[PASS/FAIL] DQE Phasing System (phase assignment fields verified) (V7.5)
+
+BACKUP CHECKLIST:
+[ ] Manual Replit DB snapshot taken
+[ ] JSON backup created via Settings → Data Recovery
+[ ] Backup download link verified working
+
+RECOMMENDATION: [GO / NO-GO] for deployment
+
+If NO-GO, list specific blockers requiring resolution.
