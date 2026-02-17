@@ -29,7 +29,10 @@ OUVRO is a mobile companion app for architects and project managers, built with 
 - **API Field Mapping:** Extensive mapping logic in `archidoc-api.ts` to convert snake_case API responses to camelCase for app consistency, including resilience for multiple field name variants.
 
 ### Feature Specifications
-- **Observation Capture:** Floating capture button (FAB) for Photo, Video, or Audio. Includes observation details form, Gemini AI-powered transcription (audio to English) and translation (to French).
+- **Observation Capture:** Floating capture button (FAB) opens CaptureModal with 2x2 grid: Photo, Video, Audio, Task. Includes observation details form, Gemini AI-powered transcription (audio to English) and translation (to French).
+- **Task Capture (NEW):** Voice-to-task workflow: Record audio -> Gemini AI transcription -> User review/edit -> Accept. Tasks stored durably via `offline-tasks.ts` (FileSystem + AsyncStorage, mirrors observation sync architecture). 3-step visual indicator (Record > Transcribe > Review). Tasks appear in QueueScreen with "TASK" badge. Server stub at `POST /api/tasks/sync` ready for ARCHIDOC integration.
+  - Key files: `client/lib/offline-tasks.ts`, `client/hooks/useOfflineTasks.tsx`, `client/screens/TaskCaptureScreen.tsx`
+  - Task states: pending -> transcribing -> review -> accepted -> uploading -> complete/failed
 - **Project Asset Hub:** A 2x3 grid of buttons (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE) with dynamic enablement logic based on project data availability.
 - **DQE Browser:** Displays DQE items, filterable by lot code or contractor (data fetched from `/api/contractors`).
 
