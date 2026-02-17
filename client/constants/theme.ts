@@ -114,6 +114,10 @@ export const Typography = {
     fontSize: 17,
     fontWeight: "600" as const,
   },
+  h4: {
+    fontSize: 15,
+    fontWeight: "600" as const,
+  },
   body: {
     fontSize: 17,
     fontWeight: "400" as const,
@@ -124,6 +128,10 @@ export const Typography = {
   },
   bodySmall: {
     fontSize: 15,
+    fontWeight: "400" as const,
+  },
+  small: {
+    fontSize: 13,
     fontWeight: "400" as const,
   },
   caption: {
