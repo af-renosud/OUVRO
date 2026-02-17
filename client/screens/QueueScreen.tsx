@@ -21,9 +21,11 @@ import { Card } from "@/components/Card";
 import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useOfflineTasks } from "@/hooks/useOfflineTasks";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNavigator";
 import type { OfflineObservation, ObservationSyncState } from "@/lib/offline-sync";
+import type { OfflineTask, TaskSyncState } from "@/lib/offline-tasks";
 
 function SyncProgressBar({ progress, isActive }: { progress: number; isActive: boolean }) {
   const { theme } = useTheme();
@@ -131,8 +133,19 @@ export default function QueueScreen() {
     clearCompleted,
   } = useOfflineSync();
 
+  const {
+    tasks,
+    pendingCount: taskPendingCount,
+    removeTask,
+    retryTask,
+    clearCompleted: clearCompletedTasks,
+  } = useOfflineTasks();
+
   const completedObservations = observations.filter((obs) => obs.syncState === "complete");
   const pendingObservations = observations.filter((obs) => obs.syncState !== "complete");
+
+  const pendingTasks = tasks.filter((t) => t.syncState !== "complete");
+  const completedTasks = tasks.filter((t) => t.syncState === "complete");
 
   useEffect(() => {
     if (previousSyncingRef.current && !isSyncing && pendingCount === 0 && completedObservations.length > 0) {
@@ -193,15 +206,17 @@ export default function QueueScreen() {
   }, [removeObservation]);
 
   const handleClearCompleted = useCallback(() => {
+    const totalCompleted = completedObservations.length + completedTasks.length;
     Alert.alert(
-      "Clear Synced Observations",
-      `Remove ${completedObservations.length} synced observation${completedObservations.length > 1 ? "s" : ""} from this list? They are safely stored in ARCHIDOC.`,
+      "Clear Synced Items",
+      `Remove ${totalCompleted} synced item${totalCompleted > 1 ? "s" : ""} from this list? They are safely stored in ARCHIDOC.`,
       [
         { text: "Keep", style: "cancel" },
         { 
           text: "Clear", 
           onPress: () => {
             clearCompleted();
+            clearCompletedTasks();
             if (Platform.OS !== "web") {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
@@ -209,7 +224,55 @@ export default function QueueScreen() {
         },
       ]
     );
-  }, [completedObservations.length, clearCompleted]);
+  }, [completedObservations.length, completedTasks.length, clearCompleted, clearCompletedTasks]);
+
+  const handleDeleteTask = useCallback((localId: string) => {
+    Alert.alert(
+      "Delete Task",
+      "This will permanently delete the task from your device. This cannot be undone.",
+      [
+        { text: "Keep", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            if (Platform.OS !== "web") {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            }
+            removeTask(localId);
+          },
+        },
+      ]
+    );
+  }, [removeTask]);
+
+  const handleRetryTask = useCallback(async (localId: string) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    await retryTask(localId);
+  }, [retryTask]);
+
+  const getTaskStateInfo = (state: TaskSyncState): { color: string; icon: keyof typeof Feather.glyphMap; label: string } => {
+    switch (state) {
+      case "pending":
+        return { color: BrandColors.warning, icon: "clock", label: "Pending" };
+      case "transcribing":
+        return { color: BrandColors.info, icon: "cpu", label: "Transcribing" };
+      case "review":
+        return { color: BrandColors.info, icon: "edit-3", label: "Review" };
+      case "accepted":
+        return { color: BrandColors.primary, icon: "check", label: "Accepted" };
+      case "uploading":
+        return { color: BrandColors.info, icon: "upload-cloud", label: "Syncing..." };
+      case "complete":
+        return { color: BrandColors.success, icon: "check-circle", label: "Synced" };
+      case "failed":
+        return { color: BrandColors.error, icon: "alert-circle", label: "Failed" };
+      default:
+        return { color: theme.textTertiary, icon: "clock", label: "Unknown" };
+    }
+  };
 
   const handleShare = useCallback((observation: OfflineObservation) => {
     const mediaItems: MediaItem[] = observation.media.map((m) => ({
@@ -374,7 +437,133 @@ export default function QueueScreen() {
     );
   };
 
-  const allObservations = [...pendingObservations, ...completedObservations];
+  const renderTask = ({ item }: { item: OfflineTask }) => {
+    const stateInfo = getTaskStateInfo(item.syncState);
+    const isComplete = item.syncState === "complete";
+    const isUploading = item.syncState === "uploading";
+
+    return (
+      <Card style={isComplete ? { ...styles.observationCard, ...styles.completedCard } : styles.observationCard}>
+        <View style={styles.observationHeader}>
+          <View style={[styles.thumbnailPlaceholder, { backgroundColor: `${BrandColors.accent}15` }, isComplete && { backgroundColor: `${BrandColors.success}15` }]}>
+            <Feather
+              name={isComplete ? "check-circle" : "clipboard"}
+              size={24}
+              color={isComplete ? BrandColors.success : BrandColors.accent}
+            />
+          </View>
+          <View style={styles.observationInfo}>
+            <View style={styles.taskBadgeRow}>
+              <View style={styles.taskTypeBadge}>
+                <ThemedText style={styles.taskTypeBadgeText}>TASK</ThemedText>
+              </View>
+            </View>
+            <ThemedText style={styles.observationTitle} numberOfLines={2}>
+              {item.editedTranscription || item.transcription || "Audio task (not yet transcribed)"}
+            </ThemedText>
+            <ThemedText style={[styles.observationDate, { color: theme.textSecondary }]}>
+              {item.projectName} - {new Date(item.createdAt).toLocaleDateString()}
+            </ThemedText>
+            {isComplete && item.syncCompletedAt ? (
+              <ThemedText style={[styles.syncTimestamp, { color: BrandColors.success }]}>
+                Synced {new Date(item.syncCompletedAt).toLocaleString()}
+              </ThemedText>
+            ) : null}
+          </View>
+          <View style={[styles.syncBadge, { backgroundColor: stateInfo.color }]}>
+            {isUploading ? (
+              <ActivityIndicator size={14} color="#FFFFFF" />
+            ) : (
+              <Feather name={stateInfo.icon} size={14} color="#FFFFFF" />
+            )}
+          </View>
+        </View>
+
+        {item.lastSyncError && !isComplete ? (
+          <View style={[styles.errorBanner, { backgroundColor: `${BrandColors.error}20` }]}>
+            <Feather name="alert-circle" size={14} color={BrandColors.error} />
+            <ThemedText style={[styles.errorText, { color: BrandColors.error }]} numberOfLines={2}>
+              {item.lastSyncError}
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {item.retryCount > 0 && !isComplete ? (
+          <ThemedText style={[styles.retryCountText, { color: theme.textTertiary }]}>
+            Retry attempts: {item.retryCount}/10
+          </ThemedText>
+        ) : null}
+
+        <View style={styles.actionButtons}>
+          {!isComplete ? (
+            <>
+              {item.syncState === "failed" ? (
+                <Pressable
+                  style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+                  onPress={() => handleRetryTask(item.localId)}
+                >
+                  <Feather name="refresh-cw" size={16} color="#FFFFFF" />
+                  <ThemedText style={styles.actionButtonText}>Retry</ThemedText>
+                </Pressable>
+              ) : null}
+              <Pressable
+                style={[styles.actionButtonIcon, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={() => handleDeleteTask(item.localId)}
+              >
+                <Feather name="trash-2" size={18} color={BrandColors.error} />
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+      </Card>
+    );
+  };
+
+  type QueueItem = 
+    | { type: "observation"; data: OfflineObservation }
+    | { type: "task"; data: OfflineTask }
+    | { type: "section"; title: string };
+
+  const buildQueueItems = (): QueueItem[] => {
+    const items: QueueItem[] = [];
+
+    if (pendingTasks.length > 0) {
+      items.push({ type: "section", title: `Pending Tasks (${pendingTasks.length})` });
+      pendingTasks.forEach((t) => items.push({ type: "task", data: t }));
+    }
+
+    if (pendingObservations.length > 0) {
+      items.push({ type: "section", title: `Pending Observations (${pendingObservations.length})` });
+      pendingObservations.forEach((o) => items.push({ type: "observation", data: o }));
+    }
+
+    const totalCompleted = completedObservations.length + completedTasks.length;
+    if (totalCompleted > 0) {
+      items.push({ type: "section", title: `Synced (${totalCompleted})` });
+      completedTasks.forEach((t) => items.push({ type: "task", data: t }));
+      completedObservations.forEach((o) => items.push({ type: "observation", data: o }));
+    }
+
+    return items;
+  };
+
+  const queueItems = buildQueueItems();
+  const totalPending = pendingCount + taskPendingCount;
+  const totalCompleted = completedObservations.length + completedTasks.length;
+
+  const renderQueueItem = ({ item }: { item: QueueItem }) => {
+    if (item.type === "section") {
+      return (
+        <ThemedText style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+          {item.title}
+        </ThemedText>
+      );
+    }
+    if (item.type === "task") {
+      return renderTask({ item: item.data });
+    }
+    return renderObservation({ item: item.data });
+  };
 
   return (
     <BackgroundView style={styles.container}>
@@ -385,14 +574,14 @@ export default function QueueScreen() {
           <View style={[styles.networkBanner, { backgroundColor: `${BrandColors.warning}20` }]}>
             <Feather name="wifi-off" size={16} color={BrandColors.warning} />
             <ThemedText style={[styles.networkText, { color: BrandColors.warning }]}>
-              Offline - observations will sync when connected
+              Offline - items will sync when connected
             </ThemedText>
           </View>
         ) : null}
         
         <SyncProgressBar progress={syncProgress.overallProgress} isActive={isSyncing} />
         
-        <SyncSuccessBanner count={completedObservations.length} onClear={handleClearCompleted} />
+        <SyncSuccessBanner count={totalCompleted} onClear={handleClearCompleted} />
         
         {pendingCount > 0 ? (
           <View style={styles.headerActions}>
@@ -424,9 +613,12 @@ export default function QueueScreen() {
       </View>
 
       <FlatList
-        data={allObservations}
-        renderItem={renderObservation}
-        keyExtractor={(item) => item.localId}
+        data={queueItems}
+        renderItem={renderQueueItem}
+        keyExtractor={(item, index) => {
+          if (item.type === "section") return `section_${item.title}_${index}`;
+          return item.data.localId;
+        }}
         contentContainerStyle={[
           styles.listContent,
           { paddingBottom: tabBarHeight + Spacing.xl + 80, flexGrow: 1 },
@@ -445,7 +637,7 @@ export default function QueueScreen() {
               All synced!
             </ThemedText>
             <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
-              No pending observations
+              No pending observations or tasks
             </ThemedText>
           </View>
         }
@@ -673,5 +865,29 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     ...Typography.body,
+  },
+  sectionTitle: {
+    ...Typography.label,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  taskBadgeRow: {
+    flexDirection: "row",
+    marginBottom: 2,
+  },
+  taskTypeBadge: {
+    backgroundColor: `${BrandColors.accent}20`,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  taskTypeBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: BrandColors.accent,
+    letterSpacing: 0.5,
   },
 });

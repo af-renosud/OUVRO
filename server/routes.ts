@@ -545,6 +545,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/tasks/sync", async (req: Request, res: Response) => {
+    try {
+      const { projectId, projectName, transcription, audioDuration, localId } = req.body;
+
+      if (!projectId || !transcription) {
+        return res.status(400).json({ error: "Missing required fields: projectId, transcription" });
+      }
+
+      console.log(`[Task Sync] Received task for project ${projectId} (${projectName}): "${transcription.substring(0, 80)}..."`);
+
+      res.json({
+        success: true,
+        taskId: `archidoc_task_${Date.now()}`,
+        localId,
+        message: "Task received. ARCHIDOC endpoint not yet implemented - task stored locally.",
+      });
+    } catch (error) {
+      console.error("[Task Sync] Error:", error);
+      res.status(500).json({ error: "Failed to sync task" });
+    }
+  });
+
   app.post("/api/mark-synced/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
