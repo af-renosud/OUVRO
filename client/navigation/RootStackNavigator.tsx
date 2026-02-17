@@ -17,6 +17,7 @@ import ProjectLinksScreen from "@/screens/ProjectLinksScreen";
 import PlansScreen from "@/screens/PlansScreen";
 import DocsScreen from "@/screens/DocsScreen";
 import FichesScreen from "@/screens/FichesScreen";
+import TaskCaptureScreen from "@/screens/TaskCaptureScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import type { FileCategory, ProjectFile, ProjectLink, DQEItem } from "@/lib/archidoc-api";
 
@@ -35,6 +36,7 @@ export type RootStackParamList = {
   PhotoCapture: { projectId: string; projectName?: string };
   VideoCapture: { projectId: string; projectName?: string };
   AudioCapture: { projectId: string; projectName?: string };
+  TaskCapture: { projectId: string; projectName: string };
   ObservationDetails: { projectId: string; projectName?: string; mediaItems?: MediaItem[] };
   ProjectDetail: { projectId: string };
   ProjectAssetHub: { projectId: string };
@@ -85,6 +87,11 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="AudioCapture"
         component={AudioCaptureScreen}
+        options={{ presentation: "fullScreenModal", headerShown: false }}
+      />
+      <Stack.Screen
+        name="TaskCapture"
+        component={TaskCaptureScreen}
         options={{ presentation: "fullScreenModal", headerShown: false }}
       />
       <Stack.Screen

@@ -12,12 +12,14 @@ import { queryClient } from "@/lib/query-client";
 import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfflineSyncProvider } from "@/hooks/useOfflineSync";
+import { OfflineTasksProvider } from "@/hooks/useOfflineTasks";
 
 export default function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <OfflineSyncProvider>
+          <OfflineTasksProvider>
           <SafeAreaProvider>
             <GestureHandlerRootView style={styles.root}>
               <KeyboardProvider>
@@ -28,6 +30,7 @@ export default function App() {
               </KeyboardProvider>
             </GestureHandlerRootView>
           </SafeAreaProvider>
+          </OfflineTasksProvider>
         </OfflineSyncProvider>
       </QueryClientProvider>
     </ErrorBoundary>

@@ -11,33 +11,34 @@ import { ThemedText } from "@/components/ThemedText";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
 
-type MediaType = "photo" | "video" | "audio";
+type CaptureType = "photo" | "video" | "audio" | "task";
 
-type MediaOption = {
-  type: MediaType;
+type CaptureOption = {
+  type: CaptureType;
   icon: keyof typeof Feather.glyphMap;
   title: string;
-  description: string;
 };
 
-const mediaOptions: MediaOption[] = [
+const captureOptions: CaptureOption[] = [
   {
     type: "photo",
     icon: "camera",
     title: "Photo",
-    description: "Take a photo and annotate it",
   },
   {
     type: "video",
     icon: "video",
     title: "Video",
-    description: "Record a video of the site",
   },
   {
     type: "audio",
     icon: "mic",
     title: "Audio",
-    description: "Record voice narration",
+  },
+  {
+    type: "task",
+    icon: "clipboard",
+    title: "Task",
   },
 ];
 
@@ -64,7 +65,7 @@ export default function CaptureModalScreen() {
     setShowProjectPicker(false);
   };
 
-  const handleMediaTypeSelect = (type: MediaType) => {
+  const handleCaptureTypeSelect = (type: CaptureType) => {
     const project = selectedProject || projects[0];
     if (!project) {
       Alert.alert("No Project", "Please wait for projects to load");
@@ -81,10 +82,13 @@ export default function CaptureModalScreen() {
       case "audio":
         navigation.navigate("AudioCapture", { projectId: project.id, projectName: project.name });
         break;
+      case "task":
+        navigation.navigate("TaskCapture", { projectId: project.id, projectName: project.name });
+        break;
     }
   };
 
-  const buttonSize = Math.min((height - 200) / 3.5, 140) * 0.8;
+  const buttonSize = Math.min((height - 200) / 4, 110) * 0.85;
 
   return (
     <View style={styles.container}>
@@ -125,19 +129,20 @@ export default function CaptureModalScreen() {
           )}
         </Pressable>
 
-        <View style={styles.mediaGrid}>
-          {mediaOptions.map((item) => (
+        <View style={styles.captureGrid}>
+          {captureOptions.map((item) => (
             <Pressable
               key={item.type}
               style={({ pressed }) => [
-                styles.mediaCardWrapper,
+                styles.captureCardWrapper,
                 pressed ? styles.pressed : null,
               ]}
-              onPress={() => handleMediaTypeSelect(item.type)}
+              onPress={() => handleCaptureTypeSelect(item.type)}
             >
               <View style={[styles.iconCircle, { width: buttonSize, height: buttonSize }]}>
-                <Feather name={item.icon} size={buttonSize * 0.45} color={BrandColors.accent} />
+                <Feather name={item.icon} size={buttonSize * 0.4} color={BrandColors.accent} />
               </View>
+              <ThemedText style={styles.captureLabel}>{item.title}</ThemedText>
             </Pressable>
           ))}
         </View>
@@ -224,14 +229,26 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingTop: Spacing.xl,
   },
-  mediaGrid: {
+  captureGrid: {
     flex: 1,
-    flexDirection: "column",
+    flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    justifyContent: "space-evenly",
+    justifyContent: "center",
+    alignContent: "center",
+    gap: Spacing.xl,
+    paddingHorizontal: Spacing.md,
   },
-  mediaCardWrapper: {
+  captureCardWrapper: {
     alignItems: "center",
+    width: "40%",
+    gap: Spacing.sm,
+  },
+  captureLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    textAlign: "center",
   },
   iconCircle: {
     borderRadius: 999,
