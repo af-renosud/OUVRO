@@ -10,6 +10,13 @@ import express from "express";
 // server/routes.ts
 import { createServer } from "node:http";
 
+// server/replit_integrations/chat/routes.ts
+import { GoogleGenAI } from "@google/genai";
+
+// server/db.ts
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
+
 // shared/schema.ts
 var schema_exports = {};
 __export(schema_exports, {
@@ -145,8 +152,6 @@ var insertObservationMediaSchema = createInsertSchema2(observationMedia).omit({ 
 var insertProjectFileSchema = createInsertSchema2(projectFiles).omit({ id: true, createdAt: true });
 
 // server/db.ts
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
 var { Pool } = pg;
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -156,120 +161,26 @@ if (!process.env.DATABASE_URL) {
 var pool = new Pool({ connectionString: process.env.DATABASE_URL });
 var db = drizzle(pool, { schema: schema_exports });
 
-// server/storage.ts
-import { eq, desc } from "drizzle-orm";
-var DatabaseStorage = class {
-  async getUser(id) {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || void 0;
-  }
-  async getUserByUsername(username) {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || void 0;
-  }
-  async createUser(insertUser) {
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
-  }
-  async getProjects() {
-    return db.select().from(projects).orderBy(desc(projects.updatedAt));
-  }
-  async getProject(id) {
-    const [project] = await db.select().from(projects).where(eq(projects.id, id));
-    return project || void 0;
-  }
-  async createProject(project) {
-    const [newProject] = await db.insert(projects).values(project).returning();
-    return newProject;
-  }
-  async updateProject(id, project) {
-    const [updated] = await db.update(projects).set(project).where(eq(projects.id, id)).returning();
-    return updated || void 0;
-  }
-  async deleteProject(id) {
-    await db.delete(projects).where(eq(projects.id, id));
-  }
-  async getObservations(projectId) {
-    if (projectId) {
-      return db.select().from(observations).where(eq(observations.projectId, projectId)).orderBy(desc(observations.createdAt));
-    }
-    return db.select().from(observations).orderBy(desc(observations.createdAt));
-  }
-  async getObservation(id) {
-    const [observation] = await db.select().from(observations).where(eq(observations.id, id));
-    return observation || void 0;
-  }
-  async createObservation(observation) {
-    const [newObservation] = await db.insert(observations).values(observation).returning();
-    return newObservation;
-  }
-  async updateObservation(id, observation) {
-    const [updated] = await db.update(observations).set(observation).where(eq(observations.id, id)).returning();
-    return updated || void 0;
-  }
-  async deleteObservation(id) {
-    await db.delete(observations).where(eq(observations.id, id));
-  }
-  async getPendingObservations() {
-    return db.select().from(observations).where(eq(observations.syncStatus, "pending")).orderBy(desc(observations.createdAt));
-  }
-  async getObservationMedia(observationId) {
-    return db.select().from(observationMedia).where(eq(observationMedia.observationId, observationId));
-  }
-  async createObservationMedia(media) {
-    const [newMedia] = await db.insert(observationMedia).values(media).returning();
-    return newMedia;
-  }
-  async deleteObservationMedia(id) {
-    await db.delete(observationMedia).where(eq(observationMedia.id, id));
-  }
-  async getProjectFiles(projectId) {
-    return db.select().from(projectFiles).where(eq(projectFiles.projectId, projectId)).orderBy(desc(projectFiles.createdAt));
-  }
-  async getProjectFile(id) {
-    const [file] = await db.select().from(projectFiles).where(eq(projectFiles.id, id));
-    return file || void 0;
-  }
-  async createProjectFile(file) {
-    const [newFile] = await db.insert(projectFiles).values(file).returning();
-    return newFile;
-  }
-  async updateProjectFile(id, file) {
-    const [updated] = await db.update(projectFiles).set(file).where(eq(projectFiles.id, id)).returning();
-    return updated || void 0;
-  }
-  async deleteProjectFile(id) {
-    await db.delete(projectFiles).where(eq(projectFiles.id, id));
-  }
-};
-var storage = new DatabaseStorage();
-
-// server/routes.ts
-import { GoogleGenAI as GoogleGenAI3 } from "@google/genai";
-
-// server/replit_integrations/chat/routes.ts
-import { GoogleGenAI } from "@google/genai";
-
 // server/replit_integrations/chat/storage.ts
-import { eq as eq2, desc as desc2 } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 var chatStorage = {
   async getConversation(id) {
-    const [conversation] = await db.select().from(conversations).where(eq2(conversations.id, id));
+    const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id));
     return conversation;
   },
   async getAllConversations() {
-    return db.select().from(conversations).orderBy(desc2(conversations.createdAt));
+    return db.select().from(conversations).orderBy(desc(conversations.createdAt));
   },
   async createConversation(title) {
     const [conversation] = await db.insert(conversations).values({ title }).returning();
     return conversation;
   },
   async deleteConversation(id) {
-    await db.delete(messages).where(eq2(messages.conversationId, id));
-    await db.delete(conversations).where(eq2(conversations.id, id));
+    await db.delete(messages).where(eq(messages.conversationId, id));
+    await db.delete(conversations).where(eq(conversations.id, id));
   },
   async getMessagesByConversation(conversationId) {
-    return db.select().from(messages).where(eq2(messages.conversationId, conversationId)).orderBy(messages.createdAt);
+    return db.select().from(messages).where(eq(messages.conversationId, conversationId)).orderBy(messages.createdAt);
   },
   async createMessage(conversationId, role, content) {
     const [message] = await db.insert(messages).values({ conversationId, role, content }).returning();
@@ -420,7 +331,264 @@ function registerImageRoutes(app2) {
   });
 }
 
-// server/routes.ts
+// server/routes/projects.ts
+import { Router } from "express";
+
+// server/storage.ts
+import { eq as eq2, desc as desc2 } from "drizzle-orm";
+var DatabaseStorage = class {
+  async getUser(id) {
+    const [user] = await db.select().from(users).where(eq2(users.id, id));
+    return user || void 0;
+  }
+  async getUserByUsername(username) {
+    const [user] = await db.select().from(users).where(eq2(users.username, username));
+    return user || void 0;
+  }
+  async createUser(insertUser) {
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+  async getProjects() {
+    return db.select().from(projects).orderBy(desc2(projects.updatedAt));
+  }
+  async getProject(id) {
+    const [project] = await db.select().from(projects).where(eq2(projects.id, id));
+    return project || void 0;
+  }
+  async createProject(project) {
+    const [newProject] = await db.insert(projects).values(project).returning();
+    return newProject;
+  }
+  async updateProject(id, project) {
+    const [updated] = await db.update(projects).set(project).where(eq2(projects.id, id)).returning();
+    return updated || void 0;
+  }
+  async deleteProject(id) {
+    await db.delete(projects).where(eq2(projects.id, id));
+  }
+  async getObservations(projectId) {
+    if (projectId) {
+      return db.select().from(observations).where(eq2(observations.projectId, projectId)).orderBy(desc2(observations.createdAt));
+    }
+    return db.select().from(observations).orderBy(desc2(observations.createdAt));
+  }
+  async getObservation(id) {
+    const [observation] = await db.select().from(observations).where(eq2(observations.id, id));
+    return observation || void 0;
+  }
+  async createObservation(observation) {
+    const [newObservation] = await db.insert(observations).values(observation).returning();
+    return newObservation;
+  }
+  async updateObservation(id, observation) {
+    const [updated] = await db.update(observations).set(observation).where(eq2(observations.id, id)).returning();
+    return updated || void 0;
+  }
+  async deleteObservation(id) {
+    await db.delete(observations).where(eq2(observations.id, id));
+  }
+  async getPendingObservations() {
+    return db.select().from(observations).where(eq2(observations.syncStatus, "pending")).orderBy(desc2(observations.createdAt));
+  }
+  async getObservationMedia(observationId) {
+    return db.select().from(observationMedia).where(eq2(observationMedia.observationId, observationId));
+  }
+  async createObservationMedia(media) {
+    const [newMedia] = await db.insert(observationMedia).values(media).returning();
+    return newMedia;
+  }
+  async deleteObservationMedia(id) {
+    await db.delete(observationMedia).where(eq2(observationMedia.id, id));
+  }
+  async getProjectFiles(projectId) {
+    return db.select().from(projectFiles).where(eq2(projectFiles.projectId, projectId)).orderBy(desc2(projectFiles.createdAt));
+  }
+  async getProjectFile(id) {
+    const [file] = await db.select().from(projectFiles).where(eq2(projectFiles.id, id));
+    return file || void 0;
+  }
+  async createProjectFile(file) {
+    const [newFile] = await db.insert(projectFiles).values(file).returning();
+    return newFile;
+  }
+  async updateProjectFile(id, file) {
+    const [updated] = await db.update(projectFiles).set(file).where(eq2(projectFiles.id, id)).returning();
+    return updated || void 0;
+  }
+  async deleteProjectFile(id) {
+    await db.delete(projectFiles).where(eq2(projectFiles.id, id));
+  }
+};
+var storage = new DatabaseStorage();
+
+// server/routes/projects.ts
+var projectsRouter = Router();
+projectsRouter.get("/projects", async (req, res) => {
+  try {
+    const projects2 = await storage.getProjects();
+    res.json(projects2);
+  } catch (error) {
+    console.error("Error fetching projects:", error);
+    res.status(500).json({ error: "Failed to fetch projects" });
+  }
+});
+projectsRouter.get("/projects/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const project = await storage.getProject(id);
+    if (!project) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+    res.json(project);
+  } catch (error) {
+    console.error("Error fetching project:", error);
+    res.status(500).json({ error: "Failed to fetch project" });
+  }
+});
+projectsRouter.post("/projects", async (req, res) => {
+  try {
+    const parsed = insertProjectSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.message });
+    }
+    const project = await storage.createProject(parsed.data);
+    res.status(201).json(project);
+  } catch (error) {
+    console.error("Error creating project:", error);
+    res.status(500).json({ error: "Failed to create project" });
+  }
+});
+projectsRouter.get("/projects/:id/files", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    const files = await storage.getProjectFiles(projectId);
+    res.json(files);
+  } catch (error) {
+    console.error("Error fetching project files:", error);
+    res.status(500).json({ error: "Failed to fetch project files" });
+  }
+});
+projectsRouter.post("/projects/:id/files", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    const parsed = insertProjectFileSchema.safeParse({ ...req.body, projectId });
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.message });
+    }
+    const file = await storage.createProjectFile(parsed.data);
+    res.status(201).json(file);
+  } catch (error) {
+    console.error("Error creating project file:", error);
+    res.status(500).json({ error: "Failed to create project file" });
+  }
+});
+
+// server/routes/observations.ts
+import { Router as Router2 } from "express";
+var observationsRouter = Router2();
+observationsRouter.get("/observations", async (req, res) => {
+  try {
+    const projectId = req.query.projectId ? parseInt(req.query.projectId) : void 0;
+    const observations2 = await storage.getObservations(projectId);
+    res.json(observations2);
+  } catch (error) {
+    console.error("Error fetching observations:", error);
+    res.status(500).json({ error: "Failed to fetch observations" });
+  }
+});
+observationsRouter.get("/observations/pending", async (req, res) => {
+  try {
+    const observations2 = await storage.getPendingObservations();
+    const observationsWithMedia = await Promise.all(
+      observations2.map(async (obs) => {
+        const media = await storage.getObservationMedia(obs.id);
+        const project = await storage.getProject(obs.projectId);
+        return {
+          ...obs,
+          media,
+          projectName: obs.projectName || project?.name || "Unknown Project"
+        };
+      })
+    );
+    res.json(observationsWithMedia);
+  } catch (error) {
+    console.error("Error fetching pending observations:", error);
+    res.status(500).json({ error: "Failed to fetch pending observations" });
+  }
+});
+observationsRouter.get("/observations/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const observation = await storage.getObservation(id);
+    if (!observation) {
+      return res.status(404).json({ error: "Observation not found" });
+    }
+    const media = await storage.getObservationMedia(id);
+    res.json({ ...observation, media });
+  } catch (error) {
+    console.error("Error fetching observation:", error);
+    res.status(500).json({ error: "Failed to fetch observation" });
+  }
+});
+observationsRouter.post("/observations", async (req, res) => {
+  try {
+    const parsed = insertObservationSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.message });
+    }
+    const observation = await storage.createObservation(parsed.data);
+    res.status(201).json(observation);
+  } catch (error) {
+    console.error("Error creating observation:", error);
+    res.status(500).json({ error: "Failed to create observation" });
+  }
+});
+observationsRouter.patch("/observations/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const observation = await storage.updateObservation(id, req.body);
+    if (!observation) {
+      return res.status(404).json({ error: "Observation not found" });
+    }
+    res.json(observation);
+  } catch (error) {
+    console.error("Error updating observation:", error);
+    res.status(500).json({ error: "Failed to update observation" });
+  }
+});
+observationsRouter.delete("/observations/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const existing = await storage.getObservation(id);
+    if (!existing) {
+      return res.status(204).send();
+    }
+    await storage.deleteObservation(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting observation:", error);
+    res.status(500).json({ error: "Failed to delete observation" });
+  }
+});
+observationsRouter.post("/observations/:id/media", async (req, res) => {
+  try {
+    const observationId = parseInt(req.params.id);
+    const parsed = insertObservationMediaSchema.safeParse({ ...req.body, observationId });
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.message });
+    }
+    const media = await storage.createObservationMedia(parsed.data);
+    res.status(201).json(media);
+  } catch (error) {
+    console.error("Error creating media:", error);
+    res.status(500).json({ error: "Failed to create media" });
+  }
+});
+
+// server/routes/ai.ts
+import { Router as Router3 } from "express";
+import { GoogleGenAI as GoogleGenAI3 } from "@google/genai";
 var ai3 = new GoogleGenAI3({
   apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
   httpOptions: {
@@ -428,6 +596,69 @@ var ai3 = new GoogleGenAI3({
     baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL
   }
 });
+var aiRouter = Router3();
+aiRouter.post("/transcribe", async (req, res) => {
+  try {
+    const { audioBase64, mimeType = "audio/mp4" } = req.body;
+    if (!audioBase64) {
+      return res.status(400).json({ error: "Audio data is required" });
+    }
+    const response = await ai3.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: "Please transcribe the following audio accurately into English text. Only output the transcription, nothing else." },
+            {
+              inlineData: {
+                mimeType,
+                data: audioBase64
+              }
+            }
+          ]
+        }
+      ]
+    });
+    const transcription = response.text || "";
+    res.json({ transcription });
+  } catch (error) {
+    console.error("Error transcribing audio:", error);
+    const errorMessage = error?.message || "Failed to transcribe audio";
+    res.status(500).json({ error: errorMessage });
+  }
+});
+aiRouter.post("/translate", async (req, res) => {
+  try {
+    const { text: text3, targetLanguage = "French" } = req.body;
+    if (!text3) {
+      return res.status(400).json({ error: "Text is required" });
+    }
+    const response = await ai3.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: `Translate the following text to ${targetLanguage}. Only output the translation, nothing else:
+
+${text3}` }
+          ]
+        }
+      ]
+    });
+    const translation = response.text || "";
+    res.json({ translation });
+  } catch (error) {
+    console.error("Error translating text:", error);
+    res.status(500).json({ error: "Failed to translate text" });
+  }
+});
+
+// server/routes/archidoc.ts
+import { Router as Router4 } from "express";
+
+// server/routes/archidoc-helpers.ts
 var ARCHIDOC_TIMEOUT_MS = 15e3;
 var ARCHIDOC_UPLOAD_TIMEOUT_MS = 6e4;
 function archidocFetch(url, options = {}) {
@@ -463,445 +694,310 @@ function formatServerError(error, context) {
   console.error(`[${context}] Error:`, error);
   return { status: 500, message: `${context} failed. Please retry.` };
 }
+function requireArchidocUrl(req, res, next) {
+  const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
+  if (!archidocApiUrl) {
+    return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
+  }
+  res.locals.archidocApiUrl = archidocApiUrl;
+  next();
+}
+async function archidocJsonPost(url, body, context, timeout) {
+  const response = await archidocFetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    timeout
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[${context}] ARCHIDOC error:`, errorText);
+    return { error: `Failed to ${context.toLowerCase()}`, status: response.status };
+  }
+  const data = await response.json();
+  return { data };
+}
+function buildArchidocObservationPayload(fields) {
+  return {
+    projectId: fields.projectId,
+    observedBy: fields.observedBy || "OUVRO Field User",
+    summary: fields.title + (fields.description ? `: ${fields.description}` : ""),
+    observedAt: fields.observedAt || (/* @__PURE__ */ new Date()).toISOString(),
+    classification: "general",
+    status: "pending",
+    priority: "normal",
+    transcription: fields.transcription || void 0,
+    translatedText: fields.translatedText || void 0
+  };
+}
+
+// server/routes/archidoc.ts
+var archidocRouter = Router4();
+archidocRouter.use(requireArchidocUrl);
+archidocRouter.post("/archidoc/upload-url", async (req, res) => {
+  try {
+    const { fileName, contentType, assetType } = req.body;
+    const archidocApiUrl = res.locals.archidocApiUrl;
+    const result = await archidocJsonPost(
+      `${archidocApiUrl}/api/field-observations/upload-url`,
+      { fileName, contentType, assetType },
+      "Upload URL request"
+    );
+    if ("error" in result) {
+      return res.status(result.status).json({ error: result.error });
+    }
+    res.json(result.data);
+  } catch (error) {
+    const { status, message } = formatServerError(error, "Upload URL request");
+    res.status(status).json({ error: message });
+  }
+});
+archidocRouter.post("/archidoc/proxy-upload", async (req, res) => {
+  try {
+    const { observationId, fileName, contentType, assetType, fileBase64 } = req.body;
+    const archidocApiUrl = res.locals.archidocApiUrl;
+    console.log(`[Proxy Upload] Starting upload for ${assetType}: ${fileName}`);
+    const urlResult = await archidocJsonPost(
+      `${archidocApiUrl}/api/field-observations/upload-url`,
+      { fileName, contentType, assetType },
+      "Get upload URL"
+    );
+    if ("error" in urlResult) {
+      return res.status(500).json({ error: "Failed to get upload URL from ARCHIDOC" });
+    }
+    const { uploadURL, objectPath } = urlResult.data;
+    console.log(`[Proxy Upload] Got upload URL, objectPath: ${objectPath}`);
+    const fileBuffer = Buffer.from(fileBase64, "base64");
+    console.log(`[Proxy Upload] Uploading ${fileBuffer.length} bytes to storage...`);
+    const uploadResponse = await archidocFetch(uploadURL, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: fileBuffer,
+      timeout: ARCHIDOC_UPLOAD_TIMEOUT_MS
+    });
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error("[Proxy Upload] Failed to upload to storage:", uploadResponse.status, errorText);
+      return res.status(500).json({ error: "Failed to upload file to storage" });
+    }
+    console.log(`[Proxy Upload] Upload successful, registering asset...`);
+    const registerResult = await archidocJsonPost(
+      `${archidocApiUrl}/api/field-observations/${observationId}/assets`,
+      { assetType, objectPath, fileName, mimeType: contentType },
+      "Register asset"
+    );
+    if ("error" in registerResult) {
+      return res.status(500).json({ error: "Failed to register asset in ARCHIDOC" });
+    }
+    console.log(`[Proxy Upload] Asset registered successfully: ${fileName}`);
+    res.json({ success: true, asset: registerResult.data, objectPath });
+  } catch (error) {
+    const { status, message } = formatServerError(error, "Proxy Upload");
+    res.status(status).json({ error: message });
+  }
+});
+archidocRouter.post("/archidoc/register-asset", async (req, res) => {
+  try {
+    const { observationId, assetType, objectPath, fileName, mimeType } = req.body;
+    const archidocApiUrl = res.locals.archidocApiUrl;
+    const result = await archidocJsonPost(
+      `${archidocApiUrl}/api/field-observations/${observationId}/assets`,
+      { assetType, objectPath, fileName, mimeType },
+      "Register asset"
+    );
+    if ("error" in result) {
+      return res.status(result.status).json({ error: result.error });
+    }
+    res.json(result.data);
+  } catch (error) {
+    const { status, message } = formatServerError(error, "Register asset");
+    res.status(status).json({ error: message });
+  }
+});
+archidocRouter.post("/archidoc/create-observation", async (req, res) => {
+  try {
+    const { projectId, title, description, transcription, translatedText, contractorName } = req.body;
+    const archidocApiUrl = res.locals.archidocApiUrl;
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required" });
+    }
+    const archidocPayload = buildArchidocObservationPayload({
+      projectId,
+      title,
+      description,
+      observedBy: contractorName,
+      transcription,
+      translatedText
+    });
+    console.log("[CreateObs] Sending to ARCHIDOC:", JSON.stringify(archidocPayload));
+    const result = await archidocJsonPost(
+      `${archidocApiUrl}/api/field-observations`,
+      archidocPayload,
+      "Create observation in ARCHIDOC"
+    );
+    if ("error" in result) {
+      return res.status(500).json({ error: result.error });
+    }
+    console.log("[CreateObs] Created in ARCHIDOC, ID:", result.data.id);
+    res.json({ archidocObservationId: result.data.id });
+  } catch (error) {
+    const { status, message } = formatServerError(error, "Create observation");
+    res.status(status).json({ error: message });
+  }
+});
+
+// server/routes/sync.ts
+import { Router as Router5 } from "express";
+var syncRouter = Router5();
+syncRouter.post("/sync-observation/:id", requireArchidocUrl, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const observation = await storage.getObservation(id);
+    if (!observation) {
+      return res.status(404).json({ error: "Observation not found" });
+    }
+    const archidocApiUrl = res.locals.archidocApiUrl;
+    if (!observation.archidocProjectId) {
+      return res.status(400).json({ error: "No ARCHIDOC project ID associated with this observation" });
+    }
+    const archidocPayload = buildArchidocObservationPayload({
+      projectId: observation.archidocProjectId,
+      title: observation.title,
+      description: observation.description,
+      observedAt: observation.createdAt?.toISOString(),
+      transcription: observation.transcription,
+      translatedText: observation.translatedText
+    });
+    console.log("[Sync] Observation from DB:", JSON.stringify({
+      id: observation.id,
+      title: observation.title,
+      transcription: observation.transcription,
+      translatedText: observation.translatedText
+    }));
+    console.log("[Sync] Payload to ARCHIDOC:", JSON.stringify(archidocPayload));
+    const result = await archidocJsonPost(
+      `${archidocApiUrl}/api/field-observations`,
+      archidocPayload,
+      "Sync observation to ARCHIDOC"
+    );
+    if ("error" in result) {
+      return res.status(result.status).json({ error: result.error });
+    }
+    console.log("Successfully created observation in ARCHIDOC, ID:", result.data.id);
+    res.json({
+      localId: id,
+      archidocObservationId: result.data.id,
+      observation
+    });
+  } catch (error) {
+    const { status, message } = formatServerError(error, "Sync observation");
+    res.status(status).json({ error: message });
+  }
+});
+syncRouter.post("/tasks/sync", async (req, res) => {
+  try {
+    const { projectId, projectName, transcription, audioDuration, localId } = req.body;
+    if (!projectId || !transcription) {
+      return res.status(400).json({ error: "Missing required fields: projectId, transcription" });
+    }
+    console.log(`[Task Sync] Received task for project ${projectId} (${projectName}): "${transcription.substring(0, 80)}..."`);
+    res.json({
+      success: true,
+      taskId: `archidoc_task_${Date.now()}`,
+      localId,
+      message: "Task received. ARCHIDOC endpoint not yet implemented - task stored locally."
+    });
+  } catch (error) {
+    console.error("[Task Sync] Error:", error);
+    res.status(500).json({ error: "Failed to sync task" });
+  }
+});
+syncRouter.post("/voice-task", requireArchidocUrl, async (req, res) => {
+  try {
+    const { audioBase64, mimeType, project_id, recorded_by, recorded_at, priority, classification } = req.body;
+    if (!audioBase64 || !project_id) {
+      return res.status(400).json({ error: "audioBase64 and project_id are required" });
+    }
+    const archidocApiUrl = res.locals.archidocApiUrl;
+    const fileBuffer = Buffer.from(audioBase64, "base64");
+    const fileExtension = mimeType === "audio/mpeg" ? "mp3" : "m4a";
+    const fileName = `voice-task-${Date.now()}.${fileExtension}`;
+    console.log(`[VoiceTask] Uploading ${fileBuffer.length} bytes for project ${project_id}`);
+    const boundary = `----FormBoundary${Date.now()}`;
+    const parts = [];
+    const addField = (name, value) => {
+      parts.push(Buffer.from(`--${boundary}\r
+Content-Disposition: form-data; name="${name}"\r
+\r
+${value}\r
+`));
+    };
+    addField("project_id", project_id);
+    addField("recorded_by", recorded_by || "OUVRO Field User");
+    if (recorded_at) addField("recorded_at", recorded_at);
+    if (priority) addField("priority", priority);
+    if (classification) addField("classification", classification);
+    parts.push(Buffer.from(
+      `--${boundary}\r
+Content-Disposition: form-data; name="file"; filename="${fileName}"\r
+Content-Type: ${mimeType || "audio/mp4"}\r
+\r
+`
+    ));
+    parts.push(fileBuffer);
+    parts.push(Buffer.from(`\r
+--${boundary}--\r
+`));
+    const body = Buffer.concat(parts);
+    const archidocResponse = await archidocFetch(`${archidocApiUrl}/api/ouvro/voice-task`, {
+      method: "POST",
+      headers: {
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        "Content-Length": String(body.length)
+      },
+      body,
+      timeout: ARCHIDOC_UPLOAD_TIMEOUT_MS
+    });
+    if (!archidocResponse.ok) {
+      const errorText = await archidocResponse.text();
+      console.error("[VoiceTask] ArchiDoc error:", archidocResponse.status, errorText);
+      return res.status(archidocResponse.status).json({
+        error: errorText || "ArchiDoc rejected the voice task"
+      });
+    }
+    const result = await archidocResponse.json();
+    console.log("[VoiceTask] Task created successfully:", result.task_id);
+    res.json(result);
+  } catch (error) {
+    const { status, message } = formatServerError(error, "Voice Task");
+    res.status(status).json({ error: message });
+  }
+});
+syncRouter.post("/mark-synced/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const updatedObservation = await storage.updateObservation(id, {
+      syncStatus: "synced"
+    });
+    res.json(updatedObservation);
+  } catch (error) {
+    console.error("Error marking observation as synced:", error);
+    res.status(500).json({ error: "Failed to mark observation as synced" });
+  }
+});
+
+// server/routes.ts
 async function registerRoutes(app2) {
   registerChatRoutes(app2);
   registerImageRoutes(app2);
   app2.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: (/* @__PURE__ */ new Date()).toISOString(), uptime: process.uptime() });
   });
-  app2.get("/api/projects", async (req, res) => {
-    try {
-      const projects2 = await storage.getProjects();
-      res.json(projects2);
-    } catch (error) {
-      console.error("Error fetching projects:", error);
-      res.status(500).json({ error: "Failed to fetch projects" });
-    }
-  });
-  app2.get("/api/projects/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const project = await storage.getProject(id);
-      if (!project) {
-        return res.status(404).json({ error: "Project not found" });
-      }
-      res.json(project);
-    } catch (error) {
-      console.error("Error fetching project:", error);
-      res.status(500).json({ error: "Failed to fetch project" });
-    }
-  });
-  app2.post("/api/projects", async (req, res) => {
-    try {
-      const parsed = insertProjectSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ error: parsed.error.message });
-      }
-      const project = await storage.createProject(parsed.data);
-      res.status(201).json(project);
-    } catch (error) {
-      console.error("Error creating project:", error);
-      res.status(500).json({ error: "Failed to create project" });
-    }
-  });
-  app2.get("/api/observations", async (req, res) => {
-    try {
-      const projectId = req.query.projectId ? parseInt(req.query.projectId) : void 0;
-      const observations2 = await storage.getObservations(projectId);
-      res.json(observations2);
-    } catch (error) {
-      console.error("Error fetching observations:", error);
-      res.status(500).json({ error: "Failed to fetch observations" });
-    }
-  });
-  app2.get("/api/observations/pending", async (req, res) => {
-    try {
-      const observations2 = await storage.getPendingObservations();
-      const observationsWithMedia = await Promise.all(
-        observations2.map(async (obs) => {
-          const media = await storage.getObservationMedia(obs.id);
-          const project = await storage.getProject(obs.projectId);
-          return {
-            ...obs,
-            media,
-            projectName: obs.projectName || project?.name || "Unknown Project"
-          };
-        })
-      );
-      res.json(observationsWithMedia);
-    } catch (error) {
-      console.error("Error fetching pending observations:", error);
-      res.status(500).json({ error: "Failed to fetch pending observations" });
-    }
-  });
-  app2.get("/api/observations/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const observation = await storage.getObservation(id);
-      if (!observation) {
-        return res.status(404).json({ error: "Observation not found" });
-      }
-      const media = await storage.getObservationMedia(id);
-      res.json({ ...observation, media });
-    } catch (error) {
-      console.error("Error fetching observation:", error);
-      res.status(500).json({ error: "Failed to fetch observation" });
-    }
-  });
-  app2.post("/api/observations", async (req, res) => {
-    try {
-      const parsed = insertObservationSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ error: parsed.error.message });
-      }
-      const observation = await storage.createObservation(parsed.data);
-      res.status(201).json(observation);
-    } catch (error) {
-      console.error("Error creating observation:", error);
-      res.status(500).json({ error: "Failed to create observation" });
-    }
-  });
-  app2.patch("/api/observations/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const observation = await storage.updateObservation(id, req.body);
-      if (!observation) {
-        return res.status(404).json({ error: "Observation not found" });
-      }
-      res.json(observation);
-    } catch (error) {
-      console.error("Error updating observation:", error);
-      res.status(500).json({ error: "Failed to update observation" });
-    }
-  });
-  app2.delete("/api/observations/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const existing = await storage.getObservation(id);
-      if (!existing) {
-        return res.status(204).send();
-      }
-      await storage.deleteObservation(id);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting observation:", error);
-      res.status(500).json({ error: "Failed to delete observation" });
-    }
-  });
-  app2.post("/api/observations/:id/media", async (req, res) => {
-    try {
-      const observationId = parseInt(req.params.id);
-      const parsed = insertObservationMediaSchema.safeParse({ ...req.body, observationId });
-      if (!parsed.success) {
-        return res.status(400).json({ error: parsed.error.message });
-      }
-      const media = await storage.createObservationMedia(parsed.data);
-      res.status(201).json(media);
-    } catch (error) {
-      console.error("Error creating media:", error);
-      res.status(500).json({ error: "Failed to create media" });
-    }
-  });
-  app2.get("/api/projects/:id/files", async (req, res) => {
-    try {
-      const projectId = parseInt(req.params.id);
-      const files = await storage.getProjectFiles(projectId);
-      res.json(files);
-    } catch (error) {
-      console.error("Error fetching project files:", error);
-      res.status(500).json({ error: "Failed to fetch project files" });
-    }
-  });
-  app2.post("/api/projects/:id/files", async (req, res) => {
-    try {
-      const projectId = parseInt(req.params.id);
-      const parsed = insertProjectFileSchema.safeParse({ ...req.body, projectId });
-      if (!parsed.success) {
-        return res.status(400).json({ error: parsed.error.message });
-      }
-      const file = await storage.createProjectFile(parsed.data);
-      res.status(201).json(file);
-    } catch (error) {
-      console.error("Error creating project file:", error);
-      res.status(500).json({ error: "Failed to create project file" });
-    }
-  });
-  app2.post("/api/transcribe", async (req, res) => {
-    try {
-      const { audioBase64, mimeType = "audio/mp4" } = req.body;
-      if (!audioBase64) {
-        return res.status(400).json({ error: "Audio data is required" });
-      }
-      const response = await ai3.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: "Please transcribe the following audio accurately into English text. Only output the transcription, nothing else." },
-              {
-                inlineData: {
-                  mimeType,
-                  data: audioBase64
-                }
-              }
-            ]
-          }
-        ]
-      });
-      const transcription = response.text || "";
-      res.json({ transcription });
-    } catch (error) {
-      console.error("Error transcribing audio:", error);
-      const errorMessage = error?.message || "Failed to transcribe audio";
-      res.status(500).json({ error: errorMessage });
-    }
-  });
-  app2.post("/api/translate", async (req, res) => {
-    try {
-      const { text: text3, targetLanguage = "French" } = req.body;
-      if (!text3) {
-        return res.status(400).json({ error: "Text is required" });
-      }
-      const response = await ai3.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: `Translate the following text to ${targetLanguage}. Only output the translation, nothing else:
-
-${text3}` }
-            ]
-          }
-        ]
-      });
-      const translation = response.text || "";
-      res.json({ translation });
-    } catch (error) {
-      console.error("Error translating text:", error);
-      res.status(500).json({ error: "Failed to translate text" });
-    }
-  });
-  app2.post("/api/archidoc/upload-url", async (req, res) => {
-    try {
-      const { fileName, contentType, assetType } = req.body;
-      const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
-      if (!archidocApiUrl) {
-        return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
-      }
-      const response = await archidocFetch(`${archidocApiUrl}/api/field-observations/upload-url`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ fileName, contentType, assetType })
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Failed to get upload URL:", errorText);
-        return res.status(response.status).json({ error: "Failed to get upload URL from ARCHIDOC" });
-      }
-      const data = await response.json();
-      res.json(data);
-    } catch (error) {
-      const { status, message } = formatServerError(error, "Upload URL request");
-      res.status(status).json({ error: message });
-    }
-  });
-  app2.post("/api/archidoc/proxy-upload", async (req, res) => {
-    try {
-      const { observationId, fileName, contentType, assetType, fileBase64 } = req.body;
-      const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
-      if (!archidocApiUrl) {
-        return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
-      }
-      console.log(`[Proxy Upload] Starting upload for ${assetType}: ${fileName}`);
-      const urlResponse = await archidocFetch(`${archidocApiUrl}/api/field-observations/upload-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName, contentType, assetType })
-      });
-      if (!urlResponse.ok) {
-        const errorText = await urlResponse.text();
-        console.error("[Proxy Upload] Failed to get upload URL:", errorText);
-        return res.status(500).json({ error: "Failed to get upload URL from ARCHIDOC" });
-      }
-      const { uploadURL, objectPath } = await urlResponse.json();
-      console.log(`[Proxy Upload] Got upload URL, objectPath: ${objectPath}`);
-      const fileBuffer = Buffer.from(fileBase64, "base64");
-      console.log(`[Proxy Upload] Uploading ${fileBuffer.length} bytes to storage...`);
-      const uploadResponse = await archidocFetch(uploadURL, {
-        method: "PUT",
-        headers: { "Content-Type": contentType },
-        body: fileBuffer,
-        timeout: ARCHIDOC_UPLOAD_TIMEOUT_MS
-      });
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error("[Proxy Upload] Failed to upload to storage:", uploadResponse.status, errorText);
-        return res.status(500).json({ error: "Failed to upload file to storage" });
-      }
-      console.log(`[Proxy Upload] Upload successful, registering asset...`);
-      const registerResponse = await archidocFetch(`${archidocApiUrl}/api/field-observations/${observationId}/assets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assetType, objectPath, fileName, mimeType: contentType })
-      });
-      if (!registerResponse.ok) {
-        const errorText = await registerResponse.text();
-        console.error("[Proxy Upload] Failed to register asset:", errorText);
-        return res.status(500).json({ error: "Failed to register asset in ARCHIDOC" });
-      }
-      const assetData = await registerResponse.json();
-      console.log(`[Proxy Upload] Asset registered successfully: ${fileName}`);
-      res.json({ success: true, asset: assetData, objectPath });
-    } catch (error) {
-      const { status, message } = formatServerError(error, "Proxy Upload");
-      res.status(status).json({ error: message });
-    }
-  });
-  app2.post("/api/archidoc/register-asset", async (req, res) => {
-    try {
-      const { observationId, assetType, objectPath, fileName, mimeType } = req.body;
-      const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
-      if (!archidocApiUrl) {
-        return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
-      }
-      const response = await archidocFetch(`${archidocApiUrl}/api/field-observations/${observationId}/assets`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ assetType, objectPath, fileName, mimeType })
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Failed to register asset:", errorText);
-        return res.status(response.status).json({ error: "Failed to register asset in ARCHIDOC" });
-      }
-      const data = await response.json();
-      res.json(data);
-    } catch (error) {
-      const { status, message } = formatServerError(error, "Register asset");
-      res.status(status).json({ error: message });
-    }
-  });
-  app2.post("/api/archidoc/create-observation", async (req, res) => {
-    try {
-      const { projectId, title, description, transcription, translatedText, contractorName, contractorEmail } = req.body;
-      const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
-      if (!archidocApiUrl) {
-        return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
-      }
-      if (!projectId) {
-        return res.status(400).json({ error: "projectId is required" });
-      }
-      const archidocPayload = {
-        projectId,
-        observedBy: contractorName || "OUVRO Field User",
-        summary: title + (description ? `: ${description}` : ""),
-        observedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        classification: "general",
-        status: "pending",
-        priority: "normal",
-        transcription: transcription || void 0,
-        translatedText: translatedText || void 0
-      };
-      console.log("[CreateObs] Sending to ARCHIDOC:", JSON.stringify(archidocPayload));
-      const archidocResponse = await archidocFetch(`${archidocApiUrl}/api/field-observations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(archidocPayload)
-      });
-      if (!archidocResponse.ok) {
-        const errorText = await archidocResponse.text();
-        console.error("[CreateObs] ARCHIDOC error:", errorText);
-        return res.status(500).json({ error: "Failed to create observation in ARCHIDOC" });
-      }
-      const archidocResult = await archidocResponse.json();
-      console.log("[CreateObs] Created in ARCHIDOC, ID:", archidocResult.id);
-      res.json({ archidocObservationId: archidocResult.id });
-    } catch (error) {
-      const { status, message } = formatServerError(error, "Create observation");
-      res.status(status).json({ error: message });
-    }
-  });
-  app2.post("/api/sync-observation/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const observation = await storage.getObservation(id);
-      if (!observation) {
-        return res.status(404).json({ error: "Observation not found" });
-      }
-      const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
-      if (!archidocApiUrl) {
-        return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
-      }
-      if (!observation.archidocProjectId) {
-        return res.status(400).json({ error: "No ARCHIDOC project ID associated with this observation" });
-      }
-      const archidocPayload = {
-        projectId: observation.archidocProjectId,
-        observedBy: "OUVRO Field User",
-        summary: observation.title + (observation.description ? `: ${observation.description}` : ""),
-        observedAt: observation.createdAt?.toISOString() || (/* @__PURE__ */ new Date()).toISOString(),
-        classification: "general",
-        status: "pending",
-        priority: "normal",
-        transcription: observation.transcription || void 0,
-        translatedText: observation.translatedText || void 0
-      };
-      console.log("[Sync] Observation from DB:", JSON.stringify({
-        id: observation.id,
-        title: observation.title,
-        transcription: observation.transcription,
-        translatedText: observation.translatedText
-      }));
-      console.log("[Sync] Payload to ARCHIDOC:", JSON.stringify(archidocPayload));
-      let archidocObservationId = null;
-      try {
-        const archidocResponse = await archidocFetch(`${archidocApiUrl}/api/field-observations`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(archidocPayload)
-        });
-        if (!archidocResponse.ok) {
-          const errorText = await archidocResponse.text();
-          console.error("ARCHIDOC sync failed:", errorText);
-          return res.status(500).json({ error: "Failed to create observation in ARCHIDOC" });
-        }
-        const archidocResult = await archidocResponse.json();
-        archidocObservationId = archidocResult.id;
-        console.log("Successfully created observation in ARCHIDOC, ID:", archidocObservationId);
-      } catch (fetchError) {
-        const { status, message } = formatServerError(fetchError, "Sync observation");
-        return res.status(status).json({ error: message });
-      }
-      res.json({
-        localId: id,
-        archidocObservationId,
-        observation
-      });
-    } catch (error) {
-      const { status, message } = formatServerError(error, "Sync observation");
-      res.status(status).json({ error: message });
-    }
-  });
-  app2.post("/api/mark-synced/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const updatedObservation = await storage.updateObservation(id, {
-        syncStatus: "synced"
-      });
-      res.json(updatedObservation);
-    } catch (error) {
-      console.error("Error marking observation as synced:", error);
-      res.status(500).json({ error: "Failed to mark observation as synced" });
-    }
-  });
+  app2.use("/api", projectsRouter);
+  app2.use("/api", observationsRouter);
+  app2.use("/api", aiRouter);
+  app2.use("/api", archidocRouter);
+  app2.use("/api", syncRouter);
   const httpServer = createServer(app2);
   return httpServer;
 }

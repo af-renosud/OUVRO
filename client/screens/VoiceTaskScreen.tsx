@@ -108,7 +108,7 @@ export default function VoiceTaskScreen() {
       if (Platform.OS !== "web" && recordingUri && !recordingUri.startsWith("mock://")) {
         setUploadProgress("Reading audio file...");
         audioBase64 = await FileSystem.readAsStringAsync(recordingUri, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: "base64",
         });
 
         if (recordingUri.endsWith(".m4a") || recordingUri.endsWith(".mp4")) {
