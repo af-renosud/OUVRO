@@ -11,37 +11,6 @@ import { ThemedText } from "@/components/ThemedText";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
 
-type CaptureType = "photo" | "video" | "audio" | "task";
-
-type CaptureOption = {
-  type: CaptureType;
-  icon: keyof typeof Feather.glyphMap;
-  title: string;
-};
-
-const captureOptions: CaptureOption[] = [
-  {
-    type: "photo",
-    icon: "camera",
-    title: "Photo",
-  },
-  {
-    type: "video",
-    icon: "video",
-    title: "Video",
-  },
-  {
-    type: "audio",
-    icon: "mic",
-    title: "Audio",
-  },
-  {
-    type: "task",
-    icon: "clipboard",
-    title: "Task",
-  },
-];
-
 export default function CaptureModalScreen() {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -74,13 +43,7 @@ export default function CaptureModalScreen() {
     return project;
   };
 
-  const handleActionPress = () => {
-    const project = getProject();
-    if (!project) return;
-    navigation.navigate("VoiceTask", { projectId: project.id, projectName: project.name });
-  };
-
-  const handleCaptureTypeSelect = (type: CaptureType) => {
+  const handleButtonPress = (type: "photo" | "video" | "audio" | "action") => {
     const project = getProject();
     if (!project) return;
 
@@ -94,14 +57,13 @@ export default function CaptureModalScreen() {
       case "audio":
         navigation.navigate("AudioCapture", { projectId: project.id, projectName: project.name });
         break;
-      case "task":
-        navigation.navigate("TaskCapture", { projectId: project.id, projectName: project.name });
+      case "action":
+        navigation.navigate("VoiceTask", { projectId: project.id, projectName: project.name });
         break;
     }
   };
 
-  const buttonSize = Math.min((height - 200) / 4, 110) * 0.85;
-  const actionButtonSize = buttonSize * 1.05;
+  const buttonSize = Math.min((height - 200) / 4, 120);
 
   return (
     <View style={styles.container}>
@@ -143,35 +105,58 @@ export default function CaptureModalScreen() {
         </Pressable>
 
         <View style={styles.captureArea}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.actionButtonWrapper,
-              pressed ? styles.pressed : null,
-            ]}
-            onPress={handleActionPress}
-          >
-            <View style={[styles.actionIconCircle, { width: actionButtonSize, height: actionButtonSize }]}>
-              <Feather name="file-text" size={actionButtonSize * 0.4} color={BrandColors.accent} />
-            </View>
-            <ThemedText style={styles.captureLabel}>ACTION</ThemedText>
-          </Pressable>
-
           <View style={styles.captureGrid}>
-            {captureOptions.map((item) => (
-              <Pressable
-                key={item.type}
-                style={({ pressed }) => [
-                  styles.captureCardWrapper,
-                  pressed ? styles.pressed : null,
-                ]}
-                onPress={() => handleCaptureTypeSelect(item.type)}
-              >
-                <View style={[styles.iconCircle, { width: buttonSize, height: buttonSize }]}>
-                  <Feather name={item.icon} size={buttonSize * 0.4} color={BrandColors.accent} />
-                </View>
-                <ThemedText style={styles.captureLabel}>{item.title}</ThemedText>
-              </Pressable>
-            ))}
+            <Pressable
+              style={({ pressed }) => [
+                styles.captureCardWrapper,
+                pressed ? styles.pressed : null,
+              ]}
+              onPress={() => handleButtonPress("photo")}
+            >
+              <View style={[styles.iconCircle, { width: buttonSize, height: buttonSize }]}>
+                <Feather name="camera" size={buttonSize * 0.38} color={BrandColors.accent} />
+              </View>
+              <ThemedText style={styles.captureLabel}>Photo</ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.captureCardWrapper,
+                pressed ? styles.pressed : null,
+              ]}
+              onPress={() => handleButtonPress("video")}
+            >
+              <View style={[styles.iconCircle, { width: buttonSize, height: buttonSize }]}>
+                <Feather name="video" size={buttonSize * 0.38} color={BrandColors.accent} />
+              </View>
+              <ThemedText style={styles.captureLabel}>Video</ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.captureCardWrapper,
+                pressed ? styles.pressed : null,
+              ]}
+              onPress={() => handleButtonPress("audio")}
+            >
+              <View style={[styles.iconCircle, { width: buttonSize, height: buttonSize }]}>
+                <Feather name="mic" size={buttonSize * 0.38} color={BrandColors.accent} />
+              </View>
+              <ThemedText style={styles.captureLabel}>Audio</ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.captureCardWrapper,
+                pressed ? styles.pressed : null,
+              ]}
+              onPress={() => handleButtonPress("action")}
+            >
+              <View style={[styles.iconCircle, styles.actionIconCircle, { width: buttonSize, height: buttonSize }]}>
+                <Feather name="clipboard" size={buttonSize * 0.38} color={BrandColors.accent} />
+              </View>
+              <ThemedText style={styles.captureLabel}>Action</ThemedText>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -261,19 +246,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  actionButtonWrapper: {
-    alignItems: "center",
-    marginBottom: Spacing.xl,
-    gap: Spacing.sm,
-  },
-  actionIconCircle: {
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#E6FFFA",
-    borderWidth: 3,
-    borderColor: "#DC2626",
+    marginTop: -Spacing.xl * 2,
   },
   captureGrid: {
     flexDirection: "row",
@@ -289,7 +262,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   captureLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
     color: "#FFFFFF",
     textAlign: "center",
@@ -301,6 +274,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#E6FFFA",
     borderWidth: 3,
     borderColor: "#0B2545",
+  },
+  actionIconCircle: {
+    borderColor: "#DC2626",
   },
   pressed: {
     opacity: 0.9,
