@@ -1,56 +1,74 @@
+export type {
+  RawDQEItem,
+  DQEAttachment,
+  ArchidocProject,
+  MappedProject,
+  DQEItem,
+  ProjectLink,
+  Contractor,
+  FileCategory,
+  ProjectFile,
+  FileDownloadResponse,
+  UploadUrlResponse,
+  AnnotationType,
+  Annotation,
+  AnnotatedFile,
+  ArchidocFileResponse,
+} from "./archidoc-types";
+
+export {
+  FILE_CATEGORIES,
+  ANNOTATION_COLORS,
+} from "./archidoc-types";
+
+import {
+  FILE_CATEGORIES as FILE_CATEGORIES_DATA,
+  type RawDQEItem,
+  type DQEAttachment,
+  type MappedProject,
+  type DQEItem,
+  type Contractor,
+  type FileCategory,
+  type ProjectFile,
+  type FileDownloadResponse,
+  type UploadUrlResponse,
+  type ArchidocFileResponse,
+} from "./archidoc-types";
+
 const ARCHIDOC_API_URL = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
 
-// Log ARCHIDOC API URL configuration on load (dev only)
 if (__DEV__) console.log("[ARCHIDOC] API URL configured:", ARCHIDOC_API_URL || "NOT SET");
 
-// Raw ARCHIDOC DQE item response - actual API field names
-type RawDQEItem = {
-  id: string;
-  description?: string;
-  designation?: string; // Legacy field name
-  title?: string; // Short title
-  lotCode?: string;
-  lotNumber?: string; // ARCHIDOC uses lotNumber, not lotCode
-  lot_code?: string; // snake_case variant
-  lot_number?: string; // snake_case variant
-  unit: string;
-  quantity: number;
-  zone?: string;
-  category?: string;
-  stageCode?: string;
-  stage_code?: string;
-  tags?: string[];
-  notes?: string;
-  internalNotes?: Array<{ text: string }>;
-  assignedContractorId?: string | null;
-  assigned_contractor_id?: string | null;
-  contractorId?: string | null;
-  contractor_id?: string | null;
-  // ARCHIDOC uses "attachments" (usually empty) and "projectAttachments" (actual files)
-  attachments?: Array<{
-    id: string;
-    fileName?: string;
-    file_name?: string;
-    name?: string;
-    fileUrl?: string;
-    file_url?: string;
-    url?: string;
-    type?: string;
-  }>;
-  projectAttachments?: Array<{
-    id: string;
-    name?: string;
-    url?: string;
-    type?: string;
-  }>;
-};
+async function archidocApiFetch(
+  path: string,
+  options: RequestInit & { allowNotFound?: boolean } = {}
+): Promise<Response> {
+  if (!ARCHIDOC_API_URL) {
+    throw new Error("ARCHIDOC API URL is not configured. Please set EXPO_PUBLIC_ARCHIDOC_API_URL.");
+  }
 
-// Map raw DQE item to normalized format
+  const { allowNotFound, ...fetchOptions } = options;
+
+  const response = await fetch(`${ARCHIDOC_API_URL}${path}`, {
+    credentials: "include",
+    ...fetchOptions,
+  });
+
+  if (!response.ok) {
+    if (allowNotFound && response.status === 404) return response;
+    if (response.status === 401) throw new Error("Session expired. Please re-authenticate.");
+    if (response.status === 403) throw new Error("No access to this project.");
+    const errorText = await response.text().catch(() => "Unknown error");
+    throw new Error(`ARCHIDOC request failed (${response.status}): ${errorText}`);
+  }
+
+  return response;
+}
+
 function mapDQEItem(raw: RawDQEItem): DQEItem {
-  // Combine attachments from both fields (ARCHIDOC uses projectAttachments for actual files)
   const rawAttachments = raw.attachments || [];
   const projectAttachments = raw.projectAttachments || [];
-  
+
   const allAttachments: DQEAttachment[] = [
     ...rawAttachments.map(att => ({
       id: att.id,
@@ -63,14 +81,13 @@ function mapDQEItem(raw: RawDQEItem): DQEItem {
       fileUrl: att.url || "",
     })),
   ].filter(att => att.id && (att.fileName || att.fileUrl));
-  
-  // ARCHIDOC uses lotNumber, not lotCode
+
   const lotCode = raw.lotCode || raw.lotNumber || raw.lot_code || raw.lot_number || "";
-  
+
   return {
     id: raw.id,
     description: raw.description || raw.title || raw.designation || "",
-    lotCode: lotCode,
+    lotCode,
     unit: raw.unit,
     quantity: raw.quantity,
     zone: raw.zone || raw.category,
@@ -82,178 +99,54 @@ function mapDQEItem(raw: RawDQEItem): DQEItem {
   };
 }
 
-export type DQEAttachment = {
-  id: string;
-  fileName: string;
-  fileUrl: string;
-};
-
-export type ArchidocProject = {
-  id: string;
-  projectName: string;
-  clientName: string;
-  address: string;
-  status: string;
-  clients?: Array<{ id: string; name: string; email: string }>;
-  items?: DQEItem[];
-  links?: ProjectLink[];
-  lotContractors?: Record<string, string>;
-  // External link fields (correct ARCHIDOC field names)
+function resolveExternalLinks(source: any): {
   photosUrl?: string;
   model3dUrl?: string;
   tour3dUrl?: string;
   googleDriveUrl?: string;
-};
+} {
+  const ext = source.externalLinks || source.external_links || source.links || {};
 
-export type MappedProject = {
-  id: string;
-  name: string;
-  location: string;
-  status: string;
-  clientName: string;
-  items?: DQEItem[];
-  links?: ProjectLink[];
-  lotContractors?: Record<string, string>;
-  // External links (correct ARCHIDOC field names)
-  photosUrl?: string;
-  model3dUrl?: string;
-  tour3dUrl?: string;
-  googleDriveUrl?: string;
-};
+  return {
+    photosUrl: source.photosUrl || source.photos_url ||
+      source.photoUrl || source.photo_url ||
+      ext.photosUrl || ext.photos_url ||
+      ext.photos || ext.photo,
 
-export type DQEItem = {
-  id: string;
-  description: string;
-  lotCode: string;
-  unit: string;
-  quantity: number;
-  zone?: string;
-  stageCode?: string;
-  tags?: string[];
-  notes?: string;
-  assignedContractorId?: string | null;
-  attachments?: DQEAttachment[];
-};
+    model3dUrl: source.model3dUrl || source.model_3d_url ||
+      source.modelUrl || source.model_url ||
+      source['3dModelUrl'] || source['3d_model_url'] ||
+      ext.model3dUrl || ext.model_3d_url ||
+      ext.model3d || ext['3dModel'],
 
-export type ProjectLink = {
-  id: string;
-  title: string;
-  url: string;
-  type?: string;
-};
+    tour3dUrl: source.tour3dUrl || source.tour_3d_url ||
+      source.tourUrl || source.tour_url ||
+      source.virtualTourUrl || source.virtual_tour_url ||
+      ext.tour3dUrl || ext.tour_3d_url ||
+      ext.tour3d || ext.virtualTour,
 
-export type Contractor = {
-  id: string;
-  name: string;
-  address1?: string;
-  town?: string;
-  postcode?: string;
-  siret?: string;
-  contactName?: string;
-  contactEmail?: string;
-  contactMobile?: string;
-};
-
-export type FileCategory =
-  | "00"
-  | "01"
-  | "02"
-  | "03"
-  | "04"
-  | "05"
-  | "06"
-  | "07"
-  | "08"
-  | "general"
-  | "annotations"
-  | "photos"
-  | "plans";
-
-export type ProjectFile = {
-  objectId: string;
-  objectName: string;
-  originalName: string;
-  contentType: string;
-  size: number;
-  projectId: string;
-  category: FileCategory;
-  createdAt: string;
-};
-
-export type FileDownloadResponse = {
-  file: {
-    objectId: string;
-    originalName: string;
-    contentType: string;
-    freshUrl: string;
+    googleDriveUrl: source.googleDriveUrl || source.google_drive_url ||
+      source.driveUrl || source.drive_url ||
+      source.gdriveUrl || source.gdrive_url ||
+      ext.googleDriveUrl || ext.google_drive_url ||
+      ext.googleDrive || ext.drive,
   };
-};
-
-export type UploadUrlResponse = {
-  uploadURL: string;
-  publicUrl: string;
-  objectId: string;
-  bucketName: string;
-  objectName: string;
-  objectPath: string;
-  metadata: {
-    name: string;
-    size: number;
-    contentType: string;
-  };
-};
-
-export type AnnotationType = "arrow" | "circle" | "rectangle" | "freehand" | "text" | "measurement";
-
-export type Annotation = {
-  id: string;
-  type: AnnotationType;
-  color: string;
-  strokeWidth: number;
-  points: number[][];
-  text?: string;
-  createdAt: string;
-  createdBy: string;
-};
-
-export type AnnotatedFile = {
-  id: string;
-  originalFileId: string;
-  projectId: string;
-  annotations: Annotation[];
-  flattenedImagePath: string;
-  linkedObservationId?: string;
-};
-
-export const FILE_CATEGORIES: { key: FileCategory; code: string; label: string; icon: string }[] = [
-  { key: "00", code: "00", label: "Contrats & Légal", icon: "file-text" },
-  { key: "01", code: "01", label: "PLU / Urbanisme", icon: "map" },
-  { key: "02", code: "02", label: "État des Lieux", icon: "search" },
-  { key: "03", code: "03", label: "Permis PC/DP", icon: "clipboard" },
-  { key: "04", code: "04", label: "Suivi Admin", icon: "folder" },
-  { key: "05", code: "05", label: "DCE Technique", icon: "tool" },
-  { key: "06", code: "06", label: "DET / Exécution", icon: "settings" },
-  { key: "07", code: "07", label: "VISA EXE", icon: "check-square" },
-  { key: "08", code: "08", label: "AOR / Livraison", icon: "award" },
-  { key: "general", code: "GEN", label: "Fichiers Généraux", icon: "file" },
-  { key: "photos", code: "PHO", label: "Photos", icon: "image" },
-  { key: "annotations", code: "ANN", label: "Annotations", icon: "edit-2" },
-];
-
-export const ANNOTATION_COLORS = [
-  { key: "red", hex: "#FF0000", label: "Défauts / Problèmes" },
-  { key: "orange", hex: "#FF8C00", label: "Avertissements" },
-  { key: "blue", hex: "#0066CC", label: "Information" },
-  { key: "green", hex: "#00AA00", label: "Approuvé" },
-  { key: "black", hex: "#000000", label: "Général" },
-];
-
-export function getArchidocApiUrl(): string | undefined {
-  return ARCHIDOC_API_URL;
 }
 
-export function isApiConfigured(): boolean {
-  return !!ARCHIDOC_API_URL;
+function mapRawProject(raw: any): MappedProject {
+  const links = resolveExternalLinks(raw);
+
+  return {
+    id: raw.project_id || raw.id,
+    name: raw.project_name || raw.projectName || "",
+    location: raw.address || "",
+    status: raw.status || "",
+    clientName: raw.client_name || raw.clientName || "",
+    items: (raw.items || []).map((item: any) => mapDQEItem(item as RawDQEItem)),
+    links: raw.links,
+    lotContractors: raw.lot_contractors || raw.lotContractors,
+    ...links,
+  };
 }
 
 export function getFileIcon(contentType: string): string {
@@ -271,24 +164,14 @@ export function formatFileSize(bytes: number): string {
 }
 
 export function getCategoryLabel(category: FileCategory): string {
-  const found = FILE_CATEGORIES.find((c) => c.key === category);
+  const found = FILE_CATEGORIES_DATA.find((c) => c.key === category);
   return found ? found.label : category;
 }
 
 export async function fetchContractors(): Promise<Contractor[]> {
-  if (!ARCHIDOC_API_URL) {
-    console.warn("EXPO_PUBLIC_ARCHIDOC_API_URL is not configured");
-    return [];
-  }
-  
   try {
-    const response = await fetch(`${ARCHIDOC_API_URL}/api/contractors`);
-    if (!response.ok) {
-      console.warn("Failed to fetch contractors:", response.status);
-      return [];
-    }
-    const contractors: Contractor[] = await response.json();
-    return contractors;
+    const response = await archidocApiFetch("/api/contractors");
+    return await response.json();
   } catch (error) {
     console.warn("Error fetching contractors:", error);
     return [];
@@ -296,185 +179,33 @@ export async function fetchContractors(): Promise<Contractor[]> {
 }
 
 export async function fetchArchidocProjects(): Promise<MappedProject[]> {
-  if (!ARCHIDOC_API_URL) {
-    console.warn("EXPO_PUBLIC_ARCHIDOC_API_URL is not configured");
-    return [];
-  }
-  
-  const response = await fetch(`${ARCHIDOC_API_URL}/api/ouvro/projects`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch projects from OUVRO");
-  }
+  const response = await archidocApiFetch("/api/ouvro/projects");
   const data = await response.json();
-  
+
   if (__DEV__) {
     console.log("[ARCHIDOC] Raw projects response:", JSON.stringify(data).substring(0, 500));
   }
-  
-  // ARCHIDOC returns { projects: [...] } wrapper with snake_case fields
+
   const projects = data.projects;
-  
-  // Validate that we received an array of projects
+
   if (!Array.isArray(projects)) {
     console.warn("[ARCHIDOC] Unexpected response format - expected { projects: [...] }, got:", typeof data);
     return [];
   }
-  
-  return projects.map((p: any) => {
-    // Extract external links - check multiple possible structures
-    const externalLinks = p.externalLinks || p.external_links || p.links || {};
-    
-    const photosUrl = p.photosUrl || p.photos_url || 
-      p.photoUrl || p.photo_url ||
-      externalLinks.photosUrl || externalLinks.photos_url ||
-      externalLinks.photos || externalLinks.photo;
-      
-    const model3dUrl = p.model3dUrl || p.model_3d_url ||
-      p.modelUrl || p.model_url ||
-      p['3dModelUrl'] || p['3d_model_url'] ||
-      externalLinks.model3dUrl || externalLinks.model_3d_url ||
-      externalLinks.model3d || externalLinks['3dModel'];
-      
-    const tour3dUrl = p.tour3dUrl || p.tour_3d_url ||
-      p.tourUrl || p.tour_url ||
-      p.virtualTourUrl || p.virtual_tour_url ||
-      externalLinks.tour3dUrl || externalLinks.tour_3d_url ||
-      externalLinks.tour3d || externalLinks.virtualTour;
-      
-    const googleDriveUrl = p.googleDriveUrl || p.google_drive_url ||
-      p.driveUrl || p.drive_url ||
-      p.gdriveUrl || p.gdrive_url ||
-      externalLinks.googleDriveUrl || externalLinks.google_drive_url ||
-      externalLinks.googleDrive || externalLinks.drive;
 
-    return {
-      // Map snake_case to camelCase: project_id -> id, project_name -> projectName
-      id: p.project_id || p.id,
-      name: p.project_name || p.projectName,
-      location: p.address,
-      status: p.status,
-      clientName: p.client_name || p.clientName,
-      // Normalize items using mapDQEItem so attachments are properly combined from projectAttachments
-      items: (p.items || []).map((item: any) => mapDQEItem(item as RawDQEItem)),
-      links: p.links,
-      lotContractors: p.lot_contractors || p.lotContractors,
-      photosUrl,
-      model3dUrl,
-      tour3dUrl,
-      googleDriveUrl,
-    };
-  });
+  return projects.map(mapRawProject);
 }
 
 export async function fetchProjectById(projectId: string): Promise<MappedProject | null> {
-  if (!ARCHIDOC_API_URL) {
-    console.warn("EXPO_PUBLIC_ARCHIDOC_API_URL is not configured");
-    return null;
-  }
-  
-  const response = await fetch(`${ARCHIDOC_API_URL}/api/ouvro/projects/${projectId}`, {
-    credentials: "include",
-  });
-  if (!response.ok) {
-    if (response.status === 404) return null;
-    throw new Error("Failed to fetch project");
-  }
+  const response = await archidocApiFetch(`/api/ouvro/projects/${projectId}`, { allowNotFound: true });
+
+  if (response.status === 404) return null;
+
   const rawData = await response.json();
-  
-  // Log raw response to check field names
-  if (__DEV__) console.log("[ARCHIDOC API] Raw JSON keys:", Object.keys(rawData));
-  if (__DEV__) console.log("[ARCHIDOC API] FULL RAW DATA for debugging links:", JSON.stringify({
-    photos_url: rawData.photos_url,
-    photosUrl: rawData.photosUrl,
-    model_3d_url: rawData.model_3d_url,
-    model3dUrl: rawData.model3dUrl,
-    tour_3d_url: rawData.tour_3d_url,
-    tour3dUrl: rawData.tour3dUrl,
-    google_drive_url: rawData.google_drive_url,
-    googleDriveUrl: rawData.googleDriveUrl,
-    links: rawData.links,
-    externalLinks: rawData.externalLinks,
-    external_links: rawData.external_links,
-  }));
-  if (rawData.items?.[0]) {
-    if (__DEV__) console.log("[ARCHIDOC API] First item raw keys:", Object.keys(rawData.items[0]));
-    if (__DEV__) console.log("[ARCHIDOC API] First item raw data:", JSON.stringify(rawData.items[0]));
-  }
-  // Log lotContractors/lot_contractors
-  if (__DEV__) console.log("[ARCHIDOC API] lotContractors:", rawData.lotContractors);
-  if (__DEV__) console.log("[ARCHIDOC API] lot_contractors:", rawData.lot_contractors);
-  
-  // Map items with snake_case support
-  const rawItems: RawDQEItem[] = rawData.items || [];
-  const mappedItems = rawItems.map(mapDQEItem);
-  
-  // Handle both lotContractors and lot_contractors (snake_case)
-  const lotContractors = rawData.lotContractors || rawData.lot_contractors || {};
-  
-  // Diagnostic logging for DQE data flow
-  if (__DEV__) console.log("[ARCHIDOC API] Mapped project response for", projectId, ":", JSON.stringify({
-    hasItems: mappedItems.length > 0,
-    itemsCount: mappedItems.length,
-    hasLotContractors: Object.keys(lotContractors).length > 0,
-    lotContractorsKeys: Object.keys(lotContractors),
-    sampleItem: mappedItems[0] ? {
-      lotCode: mappedItems[0].lotCode,
-      assignedContractorId: mappedItems[0].assignedContractorId,
-      hasAttachments: !!(mappedItems[0].attachments && mappedItems[0].attachments.length > 0),
-      attachmentsCount: mappedItems[0].attachments?.length || 0,
-    } : null,
-    allLotCodes: [...new Set(mappedItems.map(item => item.lotCode).filter(Boolean))],
-    allContractorIds: [...new Set(mappedItems.map(item => item.assignedContractorId).filter(Boolean))],
-  }));
-  
-  // Extract external links - check multiple possible structures
-  // ARCHIDOC might return these in various ways: direct fields, nested in 'links', or in 'externalLinks'
-  const externalLinks = rawData.externalLinks || rawData.external_links || rawData.links || {};
-  
-  const photosUrl = rawData.photosUrl || rawData.photos_url || 
-    rawData.photoUrl || rawData.photo_url ||
-    externalLinks.photosUrl || externalLinks.photos_url ||
-    externalLinks.photos || externalLinks.photo;
-    
-  const model3dUrl = rawData.model3dUrl || rawData.model_3d_url ||
-    rawData.modelUrl || rawData.model_url ||
-    rawData['3dModelUrl'] || rawData['3d_model_url'] ||
-    externalLinks.model3dUrl || externalLinks.model_3d_url ||
-    externalLinks.model3d || externalLinks['3dModel'];
-    
-  const tour3dUrl = rawData.tour3dUrl || rawData.tour_3d_url ||
-    rawData.tourUrl || rawData.tour_url ||
-    rawData.virtualTourUrl || rawData.virtual_tour_url ||
-    externalLinks.tour3dUrl || externalLinks.tour_3d_url ||
-    externalLinks.tour3d || externalLinks.virtualTour;
-    
-  const googleDriveUrl = rawData.googleDriveUrl || rawData.google_drive_url ||
-    rawData.driveUrl || rawData.drive_url ||
-    rawData.gdriveUrl || rawData.gdrive_url ||
-    externalLinks.googleDriveUrl || externalLinks.google_drive_url ||
-    externalLinks.googleDrive || externalLinks.drive;
 
-  if (__DEV__) console.log("[ARCHIDOC API] Resolved external links:", JSON.stringify({
-    photosUrl,
-    model3dUrl,
-    tour3dUrl,
-    googleDriveUrl,
-  }));
+  if (__DEV__) console.log("[ARCHIDOC] Project", projectId, "keys:", Object.keys(rawData).join(", "));
 
-  return {
-    id: rawData.project_id || rawData.id,
-    name: rawData.projectName || rawData.project_name || "",
-    location: rawData.address || "",
-    status: rawData.status || "",
-    clientName: rawData.clientName || rawData.client_name || "",
-    items: mappedItems,
-    links: rawData.links,
-    lotContractors: lotContractors,
-    photosUrl,
-    model3dUrl,
-    tour3dUrl,
-    googleDriveUrl,
-  };
+  return mapRawProject(rawData);
 }
 
 export function getAllDQEAttachments(items: DQEItem[]): { item: DQEItem; attachment: DQEAttachment }[] {
@@ -485,45 +216,19 @@ export function getAllDQEAttachments(items: DQEItem[]): { item: DQEItem; attachm
     .filter((entry) => entry.attachment !== null);
 }
 
-type ArchidocFileResponse = {
-  object_id: string;
-  object_name: string;
-  original_name: string;
-  content_type: string;
-  size: number;
-  project_id: string;
-  category: string;
-  uploaded_at: string;
-};
-
 export async function fetchProjectFiles(
   projectId: string,
   category?: FileCategory
 ): Promise<ProjectFile[]> {
-  if (!ARCHIDOC_API_URL) {
-    console.warn("EXPO_PUBLIC_ARCHIDOC_API_URL is not configured");
-    return [];
-  }
-
-  let url = `${ARCHIDOC_API_URL}/api/archive/files?projectId=${projectId}`;
+  let path = `/api/archive/files?projectId=${projectId}`;
   if (category) {
-    url += `&category=${category}`;
+    path += `&category=${category}`;
   }
 
-  const response = await fetch(url, { credentials: "include" });
-  if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error("Session expired. Please re-authenticate.");
-    }
-    if (response.status === 403) {
-      throw new Error("No access to this project.");
-    }
-    throw new Error("Failed to fetch project files");
-  }
-  
+  const response = await archidocApiFetch(path);
   const data = await response.json();
   const files: ArchidocFileResponse[] = data.files || data || [];
-  
+
   return files.map((f) => ({
     objectId: f.object_id,
     objectName: f.object_name,
@@ -537,19 +242,7 @@ export async function fetchProjectFiles(
 }
 
 export async function getFileDownloadUrl(objectId: string): Promise<FileDownloadResponse> {
-  if (!ARCHIDOC_API_URL) {
-    throw new Error("ARCHIDOC API URL is not configured");
-  }
-
-  const response = await fetch(`${ARCHIDOC_API_URL}/api/archive/files/${objectId}`, {
-    credentials: "include",
-  });
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error("File not found or deleted");
-    }
-    throw new Error("Failed to get download URL");
-  }
+  const response = await archidocApiFetch(`/api/archive/files/${objectId}`);
   return response.json();
 }
 
@@ -558,32 +251,13 @@ export async function requestUploadUrl(
   contentType: string,
   size: number
 ): Promise<UploadUrlResponse> {
-  if (!ARCHIDOC_API_URL) {
-    console.error("[requestUploadUrl] ARCHIDOC_API_URL is not configured!");
-    throw new Error("ARCHIDOC API URL is not configured. Please set EXPO_PUBLIC_ARCHIDOC_API_URL environment variable.");
-  }
-
-  const uploadUrl = `${ARCHIDOC_API_URL}/api/uploads/request-url`;
-  if (__DEV__) console.log("[requestUploadUrl] Requesting signed URL from:", uploadUrl);
-  if (__DEV__) console.log("[requestUploadUrl] File:", fileName, "Type:", contentType, "Size:", size);
-
-  const response = await fetch(uploadUrl, {
+  const response = await archidocApiFetch("/api/uploads/request-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: fileName, contentType, size }),
   });
 
-  if (__DEV__) console.log("[requestUploadUrl] Response status:", response.status);
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "Unknown error");
-    console.error(`[requestUploadUrl] Failed (${response.status}):`, errorText);
-    throw new Error(`Failed to get upload URL: ${response.status} - ${errorText}`);
-  }
-  
-  const result = await response.json();
-  if (__DEV__) console.log("[requestUploadUrl] Got upload info:", JSON.stringify(result, null, 2));
-  return result;
+  return response.json();
 }
 
 export async function uploadFileToSignedUrl(
@@ -591,16 +265,11 @@ export async function uploadFileToSignedUrl(
   fileBlob: Blob,
   contentType: string
 ): Promise<void> {
-  if (__DEV__) console.log("[uploadFileToSignedUrl] Uploading to signed URL...");
-  if (__DEV__) console.log("[uploadFileToSignedUrl] Content-Type:", contentType, "Blob size:", fileBlob.size);
-  
   const response = await fetch(uploadUrl, {
     method: "PUT",
     headers: { "Content-Type": contentType },
     body: fileBlob,
   });
-
-  if (__DEV__) console.log("[uploadFileToSignedUrl] Response status:", response.status);
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "Unknown error");
@@ -618,31 +287,11 @@ export async function archiveUploadedFile(params: {
   projectId: string;
   category: FileCategory;
 }): Promise<void> {
-  if (!ARCHIDOC_API_URL) {
-    console.error("[archiveUploadedFile] ARCHIDOC_API_URL is not configured!");
-    throw new Error("ARCHIDOC API URL is not configured. Please set EXPO_PUBLIC_ARCHIDOC_API_URL environment variable.");
-  }
-
-  const archiveUrl = `${ARCHIDOC_API_URL}/api/archive/files`;
-  if (__DEV__) console.log("[archiveUploadedFile] Archiving to:", archiveUrl);
-  if (__DEV__) console.log("[archiveUploadedFile] Params:", JSON.stringify(params, null, 2));
-
-  const response = await fetch(archiveUrl, {
+  await archidocApiFetch("/api/archive/files", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify(params),
   });
-
-  const responseText = await response.text();
-  if (__DEV__) console.log("[archiveUploadedFile] Response status:", response.status, "body:", responseText);
-
-  if (!response.ok) {
-    console.error("[archiveUploadedFile] Archive failed!");
-    throw new Error(`Failed to archive file: ${response.status} - ${responseText}`);
-  }
-  
-  if (__DEV__) console.log("[archiveUploadedFile] Archive successful!");
 }
 
 export function getUniqueLotCodes(items: DQEItem[]): string[] {

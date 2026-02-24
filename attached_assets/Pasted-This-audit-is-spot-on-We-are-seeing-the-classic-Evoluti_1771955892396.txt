@@ -1,0 +1,48 @@
+This audit is spot on. We are seeing the classic "Evolution of a Mobile API Client."
+
+Phase A (The Prototype): Developers write a fetch call, manually parsing the messy backend JSON inline.
+
+Phase B (The Debugging Era): Things break, so they add 40 lines of console.log statements to figure out why p.external_links is undefined.
+
+Phase C (The Bloat): They copy-paste that entire block for the next endpoint, bringing the 40 lines of console.log with it.
+
+By extracting archidocApiFetch and mapRawProject, you are standardizing how Ouvro talks to Archidoc. Moving 250 lines of TypeScript definitions into archidoc-types.ts is exactly what we need to do so you can actually read the runtime logic without scrolling past 50 interfaces.
+
+Let's execute this cleanup.
+
+The "Go Ahead" Prompt for Phase 4 (Ouvro API Client)
+Copy and paste this exact prompt into your Ouvro AI agent to execute the cuts:
+
+Task: Execute Phase 4 Refactoring (Archidoc API Client) based strictly on Findings 1, 2, 3, and 4 of the audit report.
+
+Instructions:
+Please execute the 5-step refactoring plan to clean up the API client.
+
+Step 1: The Types File
+Create client/lib/archidoc-types.ts. Move all 14 exported types, the 2 internal types, and the FILE_CATEGORIES / ANNOTATION_COLORS constants into this file. Export them all.
+
+Step 2: The Base Fetch Abstraction
+Inside client/lib/archidoc-api.ts (which now imports its types from the new file), create the archidocApiFetch(path, options) helper. It MUST handle the EXPO_PUBLIC_ARCHIDOC_API_URL guard, URL construction, credentials: 'include', and the !response.ok check.
+
+Step 3: The Mapper Extraction
+Create the mapRawProject(raw) function inside archidoc-api.ts. Move the massive external link resolution and field mapping logic (snake_case to camelCase) into this function.
+
+Step 4: Refactor the Endpoints
+
+Refactor fetchArchidocProjects and fetchProjectById to use archidocApiFetch and the new mapRawProject function.
+
+Refactor the remaining fetch functions to use archidocApiFetch to eliminate their URL/guard boilerplate.
+
+Delete the 40+ lines of excessive __DEV__ diagnostic logging in fetchProjectById.
+
+Step 5: Zombie Code
+Delete the unused getArchidocApiUrl and isApiConfigured functions.
+
+Strict Constraints:
+
+DO NOT use archidocApiFetch for the external storage endpoints (uploadFileToSignedUrl). Leave those as raw fetches since they don't hit the Archidoc API.
+
+Ensure all return types remain exactly the same so the UI components don't break.
+
+Output:
+Please provide the complete code for client/lib/archidoc-types.ts, and the complete refactored code for client/lib/archidoc-api.ts.

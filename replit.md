@@ -26,7 +26,7 @@ OUVRO is a mobile companion app for architects and project managers, built with 
 - **Offline Sync:** Observations and media stored locally via `DurableQueueStore<T>` (`client/lib/durable-queue-store.ts`) which wraps AsyncStorage persistence, FileSystem durable copying, and event emitter logic. Both `offline-sync.ts` and `offline-tasks.ts` compose this store. Observation sync states: pending, uploading_metadata, uploading_media, partial, complete, failed.
 - **Annotation System:** In-app annotation tools (pen, arrow, circle, rectangle, freehand, text, measurement) with construction-standard colors. Supports pinch-to-zoom and flattens annotations onto images.
 - **PDF Viewing:** PDFs rendered in `react-native-webview` with a "Capture for Annotation" feature. iOS uses native screenshot detection for clipping.
-- **API Field Mapping:** Extensive mapping logic in `archidoc-api.ts` to convert snake_case API responses to camelCase for app consistency, including resilience for multiple field name variants.
+- **API Field Mapping:** Types in `archidoc-types.ts`, runtime logic in `archidoc-api.ts`. Centralized `archidocApiFetch` base function handles URL construction, auth, and error checking. `mapRawProject` and `mapDQEItem` mappers normalize snake_case API responses to camelCase with resilience for multiple field name variants.
 
 ### Feature Specifications
 - **Observation Capture:** Floating capture button (FAB) opens CaptureModal with 2x2 grid: Photo, Video, Audio, Task. Includes observation details form, Gemini AI-powered transcription (audio to English) and translation (to French).
