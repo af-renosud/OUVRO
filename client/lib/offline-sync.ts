@@ -2,14 +2,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import * as FileSystem from "expo-file-system/legacy";
 import { apiRequest, getApiUrl } from "./query-client";
+import { DurableQueueStore } from "./durable-queue-store";
 
 const STORAGE_KEYS = {
   PENDING_OBSERVATIONS: "ouvro_pending_observations",
   SYNC_SETTINGS: "ouvro_sync_settings",
-  UPLOAD_PROGRESS: "ouvro_upload_progress",
 };
-
-const SYNC_SETTINGS_KEY = STORAGE_KEYS.SYNC_SETTINGS;
 
 export type MediaSyncState = "pending" | "uploading" | "complete" | "failed";
 
@@ -101,6 +99,20 @@ const AUTO_RETRY_INTERVAL_MS = 120000;
 const AUTO_RETRY_MAX_ATTEMPTS = 20;
 const AUTO_RETRY_MAX_BACKOFF_MS = 600000;
 
+async function extractApiError(response: Response, fallback: string): Promise<string> {
+  try {
+    const text = await response.text();
+    try {
+      const json = JSON.parse(text);
+      return json.error || json.message || fallback;
+    } catch {
+      return parseErrorMessage(new Error(text));
+    }
+  } catch {
+    return fallback;
+  }
+}
+
 function parseErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     const msg = error.message;
@@ -131,7 +143,11 @@ function parseErrorMessage(error: unknown): string {
 class OfflineSyncService {
   private observations: Map<string, OfflineObservation> = new Map();
   private settings: SyncSettings = DEFAULT_SETTINGS;
-  private listeners: Set<SyncEventListener> = new Set();
+  private store = new DurableQueueStore<OfflineObservation>(
+    STORAGE_KEYS.PENDING_OBSERVATIONS,
+    "ouvro_media",
+    "OfflineSync"
+  );
   private isInitialized = false;
   private isSyncing = false;
   private currentAbortController?: AbortController;
@@ -152,30 +168,27 @@ class OfflineSyncService {
     if (this.isInitialized) return;
 
     try {
-      const [obsData, settingsData] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.PENDING_OBSERVATIONS),
+      const [parsed, settingsData] = await Promise.all([
+        this.store.load(),
         AsyncStorage.getItem(STORAGE_KEYS.SYNC_SETTINGS),
       ]);
 
-      if (obsData) {
-        const parsed = JSON.parse(obsData) as OfflineObservation[];
-        parsed.forEach((obs) => {
-          if (obs.syncState === "uploading_metadata" || obs.syncState === "uploading_media") {
-            obs.syncState = "pending";
-            obs.lastSyncError = "Upload interrupted - will retry";
+      parsed.forEach((obs) => {
+        if (obs.syncState === "uploading_metadata" || obs.syncState === "uploading_media") {
+          obs.syncState = "pending";
+          obs.lastSyncError = "Upload interrupted - will retry";
+        }
+        
+        obs.media.forEach((media) => {
+          if (media.syncState === "uploading") {
+            media.syncState = "pending";
+            media.uploadProgress = 0;
+            media.lastError = "Upload interrupted - will retry";
           }
-          
-          obs.media.forEach((media) => {
-            if (media.syncState === "uploading") {
-              media.syncState = "pending";
-              media.uploadProgress = 0;
-              media.lastError = "Upload interrupted - will retry";
-            }
-          });
-          
-          this.observations.set(obs.localId, obs);
         });
-      }
+        
+        this.observations.set(obs.localId, obs);
+      });
 
       if (settingsData) {
         this.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(settingsData) };
@@ -213,55 +226,21 @@ class OfflineSyncService {
   }
 
   subscribe(listener: SyncEventListener): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return this.store.subscribe(listener as (event: string, data?: any) => void);
   }
 
   private emit(event: SyncEventType, data?: any): void {
-    this.listeners.forEach((listener) => listener(event, data));
+    this.store.emit(event, data);
   }
 
   private async persist(): Promise<void> {
-    try {
-      const obsArray = Array.from(this.observations.values());
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.PENDING_OBSERVATIONS,
-        JSON.stringify(obsArray)
-      );
-    } catch (error) {
-      console.error("[OfflineSync] Persist error:", error);
-    }
-  }
-
-  private async copyToDurableStorage(uri: string, fileName: string): Promise<string> {
-    try {
-      if (uri.startsWith("mock://") || uri.includes("/ouvro_media/")) {
-        return uri;
-      }
-
-      const durableDir = `${FileSystem.documentDirectory}ouvro_media/`;
-      const dirInfo = await FileSystem.getInfoAsync(durableDir);
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(durableDir, { intermediates: true });
-      }
-
-      const uniqueFileName = `${Date.now()}_${fileName}`;
-      const durableUri = `${durableDir}${uniqueFileName}`;
-
-      await FileSystem.copyAsync({ from: uri, to: durableUri });
-      
-      if (__DEV__) console.log("[OfflineSync] Copied to durable storage:", durableUri);
-      return durableUri;
-    } catch (error) {
-      console.error("[OfflineSync] Failed to copy to durable storage:", error);
-      return uri;
-    }
+    await this.store.save(Array.from(this.observations.values()));
   }
 
   async saveSettings(settings: Partial<SyncSettings>): Promise<void> {
     this.settings = { ...this.settings, ...settings };
     await AsyncStorage.setItem(
-      SYNC_SETTINGS_KEY,
+      STORAGE_KEYS.SYNC_SETTINGS,
       JSON.stringify(this.settings)
     );
     this.emit("stateChanged");
@@ -277,7 +256,7 @@ class OfflineSyncService {
     
     const durableMedia = await Promise.all(
       observation.media.map(async (m) => {
-        const durableUri = await this.copyToDurableStorage(m.localUri, m.fileName);
+        const durableUri = await this.store.copyToDurableStorage(m.localUri, m.fileName);
         return {
           ...m,
           localUri: durableUri,
@@ -336,13 +315,7 @@ class OfflineSyncService {
     const obs = this.observations.get(localId);
     if (obs) {
       for (const media of obs.media) {
-        if (media.localUri && !media.localUri.startsWith("mock://")) {
-          try {
-            await FileSystem.deleteAsync(media.localUri, { idempotent: true });
-          } catch (e) {
-            if (__DEV__) console.warn("[OfflineSync] Failed to delete media file:", media.localUri);
-          }
-        }
+        await this.store.deleteFile(media.localUri);
       }
     }
     
@@ -570,17 +543,7 @@ class OfflineSyncService {
         });
 
         if (!response.ok) {
-          let errorMsg = "Failed to create observation";
-          try {
-            const text = await response.text();
-            try {
-              const json = JSON.parse(text);
-              errorMsg = json.error || json.message || errorMsg;
-            } catch {
-              errorMsg = parseErrorMessage(new Error(text));
-            }
-          } catch {}
-          throw new Error(errorMsg);
+          throw new Error(await extractApiError(response, "Failed to create observation"));
         }
 
         const result = await response.json();
@@ -673,17 +636,7 @@ class OfflineSyncService {
       });
       
       if (!urlResponse.ok) {
-        let errorMsg = "Failed to get upload URL";
-        try {
-          const text = await urlResponse.text();
-          try {
-            const json = JSON.parse(text);
-            errorMsg = json.error || errorMsg;
-          } catch {
-            errorMsg = parseErrorMessage(new Error(text));
-          }
-        } catch {}
-        throw new Error(errorMsg);
+        throw new Error(await extractApiError(urlResponse, "Failed to get upload URL"));
       }
       
       const { uploadURL, objectPath } = await urlResponse.json();
@@ -737,17 +690,7 @@ class OfflineSyncService {
       });
 
       if (!registerResponse.ok) {
-        let errorMsg = "Failed to register asset";
-        try {
-          const text = await registerResponse.text();
-          try {
-            const json = JSON.parse(text);
-            errorMsg = json.error || errorMsg;
-          } catch {
-            errorMsg = parseErrorMessage(new Error(text));
-          }
-        } catch {}
-        throw new Error(errorMsg);
+        throw new Error(await extractApiError(registerResponse, "Failed to register asset"));
       }
 
       media.remoteUrl = objectPath;
@@ -787,16 +730,8 @@ class OfflineSyncService {
     
     for (const [id, obs] of completed) {
       for (const media of obs.media) {
-        if (media.localUri && media.syncState === "complete" && media.remoteUrl) {
-          try {
-            const fileInfo = await FileSystem.getInfoAsync(media.localUri);
-            if (fileInfo.exists) {
-              await FileSystem.deleteAsync(media.localUri, { idempotent: true });
-              if (__DEV__) console.log("[OfflineSync] Cleaned up local file:", media.localUri);
-            }
-          } catch (error) {
-            if (__DEV__) console.warn("[OfflineSync] Failed to clean up file:", error);
-          }
+        if (media.syncState === "complete" && media.remoteUrl) {
+          await this.store.deleteFile(media.localUri);
         }
       }
       this.observations.delete(id);

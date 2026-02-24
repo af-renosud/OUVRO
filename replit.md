@@ -23,7 +23,7 @@ OUVRO is a mobile companion app for architects and project managers, built with 
 - **Data Fetching:** TanStack Query for efficient data management and caching.
 - **Backend:** Express.js server (TypeScript) serving an API on port 5000 and a static landing page. Routes split into domain routers under `server/routes/` (projects, observations, ai, archidoc, sync) with shared ARCHIDOC proxy helpers in `server/routes/archidoc-helpers.ts`.
 - **Database:** PostgreSQL with Drizzle ORM for local data persistence, hosted on Neon.
-- **Offline Sync:** Observations and media stored locally using AsyncStorage, with a manual sync mechanism. States include pending, uploading_metadata, uploading_media, partial, complete, failed.
+- **Offline Sync:** Observations and media stored locally via `DurableQueueStore<T>` (`client/lib/durable-queue-store.ts`) which wraps AsyncStorage persistence, FileSystem durable copying, and event emitter logic. Both `offline-sync.ts` and `offline-tasks.ts` compose this store. Observation sync states: pending, uploading_metadata, uploading_media, partial, complete, failed.
 - **Annotation System:** In-app annotation tools (pen, arrow, circle, rectangle, freehand, text, measurement) with construction-standard colors. Supports pinch-to-zoom and flattens annotations onto images.
 - **PDF Viewing:** PDFs rendered in `react-native-webview` with a "Capture for Annotation" feature. iOS uses native screenshot detection for clipping.
 - **API Field Mapping:** Extensive mapping logic in `archidoc-api.ts` to convert snake_case API responses to camelCase for app consistency, including resilience for multiple field name variants.

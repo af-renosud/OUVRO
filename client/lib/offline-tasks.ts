@@ -1,7 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
-
-const STORAGE_KEY = "ouvro_pending_tasks";
+import { DurableQueueStore } from "./durable-queue-store";
 
 export type TaskSyncState =
   | "pending"
@@ -43,28 +41,29 @@ type TaskEventListener = (event: TaskEventType, data?: any) => void;
 
 class OfflineTaskService {
   private tasks: Map<string, OfflineTask> = new Map();
-  private listeners: Set<TaskEventListener> = new Set();
+  private store = new DurableQueueStore<OfflineTask>(
+    "ouvro_pending_tasks",
+    "ouvro_tasks",
+    "OfflineTasks"
+  );
   private isInitialized = false;
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
     try {
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (data) {
-        const parsed = JSON.parse(data) as OfflineTask[];
-        parsed.forEach((task) => {
-          if (task.syncState === "uploading") {
-            task.syncState = "accepted";
-            task.lastSyncError = "Upload interrupted - will retry";
-          }
-          if (task.syncState === "transcribing") {
-            task.syncState = "pending";
-            task.lastSyncError = "Transcription interrupted - will retry";
-          }
-          this.tasks.set(task.localId, task);
-        });
-      }
+      const parsed = await this.store.load();
+      parsed.forEach((task) => {
+        if (task.syncState === "uploading") {
+          task.syncState = "accepted";
+          task.lastSyncError = "Upload interrupted - will retry";
+        }
+        if (task.syncState === "transcribing") {
+          task.syncState = "pending";
+          task.lastSyncError = "Transcription interrupted - will retry";
+        }
+        this.tasks.set(task.localId, task);
+      });
       this.isInitialized = true;
       if (__DEV__) console.log("[OfflineTasks] Initialized with", this.tasks.size, "tasks");
     } catch (error) {
@@ -73,46 +72,15 @@ class OfflineTaskService {
   }
 
   subscribe(listener: TaskEventListener): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return this.store.subscribe(listener as (event: string, data?: any) => void);
   }
 
   private emit(event: TaskEventType, data?: any): void {
-    this.listeners.forEach((listener) => listener(event, data));
+    this.store.emit(event, data);
   }
 
   private async persist(): Promise<void> {
-    try {
-      const arr = Array.from(this.tasks.values());
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
-    } catch (error) {
-      console.error("[OfflineTasks] Persist error:", error);
-    }
-  }
-
-  private async copyToDurableStorage(uri: string, fileName: string): Promise<string> {
-    try {
-      if (uri.startsWith("mock://") || uri.includes("/ouvro_tasks/")) {
-        return uri;
-      }
-
-      const durableDir = `${FileSystem.documentDirectory}ouvro_tasks/`;
-      const dirInfo = await FileSystem.getInfoAsync(durableDir);
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(durableDir, { intermediates: true });
-      }
-
-      const uniqueFileName = `${Date.now()}_${fileName}`;
-      const durableUri = `${durableDir}${uniqueFileName}`;
-
-      await FileSystem.copyAsync({ from: uri, to: durableUri });
-
-      if (__DEV__) console.log("[OfflineTasks] Copied audio to durable storage:", durableUri);
-      return durableUri;
-    } catch (error) {
-      console.error("[OfflineTasks] Failed to copy to durable storage:", error);
-      return uri;
-    }
+    await this.store.save(Array.from(this.tasks.values()));
   }
 
   async addTask(params: {
@@ -125,7 +93,7 @@ class OfflineTaskService {
     const now = new Date().toISOString();
 
     const fileName = params.audioUri.split("/").pop() || `task_${Date.now()}.m4a`;
-    const durableUri = await this.copyToDurableStorage(params.audioUri, fileName);
+    const durableUri = await this.store.copyToDurableStorage(params.audioUri, fileName);
 
     let audioFileSize: number | undefined;
     try {
@@ -190,12 +158,8 @@ class OfflineTaskService {
 
   async removeTask(localId: string): Promise<void> {
     const task = this.tasks.get(localId);
-    if (task && task.audioUri && !task.audioUri.startsWith("mock://")) {
-      try {
-        await FileSystem.deleteAsync(task.audioUri, { idempotent: true });
-      } catch (e) {
-        if (__DEV__) console.warn("[OfflineTasks] Failed to delete audio file:", task.audioUri);
-      }
+    if (task) {
+      await this.store.deleteFile(task.audioUri);
     }
 
     this.tasks.delete(localId);
@@ -229,10 +193,8 @@ class OfflineTaskService {
 
     for (const id of completedIds) {
       const task = this.tasks.get(id);
-      if (task?.audioUri && !task.audioUri.startsWith("mock://")) {
-        try {
-          await FileSystem.deleteAsync(task.audioUri, { idempotent: true });
-        } catch (e) {}
+      if (task) {
+        await this.store.deleteFile(task.audioUri);
       }
       this.tasks.delete(id);
     }
