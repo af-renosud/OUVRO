@@ -21,7 +21,7 @@ OUVRO is a mobile companion app for architects and project managers, built with 
 - **Frontend:** Expo SDK 54 and React Native for cross-platform mobile development.
 - **Navigation:** React Navigation 7+ using native stack and bottom tabs.
 - **Data Fetching:** TanStack Query for efficient data management and caching.
-- **Backend:** Express.js server (TypeScript) serving an API on port 5000 and a static landing page.
+- **Backend:** Express.js server (TypeScript) serving an API on port 5000 and a static landing page. Routes split into domain routers under `server/routes/` (projects, observations, ai, archidoc, sync) with shared ARCHIDOC proxy helpers in `server/routes/archidoc-helpers.ts`.
 - **Database:** PostgreSQL with Drizzle ORM for local data persistence, hosted on Neon.
 - **Offline Sync:** Observations and media stored locally using AsyncStorage, with a manual sync mechanism. States include pending, uploading_metadata, uploading_media, partial, complete, failed.
 - **Annotation System:** In-app annotation tools (pen, arrow, circle, rectangle, freehand, text, measurement) with construction-standard colors. Supports pinch-to-zoom and flattens annotations onto images.
@@ -37,7 +37,7 @@ OUVRO is a mobile companion app for architects and project managers, built with 
 - **DQE Browser:** Displays DQE items, filterable by lot code or contractor (data fetched from `/api/contractors`).
 
 ### System Design Choices
-- **Modularity:** Clear separation of concerns with dedicated folders for components, hooks, libraries, navigation, and screens.
+- **Modularity:** Clear separation of concerns with dedicated folders for components, hooks, libraries, navigation, screens, and server routes.
 - **Environment Management:** Utilizes Expo environment variables for API URLs and secrets for database credentials and AI keys.
 - **Error Handling:** App-wide `ErrorBoundary.tsx` with a `ErrorFallback.tsx` UI for graceful error management.
 - **Keyboard Avoidance:** `KeyboardAwareScrollViewCompat.tsx` for optimal input experience.
