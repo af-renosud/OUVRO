@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import {
   View,
   StyleSheet,
@@ -7,28 +7,22 @@ import {
   ActivityIndicator,
   Platform,
   useWindowDimensions,
-  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import { CrossPlatformImage } from "@/components/CrossPlatformImage";
-import { Audio } from "expo-av";
-import { requestRecordingPermissionsAsync } from "expo-audio";
 import * as FileSystem from "expo-file-system";
 import { ThemedText } from "@/components/ThemedText";
+import { OuvroScreenHeader } from "@/components/OuvroScreenHeader";
 import { useTheme } from "@/hooks/useTheme";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { useAudioPlayer } from "@/hooks/useAudioPlayer";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import { getApiUrl } from "@/lib/query-client";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 const MAX_RECORDING_SECONDS = 300;
-
-type RecordingInstance = {
-  stopAndUnloadAsync: () => Promise<unknown>;
-  getURI: () => string | null;
-};
 
 type Priority = "low" | "normal" | "high" | "urgent";
 type Classification = "defect" | "action" | "followup" | "general";
@@ -57,12 +51,21 @@ export default function VoiceTaskScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "VoiceTask">>();
   const { projectId, projectName } = route.params;
 
-  const [permissionStatus, setPermissionStatus] = useState<"loading" | "granted" | "denied">("loading");
+  const {
+    permissionStatus,
+    isRecording,
+    recordingDuration,
+    recordingUri,
+    startRecording,
+    stopRecording,
+    discardRecording: discardRecorderState,
+    requestPermission,
+    formatDuration,
+  } = useAudioRecorder({ maxDurationSeconds: MAX_RECORDING_SECONDS });
+
+  const { isPlaying, togglePlayback } = useAudioPlayer();
+
   const [step, setStep] = useState<VoiceTaskStep>("record");
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [recordingUri, setRecordingUri] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [priority, setPriority] = useState<Priority>("normal");
   const [classification, setClassification] = useState<Classification>("general");
   const [uploadProgress, setUploadProgress] = useState("");
@@ -73,169 +76,18 @@ export default function VoiceTaskScreen() {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordingRef = useRef<RecordingInstance | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
-
   const isPhone = width < 500;
   const waveformSize = isPhone ? 100 : 140;
   const buttonSize = isPhone ? 80 : 100;
 
-  useEffect(() => {
-    checkPermission();
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (recordingRef.current) recordingRef.current.stopAndUnloadAsync().catch(() => {});
-      if (soundRef.current) soundRef.current.unloadAsync().catch(() => {});
-    };
-  }, []);
-
-  const checkPermission = async () => {
-    if (Platform.OS === "web") {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-        setPermissionStatus("granted");
-      } catch {
-        setPermissionStatus("denied");
-      }
-    } else {
-      try {
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error("Permission request timeout")), 10000);
-        });
-        const permissionPromise = requestRecordingPermissionsAsync();
-        const result = await Promise.race([permissionPromise, timeoutPromise]);
-        setPermissionStatus(result.granted ? "granted" : "denied");
-      } catch {
-        setPermissionStatus("denied");
-      }
-    }
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const handleStartRecording = async () => {
-    if (Platform.OS === "web") {
-      setIsRecording(true);
-      setRecordingDuration(0);
-      setRecordingUri(null);
-      timerRef.current = setInterval(() => {
-        setRecordingDuration((d) => {
-          if (d + 1 >= MAX_RECORDING_SECONDS) {
-            handleStopRecording();
-            return MAX_RECORDING_SECONDS;
-          }
-          return d + 1;
-        });
-      }, 1000);
-      return;
-    }
-
-    try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-
-      recordingRef.current = recording;
-      setIsRecording(true);
-      setRecordingDuration(0);
-      setRecordingUri(null);
-
-      timerRef.current = setInterval(() => {
-        setRecordingDuration((d) => {
-          if (d + 1 >= MAX_RECORDING_SECONDS) {
-            handleStopRecording();
-            return MAX_RECORDING_SECONDS;
-          }
-          return d + 1;
-        });
-      }, 1000);
-    } catch (error) {
-      console.error("Failed to start recording:", error);
-      Alert.alert("Recording Error", "Could not start recording. Please try again.");
-    }
-  };
-
-  const handleStopRecording = async () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-
-    if (Platform.OS === "web") {
-      setIsRecording(false);
-      setRecordingUri("mock://web-recording.m4a");
-      return;
-    }
-
-    try {
-      if (!recordingRef.current) {
-        setIsRecording(false);
-        return;
-      }
-
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      setIsRecording(false);
-      setRecordingUri(uri);
-      recordingRef.current = null;
-
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-    } catch (error) {
-      console.error("Failed to stop recording:", error);
-      setIsRecording(false);
-    }
-  };
-
-  const handlePlayPause = async () => {
-    if (!recordingUri || Platform.OS === "web") {
-      setIsPlaying(!isPlaying);
-      if (!isPlaying) {
-        setTimeout(() => setIsPlaying(false), recordingDuration * 1000);
-      }
-      return;
-    }
-
-    try {
-      if (isPlaying) {
-        if (soundRef.current) {
-          await soundRef.current.stopAsync();
-          await soundRef.current.unloadAsync();
-          soundRef.current = null;
-        }
-        setIsPlaying(false);
-      } else {
-        setIsPlaying(true);
-        const { sound } = await Audio.Sound.createAsync({ uri: recordingUri });
-        soundRef.current = sound;
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if ("isLoaded" in status && status.isLoaded && "didJustFinish" in status && status.didJustFinish) {
-            setIsPlaying(false);
-            sound.unloadAsync();
-            soundRef.current = null;
-          }
-        });
-        await sound.playAsync();
-      }
-    } catch (error) {
-      console.error("Playback error:", error);
-      setIsPlaying(false);
+  const handlePlayPause = () => {
+    if (recordingUri) {
+      togglePlayback(recordingUri, recordingDuration);
     }
   };
 
   const handleDiscard = () => {
-    setRecordingUri(null);
-    setRecordingDuration(0);
+    discardRecorderState();
     setStep("record");
   };
 
@@ -301,7 +153,7 @@ export default function VoiceTaskScreen() {
       });
       setStep("success");
     } catch (error: any) {
-      console.error("Voice task upload error:", error);
+      if (__DEV__) console.error("Voice task upload error:", error);
       setErrorMessage(error.message || "Something went wrong. Please try again.");
       setStep("error");
     }
@@ -312,30 +164,10 @@ export default function VoiceTaskScreen() {
     setStep("options");
   };
 
-  const renderHeader = () => (
-    <View style={[styles.headerBackground, { paddingTop: insets.top + Spacing.lg }]}>
-      <View style={styles.headerBar}>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-          <CrossPlatformImage
-            source={require("../../assets/images/back-button.png")}
-            style={styles.backButtonImage}
-            contentFit="contain"
-          />
-        </Pressable>
-        <CrossPlatformImage
-          source={require("../../assets/images/ouvro-logo.png")}
-          style={styles.logo}
-          contentFit="contain"
-        />
-        <View style={styles.backButton} />
-      </View>
-    </View>
-  );
-
   if (permissionStatus === "loading") {
     return (
       <View style={styles.container}>
-        {renderHeader()}
+        <OuvroScreenHeader onBack={() => navigation.goBack()} />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={BrandColors.primary} />
         </View>
@@ -346,7 +178,7 @@ export default function VoiceTaskScreen() {
   if (permissionStatus === "denied") {
     return (
       <View style={styles.container}>
-        {renderHeader()}
+        <OuvroScreenHeader onBack={() => navigation.goBack()} />
         <View style={styles.centerContainer}>
           <Feather name="mic-off" size={64} color={theme.textTertiary} />
           <ThemedText style={styles.permissionText}>Microphone Access Required</ThemedText>
@@ -355,7 +187,7 @@ export default function VoiceTaskScreen() {
           </ThemedText>
           <Pressable
             style={[styles.primaryButton, { backgroundColor: BrandColors.primary }]}
-            onPress={checkPermission}
+            onPress={requestPermission}
           >
             <ThemedText style={styles.primaryButtonText}>Try Again</ThemedText>
           </Pressable>
@@ -367,7 +199,7 @@ export default function VoiceTaskScreen() {
   if (step === "uploading") {
     return (
       <View style={styles.container}>
-        {renderHeader()}
+        <OuvroScreenHeader onBack={() => navigation.goBack()} />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={BrandColors.accent} />
           <ThemedText style={styles.uploadingText}>{uploadProgress}</ThemedText>
@@ -382,7 +214,7 @@ export default function VoiceTaskScreen() {
   if (step === "success" && resultData) {
     return (
       <View style={styles.container}>
-        {renderHeader()}
+        <OuvroScreenHeader onBack={() => navigation.goBack()} />
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
@@ -436,7 +268,7 @@ export default function VoiceTaskScreen() {
   if (step === "error") {
     return (
       <View style={styles.container}>
-        {renderHeader()}
+        <OuvroScreenHeader onBack={() => navigation.goBack()} />
         <View style={styles.centerContainer}>
           <Feather name="alert-circle" size={64} color={BrandColors.error} />
           <ThemedText style={styles.errorTitle}>Upload Failed</ThemedText>
@@ -465,7 +297,7 @@ export default function VoiceTaskScreen() {
   if (step === "options") {
     return (
       <View style={styles.container}>
-        {renderHeader()}
+        <OuvroScreenHeader onBack={() => navigation.goBack()} />
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
@@ -573,7 +405,7 @@ export default function VoiceTaskScreen() {
 
   return (
     <View style={styles.container}>
-      {renderHeader()}
+      <OuvroScreenHeader onBack={() => navigation.goBack()} />
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -640,7 +472,7 @@ export default function VoiceTaskScreen() {
                 isRecording && styles.recordButtonRecording,
                 pressed && styles.recordButtonPressed,
               ]}
-              onPress={isRecording ? handleStopRecording : handleStartRecording}
+              onPress={isRecording ? stopRecording : startRecording}
             >
               <View
                 style={[
@@ -724,30 +556,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-  },
-  headerBackground: {
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xl,
-  },
-  headerBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  backButtonImage: {
-    width: 28,
-    height: 28,
-  },
-  logo: {
-    width: 180,
-    height: 56,
   },
   centerContainer: {
     flex: 1,

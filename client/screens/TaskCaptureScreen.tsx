@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState } from "react";
 import {
   View,
   StyleSheet,
@@ -14,22 +14,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import { CrossPlatformImage } from "@/components/CrossPlatformImage";
-import { Audio } from "expo-av";
-import { requestRecordingPermissionsAsync } from "expo-audio";
 import { ThemedText } from "@/components/ThemedText";
 import { Card } from "@/components/Card";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { OuvroScreenHeader } from "@/components/OuvroScreenHeader";
 import { useTheme } from "@/hooks/useTheme";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { useAudioPlayer } from "@/hooks/useAudioPlayer";
 import { useOfflineTasks } from "@/hooks/useOfflineTasks";
 import { apiRequest } from "@/lib/query-client";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
-
-type RecordingInstance = {
-  stopAndUnloadAsync: () => Promise<unknown>;
-  getURI: () => string | null;
-};
 
 type TaskStep = "record" | "transcribing" | "review";
 
@@ -42,145 +37,39 @@ export default function TaskCaptureScreen() {
   const { projectId, projectName } = route.params;
   const { addTask, acceptTask, updateTask } = useOfflineTasks();
 
-  const [permissionStatus, setPermissionStatus] = useState<"loading" | "granted" | "denied">("loading");
+  const {
+    permissionStatus,
+    isRecording,
+    recordingDuration,
+    recordingUri,
+    startRecording,
+    stopRecording,
+    discardRecording: discardRecorderState,
+    requestPermission,
+    formatDuration,
+  } = useAudioRecorder();
+
+  const { isPlaying, togglePlayback } = useAudioPlayer();
+
   const [step, setStep] = useState<TaskStep>("record");
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [recordingUri, setRecordingUri] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [transcription, setTranscription] = useState("");
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [taskLocalId, setTaskLocalId] = useState<string | null>(null);
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordingRef = useRef<RecordingInstance | null>(null);
-
   const isPhone = width < 500;
   const waveformSize = isPhone ? 100 : 140;
   const buttonSize = isPhone ? 80 : 100;
 
-  useEffect(() => {
-    checkPermission();
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (recordingRef.current) recordingRef.current.stopAndUnloadAsync().catch(() => {});
-    };
-  }, []);
-
-  const checkPermission = async () => {
-    if (Platform.OS === "web") {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-        setPermissionStatus("granted");
-      } catch {
-        setPermissionStatus("denied");
-      }
-    } else {
-      try {
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error("Permission request timeout")), 10000);
-        });
-        const permissionPromise = requestRecordingPermissionsAsync();
-        const result = await Promise.race([permissionPromise, timeoutPromise]);
-        setPermissionStatus(result.granted ? "granted" : "denied");
-      } catch {
-        setPermissionStatus("denied");
-      }
-    }
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const handleStartRecording = async () => {
-    if (Platform.OS === "web") {
-      setIsRecording(true);
-      setRecordingDuration(0);
-      setRecordingUri(null);
-      timerRef.current = setInterval(() => setRecordingDuration((d) => d + 1), 1000);
-      return;
-    }
-
-    try {
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      recordingRef.current = recording;
-      setIsRecording(true);
-      setRecordingDuration(0);
-      setRecordingUri(null);
-      timerRef.current = setInterval(() => setRecordingDuration((d) => d + 1), 1000);
-    } catch (error) {
-      console.error("Failed to start recording:", error);
-    }
-  };
-
-  const handleStopRecording = async () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-
-    if (Platform.OS === "web") {
-      setIsRecording(false);
-      setRecordingUri("mock://web-task-recording.m4a");
-      return;
-    }
-
-    try {
-      if (!recordingRef.current) {
-        setIsRecording(false);
-        return;
-      }
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      setIsRecording(false);
-      setRecordingUri(uri);
-      recordingRef.current = null;
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-    } catch (error) {
-      console.error("Failed to stop recording:", error);
-      setIsRecording(false);
-    }
-  };
-
-  const handlePlayPause = async () => {
-    if (!recordingUri || Platform.OS === "web") {
-      setIsPlaying(!isPlaying);
-      if (!isPlaying) {
-        setTimeout(() => setIsPlaying(false), recordingDuration * 1000);
-      }
-      return;
-    }
-
-    try {
-      if (isPlaying) {
-        setIsPlaying(false);
-      } else {
-        setIsPlaying(true);
-        const { sound } = await Audio.Sound.createAsync({ uri: recordingUri });
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if ("isLoaded" in status && status.isLoaded && "didJustFinish" in status && status.didJustFinish) {
-            setIsPlaying(false);
-            sound.unloadAsync();
-          }
-        });
-        await sound.playAsync();
-      }
-    } catch (error) {
-      console.error("Playback error:", error);
-      setIsPlaying(false);
+  const handlePlayPause = () => {
+    if (recordingUri) {
+      togglePlayback(recordingUri, recordingDuration);
     }
   };
 
   const handleDiscard = () => {
-    setRecordingUri(null);
-    setRecordingDuration(0);
+    discardRecorderState();
     setTranscription("");
     setTranscribeError(null);
     setStep("record");
@@ -274,30 +163,10 @@ export default function TaskCaptureScreen() {
     handleTranscribe();
   };
 
-  const renderHeader = () => (
-    <View style={[styles.headerBackground, { paddingTop: insets.top + Spacing.lg }]}>
-      <View style={styles.headerBar}>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-          <CrossPlatformImage
-            source={require("../../assets/images/back-button.png")}
-            style={styles.backButtonImage}
-            contentFit="contain"
-          />
-        </Pressable>
-        <CrossPlatformImage
-          source={require("../../assets/images/ouvro-logo.png")}
-          style={styles.logo}
-          contentFit="contain"
-        />
-        <View style={styles.backButton} />
-      </View>
-    </View>
-  );
-
   if (permissionStatus === "loading") {
     return (
       <View style={styles.container}>
-        {renderHeader()}
+        <OuvroScreenHeader onBack={() => navigation.goBack()} />
         <View style={styles.centeredContainer}>
           <ActivityIndicator size="large" color={BrandColors.primary} />
         </View>
@@ -308,7 +177,7 @@ export default function TaskCaptureScreen() {
   if (permissionStatus === "denied") {
     return (
       <View style={styles.container}>
-        {renderHeader()}
+        <OuvroScreenHeader onBack={() => navigation.goBack()} />
         <View style={styles.centeredContainer}>
           <Feather name="mic-off" size={64} color={theme.textTertiary} />
           <ThemedText style={styles.permissionText}>Microphone Access Required</ThemedText>
@@ -317,7 +186,7 @@ export default function TaskCaptureScreen() {
           </ThemedText>
           <Pressable
             style={[styles.primaryButton, { backgroundColor: BrandColors.primary }]}
-            onPress={checkPermission}
+            onPress={requestPermission}
           >
             <ThemedText style={styles.primaryButtonText}>Try Again</ThemedText>
           </Pressable>
@@ -329,7 +198,7 @@ export default function TaskCaptureScreen() {
   if (step === "transcribing") {
     return (
       <View style={styles.container}>
-        {renderHeader()}
+        <OuvroScreenHeader onBack={() => navigation.goBack()} />
         <View style={styles.centeredContainer}>
           <ActivityIndicator size="large" color={BrandColors.primary} />
           <ThemedText style={styles.transcribingTitle}>Transcribing your task...</ThemedText>
@@ -356,7 +225,7 @@ export default function TaskCaptureScreen() {
   if (step === "review") {
     return (
       <View style={styles.container}>
-        {renderHeader()}
+        <OuvroScreenHeader onBack={() => navigation.goBack()} />
         <KeyboardAwareScrollViewCompat
           contentContainerStyle={[
             styles.reviewContent,
@@ -468,7 +337,7 @@ export default function TaskCaptureScreen() {
 
   return (
     <View style={styles.container}>
-      {renderHeader()}
+      <OuvroScreenHeader onBack={() => navigation.goBack()} />
       <ScrollView
         contentContainerStyle={[
           styles.recordContent,
@@ -543,7 +412,7 @@ export default function TaskCaptureScreen() {
                 isRecording && styles.recordButtonRecording,
                 pressed && styles.recordButtonPressed,
               ]}
-              onPress={isRecording ? handleStopRecording : handleStartRecording}
+              onPress={isRecording ? stopRecording : startRecording}
             >
               <View
                 style={[
@@ -631,30 +500,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  headerBackground: {
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-  },
-  headerBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  backButtonImage: {
-    width: 28,
-    height: 28,
-  },
-  logo: {
-    width: 180,
-    height: 56,
-  },
   centeredContainer: {
     flex: 1,
     alignItems: "center",
@@ -662,37 +507,24 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     gap: Spacing.md,
   },
-  permissionText: {
-    fontSize: 20,
-    fontWeight: "600",
-    textAlign: "center",
+  recordContent: {
+    padding: Spacing.lg,
+    alignItems: "center",
   },
-  permissionSubtext: {
-    fontSize: 16,
-    textAlign: "center",
-  },
-  primaryButton: {
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginTop: Spacing.md,
-  },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
+  reviewContent: {
+    padding: Spacing.lg,
   },
   stepIndicator: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.xs,
-    paddingHorizontal: Spacing.xl,
+    marginBottom: Spacing.sm,
   },
   stepDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "#E5E7EB",
   },
   stepDotActive: {
     backgroundColor: BrandColors.primary,
@@ -701,9 +533,9 @@ const styles = StyleSheet.create({
     backgroundColor: BrandColors.success,
   },
   stepLine: {
-    flex: 1,
+    width: 40,
     height: 2,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "#E5E7EB",
     marginHorizontal: Spacing.xs,
   },
   stepLineActive: {
@@ -714,20 +546,16 @@ const styles = StyleSheet.create({
   },
   stepLabels: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
+    justifyContent: "center",
+    gap: 36,
     marginBottom: Spacing.lg,
   },
   stepLabel: {
-    ...Typography.caption,
+    fontSize: 12,
     fontWeight: "600",
-    width: 80,
-    textAlign: "center",
   },
   projectCard: {
-    padding: Spacing.md,
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   projectCardRow: {
     flexDirection: "row",
@@ -735,17 +563,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   projectCardText: {
-    ...Typography.body,
+    fontSize: 15,
     fontWeight: "600",
     flex: 1,
   },
-  recordContent: {
-    padding: Spacing.md,
-    alignItems: "center",
-  },
   waveformContainer: {
     alignItems: "center",
-    marginVertical: Spacing.lg,
+    marginVertical: Spacing.xl,
   },
   waveformPlaceholder: {
     borderRadius: BorderRadius.full,
@@ -766,12 +590,12 @@ const styles = StyleSheet.create({
   },
   durationText: {
     ...Typography.hero,
-    marginTop: Spacing.md,
+    marginTop: Spacing.lg,
     fontVariant: ["tabular-nums"],
     color: "#0B2545",
   },
   durationTextPhone: {
-    fontSize: 32,
+    fontSize: 36,
   },
   controlsContainer: {
     alignItems: "center",
@@ -782,7 +606,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEE2E2",
     alignItems: "center",
     justifyContent: "center",
-    padding: 5,
+    padding: 6,
   },
   recordButtonRecording: {
     backgroundColor: "#FEE2E2",
@@ -798,8 +622,8 @@ const styles = StyleSheet.create({
   },
   recordInnerRecording: {
     borderRadius: BorderRadius.md,
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
   },
   playbackControls: {
     flexDirection: "row",
@@ -813,7 +637,7 @@ const styles = StyleSheet.create({
   },
   hint: {
     ...Typography.bodySmall,
-    marginTop: Spacing.sm,
+    marginTop: Spacing.md,
   },
   errorBanner: {
     flexDirection: "row",
@@ -821,30 +645,26 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
-    marginHorizontal: Spacing.lg,
+    alignSelf: "stretch",
     marginBottom: Spacing.md,
-    width: "100%",
   },
   errorText: {
-    ...Typography.bodySmall,
     flex: 1,
+    fontSize: 14,
   },
   recordActions: {
     flexDirection: "row",
     gap: Spacing.md,
-    marginVertical: Spacing.md,
-    width: "100%",
-    paddingHorizontal: Spacing.lg,
+    alignSelf: "stretch",
+    marginTop: Spacing.md,
   },
   discardButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
-    flex: 1,
   },
   discardButtonText: {
     fontWeight: "600",
@@ -852,68 +672,25 @@ const styles = StyleSheet.create({
   transcribeButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
     flex: 1,
+    justifyContent: "center",
   },
   transcribeButtonText: {
     color: "#FFFFFF",
     fontWeight: "600",
   },
-  infoCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.sm,
-    backgroundColor: "#F3F4F6",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.md,
-    width: "100%",
-  },
-  infoText: {
-    ...Typography.bodySmall,
-    flex: 1,
-    color: "#2D3748",
-  },
-  transcribingTitle: {
-    ...Typography.h2,
-    marginTop: Spacing.lg,
-  },
-  transcribingSubtext: {
-    ...Typography.body,
-  },
-  reviewContent: {
-    padding: Spacing.md,
-  },
-  reviewSection: {
-    marginBottom: Spacing.md,
-    paddingHorizontal: Spacing.sm,
-  },
-  reviewLabel: {
-    ...Typography.h3,
-    marginBottom: Spacing.sm,
-  },
-  transcriptionInput: {
-    ...Typography.body,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    minHeight: 150,
-  },
   audioPreview: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginBottom: Spacing.lg,
-    marginHorizontal: Spacing.sm,
     backgroundColor: "#F3F4F6",
+    padding: Spacing.md,
     borderRadius: BorderRadius.md,
+    marginBottom: Spacing.lg,
   },
   miniPlayButton: {
     width: 40,
@@ -926,17 +703,33 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   audioPreviewLabel: {
-    ...Typography.label,
+    fontSize: 14,
     fontWeight: "600",
   },
   audioPreviewDuration: {
-    ...Typography.caption,
+    fontSize: 13,
+  },
+  reviewSection: {
+    marginBottom: Spacing.lg,
+  },
+  reviewLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: Spacing.sm,
+  },
+  transcriptionInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    fontSize: 15,
+    minHeight: 140,
+    lineHeight: 22,
   },
   reviewActions: {
     flexDirection: "row",
     gap: Spacing.md,
-    paddingHorizontal: Spacing.sm,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   acceptButton: {
     flexDirection: "row",
@@ -946,14 +739,57 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
-    flex: 2,
+    flex: 1,
   },
   acceptButtonText: {
     color: "#FFFFFF",
     fontWeight: "600",
-    fontSize: 16,
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  infoCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.md,
+    backgroundColor: "#F3F4F6",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  infoText: {
+    ...Typography.bodySmall,
+    flex: 1,
+    color: "#2D3748",
+  },
+  permissionText: {
+    fontSize: 20,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  permissionSubtext: {
+    fontSize: 16,
+    textAlign: "center",
+  },
+  primaryButton: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+  },
+  primaryButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  transcribingTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#0B2545",
+    marginTop: Spacing.lg,
+  },
+  transcribingSubtext: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: Spacing.xl,
   },
 });
