@@ -567,6 +567,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/voice-task", async (req: Request, res: Response) => {
+    try {
+      const { audioBase64, mimeType, project_id, recorded_by, recorded_at, priority, classification } = req.body;
+
+      if (!audioBase64 || !project_id) {
+        return res.status(400).json({ error: "audioBase64 and project_id are required" });
+      }
+
+      const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
+      if (!archidocApiUrl) {
+        return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
+      }
+
+      const fileBuffer = Buffer.from(audioBase64, "base64");
+      const fileExtension = mimeType === "audio/mpeg" ? "mp3" : "m4a";
+      const fileName = `voice-task-${Date.now()}.${fileExtension}`;
+
+      console.log(`[VoiceTask] Uploading ${fileBuffer.length} bytes for project ${project_id}`);
+
+      const boundary = `----FormBoundary${Date.now()}`;
+      const parts: Buffer[] = [];
+
+      const addField = (name: string, value: string) => {
+        parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`));
+      };
+
+      addField("project_id", project_id);
+      addField("recorded_by", recorded_by || "OUVRO Field User");
+      if (recorded_at) addField("recorded_at", recorded_at);
+      if (priority) addField("priority", priority);
+      if (classification) addField("classification", classification);
+
+      parts.push(Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${mimeType || "audio/mp4"}\r\n\r\n`
+      ));
+      parts.push(fileBuffer);
+      parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+
+      const body = Buffer.concat(parts);
+
+      const archidocResponse = await archidocFetch(`${archidocApiUrl}/api/ouvro/voice-task`, {
+        method: "POST",
+        headers: {
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          "Content-Length": String(body.length),
+        },
+        body: body,
+        timeout: ARCHIDOC_UPLOAD_TIMEOUT_MS,
+      });
+
+      if (!archidocResponse.ok) {
+        const errorText = await archidocResponse.text();
+        console.error("[VoiceTask] ArchiDoc error:", archidocResponse.status, errorText);
+        return res.status(archidocResponse.status).json({
+          error: errorText || "ArchiDoc rejected the voice task",
+        });
+      }
+
+      const result = await archidocResponse.json();
+      console.log("[VoiceTask] Task created successfully:", result.task_id);
+
+      res.json(result);
+    } catch (error) {
+      const { status, message } = formatServerError(error, "Voice Task");
+      res.status(status).json({ error: message });
+    }
+  });
+
   app.post("/api/mark-synced/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
