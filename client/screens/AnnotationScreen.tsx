@@ -47,7 +47,6 @@ export default function AnnotationScreen() {
   const { file, signedUrl, projectId } = route.params;
 
   const viewShotRef = useRef<ViewShot>(null);
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [elements, setElements] = useState<DrawingElement[]>([]);
   const [currentElement, setCurrentElement] = useState<DrawingElement | null>(null);
@@ -98,14 +97,6 @@ export default function AnnotationScreen() {
   }, []);
 
   const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-  const createNewElement = useCallback((x: number, y: number): DrawingElement => ({
-    id: generateId(),
-    type: selectedTool,
-    color: selectedColor,
-    strokeWidth,
-    points: [[x, y]],
-  }), [selectedTool, selectedColor, strokeWidth]);
 
   const handlePanStart = useCallback((x: number, y: number, tool: AnnotationType) => {
     if (tool === "text") return;
@@ -558,7 +549,7 @@ export default function AnnotationScreen() {
                   source={{ uri: signedUrl }}
                   style={[styles.backgroundImage, { width: canvasWidth, height: canvasHeight }]}
                   contentFit="contain"
-                  onLoad={() => setImageLoaded(true)}
+                  onLoad={() => {}}
                   onError={handleImageError}
                 />
                 <Svg style={StyleSheet.absoluteFill} width={canvasWidth} height={canvasHeight}>

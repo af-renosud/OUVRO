@@ -9,7 +9,7 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
-import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 export default function VideoCaptureScreen() {
