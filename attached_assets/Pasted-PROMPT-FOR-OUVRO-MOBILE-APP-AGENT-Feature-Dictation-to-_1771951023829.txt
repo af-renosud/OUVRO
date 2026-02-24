@@ -1,0 +1,98 @@
+PROMPT FOR OUVRO MOBILE APP AGENT
+
+Feature: Dictation-to-Task (Voice Task Creation)
+Overview: Add a "New Task MP3" function to the OUVRO mobile app. This allows users to verbally dictate a construction task on-site, select a project, and send the MP3 recording to ArchiDoc. ArchiDoc handles transcription server-side and automatically creates a task in the project's task list.
+
+User Flow:
+
+User taps "New Task MP3" button on the OUVRO main screen
+User selects a project from the project list (fetched from existing endpoint)
+User records their voice (MP3 or M4A format)
+User taps "Send" — the app uploads the audio to ArchiDoc
+ArchiDoc transcribes the audio, creates the task, and returns a confirmation with the transcribed text
+ArchiDoc API Endpoints:
+
+1. Project List (already exists — use this for the project selector):
+
+GET /api/ouvro/projects
+Response:
+{
+  "projects": [
+    {
+      "project_id": "string",
+      "project_name": "string",
+      "client_name": "string",
+      "address": "string",
+      "status": "string",
+      "created_at": "ISO timestamp"
+    }
+  ]
+}
+2. Voice Task Submission (new endpoint — ready to receive):
+
+POST /api/ouvro/voice-task
+Content-Type: multipart/form-data
+Fields:
+- file: Audio file (MP3 or M4A) — required
+- project_id: string — required (from project selector)
+- recorded_by: string — required (logged-in user's name)
+- recorded_at: ISO 8601 timestamp — optional (defaults to server time)
+- priority: string — optional ("low" | "normal" | "high" | "urgent", defaults to "normal")
+- location: string — optional (GPS coordinates or text description)
+- classification: string — optional ("defect" | "action" | "followup" | "general")
+Success Response (200):
+{
+  "success": true,
+  "task_id": "uuid-string",
+  "project_id": "string",
+  "transcription": "The transcribed text from the audio",
+  "task_title": "Auto-generated title from transcription",
+  "message": "Task created successfully"
+}
+Error Response (400/500):
+{
+  "error": "Description of what went wrong"
+}
+Mobile App Implementation Requirements:
+
+"New Task MP3" Button: Place alongside existing observation/recording buttons. Use a distinct icon (microphone + task/clipboard icon) so it's clearly different from standard observations.
+
+Project Selector: After tapping the button, present the project list from GET /api/ouvro/projects. Display project_name and client_name. Allow search/filter if the list is long.
+
+Audio Recorder:
+
+Record in MP3 or M4A format
+Show a recording timer while active
+Allow pause/resume if possible
+Provide playback before sending so the user can verify
+Maximum recording length: 5 minutes
+Upload Process:
+
+Upload as multipart/form-data to POST /api/ouvro/voice-task
+Include project_id, recorded_by, and the audio file
+Show a progress indicator during upload
+On success: display confirmation with the transcribed text from the response
+On failure: show error and offer retry
+Offline Support (if applicable):
+
+Queue recordings locally with the selected project ID
+Sync when connectivity is restored
+Show pending items in a "waiting to sync" queue
+Authentication: Use the same authentication mechanism as all other OUVRO API calls to ArchiDoc.
+
+Important Notes:
+
+Transcription is handled entirely server-side by ArchiDoc (Gemini AI) — the mobile app does NOT need to transcribe
+The original audio file is stored permanently on the server and linked to the task
+The task appears in ArchiDoc's task list with an "OUVRO-DICTATION" tag so the architect can identify voice-created tasks
+A notification is sent within ArchiDoc when a voice task arrives
+The ArchiDoc OUVRO landing page already shows a blue counter badge per project for these tasks
+Existing OUVRO Patterns to Follow:
+
+All OUVRO API responses use snake_case field names
+File uploads follow the same pattern as POST /api/archive/files
+Field observations follow the pattern of POST /api/field-observations
+Note: The POST /api/ouvro/voice-task endpoint still needs to be built on the ArchiDoc side. We will build it to match this contract exactly. You can begin mobile app development against this specification immediately — use the project list endpoint (already live) for testing the project selector, and we'll have the voice-task endpoint ready for integration testing.
+
+One important thing to flag: the POST /api/ouvro/voice-task endpoint itself hasn't been built yet on ArchiDoc's side — what we've built so far is the task counting/display infrastructure. When the OUVRO mobile agent confirms they're ready for integration testing, let me know and I'll build that receiving endpoint to match the contract above.
+
