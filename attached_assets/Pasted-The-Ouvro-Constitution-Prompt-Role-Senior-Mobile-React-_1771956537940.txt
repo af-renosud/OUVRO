@@ -1,0 +1,45 @@
+The "Ouvro Constitution" Prompt
+Role: Senior Mobile/React Native Architect.
+Task: Create the definitive OUVRO_ARCHITECTURE.md file in the root directory.
+
+Context: We have just completed a massive, 5-phase surgical refactoring of the Ouvro mobile app. We eliminated monolithic screens, centralized API proxies, and stabilized offline sync. We must now codify these patterns to prevent future architectural drift.
+
+Instructions:
+Please generate an OUVRO_ARCHITECTURE.md file containing the following strictly enforced rules. Format it professionally using Markdown headers, bullet points, and code snippets where appropriate.
+
+1. Device & Hardware Abstraction
+
+Rule: Never interact with Expo hardware APIs (Audio, Camera, FileSystem) directly inside UI components.
+
+Standard: Encapsulate hardware interactions in pure, custom React Hooks (e.g., useAudioRecorder, useAudioPlayer).
+
+Exception: Avoid "Premature Abstraction." If screens diverge significantly in their UI or business logic (e.g., Photo vs. Video vs. Annotation), it is better to leave them separate than to create a complex "God Hook" with dozens of configuration flags.
+
+2. The API Client & Type Separation (Frontend)
+
+Rule: Runtime fetch logic and TypeScript definitions must never live in the same file.
+
+Standard: All Archidoc API calls must route through the archidocApiFetch wrapper in client/lib/archidoc-api.ts. All TypeScript interfaces and runtime constants must live in client/lib/archidoc-types.ts.
+
+Standard: Always use "Mapper Functions" (e.g., mapRawProject) to translate messy backend JSON into clean frontend DTOs before passing data to the UI.
+
+3. Offline Sync & Persistence
+
+Rule: Never use raw AsyncStorage or FileSystem.copyAsync inside business logic or sync queues.
+
+Standard: All local data persistence and offline queue management must delegate to the generic DurableQueueStore<T> class to ensure a single, bulletproof source of truth for file operations.
+
+4. The BFF Proxy Layer (Backend server/routes/)
+
+Rule: Never add new routes to a monolithic server/routes.ts file.
+
+Standard: The main routes file must remain a thin orchestrator. All new endpoints must be placed in their respective domain routers (e.g., projects.ts, observations.ts).
+
+Standard: All proxy requests to the main Archidoc server must use the archidocJsonPost wrapper and the requireArchidocUrl middleware located in archidoc-helpers.ts to ensure consistent timeout and error handling.
+
+5. The AI Directive
+
+Rule: Add a final section titled "AI Agent Instructions." State clearly: "Before proposing any code changes, new screens, or new API routes, you MUST read this file. You are strictly forbidden from duplicating network calls, raw storage calls, or hardware API implementations."
+
+Output:
+Generate the complete markdown for the OUVRO_ARCHITECTURE.md file.
