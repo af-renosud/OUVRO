@@ -1,0 +1,41 @@
+Copy and Paste the text below into Replit:
+System Context & Objective:
+We have an approved 9-task execution plan to refactor the OUVRO app into a zero-data-loss, offline-first architecture ("Enhanced Option A"). We are replacing a flawed fire-and-forget flow with a robust Store-and-Forward queue system.
+
+You are now executing the first critical steps of this plan.
+
+Immediate Directives:
+
+Step 0: Define the API Contract (Crucial Prerequisite)
+Before writing UI or backend logic, we must define the exact JSON payload structure for the POST /api/tasks/sync endpoint.
+
+Action: Write the TypeScript interface/Zod schema for the payload. It must include:
+
+localId (UUID generated on the phone for idempotency).
+
+audioBase64 or transcriptionText (depending on whether Gemini transcribed it locally or if we are deferring transcription).
+
+All required metadata fields previously captured in VoiceTaskScreen.tsx (priority, classification, etc.).
+
+Output: Print this contract for review.
+
+Step 1: Execute Task 1 (UI Merge)
+
+Action: Analyze client/screens/VoiceTaskScreen.tsx and client/screens/TaskCaptureScreen.tsx. Merge the priority, classification, and metadata selection UI from VoiceTaskScreen into TaskCaptureScreen.
+
+Constraint: TaskCaptureScreen must remain the single source of truth for UI. It must capture the audio and the newly added metadata, and prepare it for local queuing.
+
+Step 2: Execute Task 2 (Persistence Upgrade)
+
+Action: Upgrade client/lib/offline-tasks.ts and client/lib/durable-queue-store.ts.
+
+Constraint: The DurableQueueStore must enforce atomic operations. It must accept the newly defined payload (from Step 0). Items must default to a pending_sync (or pending_transcription) status.
+
+Execution Output Request:
+
+Output the TypeScript interface for the API contract (Step 0).
+
+Provide the refactored code for TaskCaptureScreen.tsx (Step 1).
+
+Provide the updated code for offline-tasks.ts and durable-queue-store.ts (Step 2).
+Wait for my approval on these files before moving to the backend endpoints or the sync engine wiring.

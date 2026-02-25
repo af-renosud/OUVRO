@@ -23,16 +23,18 @@ OUVRO is a mobile companion app for architects and project managers, built with 
 - **Data Fetching:** TanStack Query for efficient data management and caching.
 - **Backend:** Express.js server (TypeScript) serving an API on port 5000 and a static landing page. Routes split into domain routers under `server/routes/` (projects, observations, ai, archidoc, sync) with shared ARCHIDOC proxy helpers in `server/routes/archidoc-helpers.ts`.
 - **Database:** PostgreSQL with Drizzle ORM for local data persistence, hosted on Neon.
-- **Offline Sync:** Observations and media stored locally via `DurableQueueStore<T>` (`client/lib/durable-queue-store.ts`) which wraps AsyncStorage persistence, FileSystem durable copying, and event emitter logic. Both `offline-sync.ts` and `offline-tasks.ts` compose this store. Observation sync states: pending, uploading_metadata, uploading_media, partial, complete, failed.
+- **Offline Sync (Store-and-Forward):** Observations and tasks stored locally via `DurableQueueStore<T>` (`client/lib/durable-queue-store.ts`) which wraps AsyncStorage persistence, FileSystem durable copying, and event emitter logic. Both `offline-sync.ts` and `offline-tasks.ts` compose this store. Items only dequeue when server returns 200 OK (ArchiDoc confirmed receipt). Observation sync states: pending, uploading_metadata, uploading_media, partial, complete, failed. Task sync states: pending, transcribing, review, accepted, uploading, complete, failed.
 - **Annotation System:** In-app annotation tools (pen, arrow, circle, rectangle, freehand, text, measurement) with construction-standard colors. Supports pinch-to-zoom and flattens annotations onto images.
 - **PDF Viewing:** PDFs rendered in `react-native-webview` with a "Capture for Annotation" feature. iOS uses native screenshot detection for clipping.
 - **API Field Mapping:** Types in `archidoc-types.ts`, runtime logic in `archidoc-api.ts`. Centralized `archidocApiFetch` base function handles URL construction, auth, and error checking. `mapRawProject` and `mapDQEItem` mappers normalize snake_case API responses to camelCase with resilience for multiple field name variants.
 
 ### Feature Specifications
 - **Observation Capture:** Floating capture button (FAB) opens CaptureModal with 2x2 grid: Photo, Video, Audio, Task. Includes observation details form, Gemini AI-powered transcription (audio to English) and translation (to French).
-- **Task Capture (NEW):** Voice-to-task workflow: Record audio -> Gemini AI transcription -> User review/edit -> Accept. Tasks stored durably via `offline-tasks.ts` (FileSystem + AsyncStorage, mirrors observation sync architecture). 3-step visual indicator (Record > Transcribe > Review). Tasks appear in QueueScreen with "TASK" badge. Server stub at `POST /api/tasks/sync` ready for ARCHIDOC integration.
-  - Key files: `client/lib/offline-tasks.ts`, `client/hooks/useOfflineTasks.tsx`, `client/screens/TaskCaptureScreen.tsx`
+- **Task Capture (Unified, Offline-First):** Single voice-to-task workflow: Record audio -> Gemini AI transcription -> Review/Edit with priority & classification selectors -> Accept (saved to durable local queue) -> Store-and-forward sync to ArchiDoc. Zero data loss guaranteed: tasks persist locally until ArchiDoc confirms receipt (200 OK). Idempotent sync via `localId` UUID. `VoiceTaskScreen` (fire-and-forget flow) has been removed.
+  - Key files: `client/lib/offline-tasks.ts`, `client/hooks/useOfflineTasks.tsx`, `client/screens/TaskCaptureScreen.tsx`, `shared/task-sync-types.ts`
   - Task states: pending -> transcribing -> review -> accepted -> uploading -> complete/failed
+  - Sync contract: `POST /api/tasks/sync` with `TaskSyncPayload` (see `shared/task-sync-types.ts`). Returns 200 only when ArchiDoc confirms; 502/503 otherwise.
+  - Priority: low/normal/high/urgent. Classification: defect/action/followup/general.
 - **Project Asset Hub:** A 2x3 grid of buttons (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE) with dynamic enablement logic based on project data availability.
 - **DQE Browser:** Displays DQE items, filterable by lot code or contractor (data fetched from `/api/contractors`).
 

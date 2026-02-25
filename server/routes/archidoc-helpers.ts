@@ -46,7 +46,7 @@ export function formatServerError(error: unknown, context: string): { status: nu
 export function requireArchidocUrl(req: Request, res: Response, next: NextFunction) {
   const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
   if (!archidocApiUrl) {
-    return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
+    return res.status(503).json({ success: false, error: "ARCHIDOC API URL not configured. Service unavailable." });
   }
   res.locals.archidocApiUrl = archidocApiUrl;
   next();

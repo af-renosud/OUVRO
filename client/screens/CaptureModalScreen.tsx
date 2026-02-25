@@ -58,7 +58,7 @@ export default function CaptureModalScreen() {
         navigation.navigate("AudioCapture", { projectId: project.id, projectName: project.name });
         break;
       case "action":
-        navigation.navigate("VoiceTask", { projectId: project.id, projectName: project.name });
+        navigation.navigate("TaskCapture", { projectId: project.id, projectName: project.name });
         break;
     }
   };

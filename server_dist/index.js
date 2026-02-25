@@ -697,7 +697,7 @@ function formatServerError(error, context) {
 function requireArchidocUrl(req, res, next) {
   const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
   if (!archidocApiUrl) {
-    return res.status(500).json({ error: "ARCHIDOC API URL not configured" });
+    return res.status(503).json({ success: false, error: "ARCHIDOC API URL not configured. Service unavailable." });
   }
   res.locals.archidocApiUrl = archidocApiUrl;
   next();
@@ -848,34 +848,6 @@ archidocRouter.post("/archidoc/create-observation", async (req, res) => {
 
 // server/routes/sync.ts
 import { Router as Router5 } from "express";
-import { GoogleGenAI as GoogleGenAI4 } from "@google/genai";
-var ai4 = new GoogleGenAI4({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL
-  }
-});
-async function transcribeWithGemini(audioBase64, mimeType) {
-  const response = await ai4.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: "Please transcribe the following audio accurately into English text. Only output the transcription, nothing else." },
-          {
-            inlineData: {
-              mimeType,
-              data: audioBase64
-            }
-          }
-        ]
-      }
-    ]
-  });
-  return response.text || "";
-}
 var syncRouter = Router5();
 syncRouter.post("/sync-observation/:id", requireArchidocUrl, async (req, res) => {
   try {
@@ -922,99 +894,60 @@ syncRouter.post("/sync-observation/:id", requireArchidocUrl, async (req, res) =>
     res.status(status).json({ error: message });
   }
 });
-syncRouter.post("/tasks/sync", async (req, res) => {
+var VALID_PRIORITIES = ["low", "normal", "high", "urgent"];
+var VALID_CLASSIFICATIONS = ["defect", "action", "followup", "general"];
+syncRouter.post("/tasks/sync", requireArchidocUrl, async (req, res) => {
+  const localId = req.body.localId || "unknown";
   try {
-    const { projectId, projectName, transcription, audioDuration, localId } = req.body;
-    if (!projectId || !transcription) {
-      return res.status(400).json({ error: "Missing required fields: projectId, transcription" });
+    const { projectId, projectName, transcription, priority, classification, audioDuration, recordedAt, recordedBy } = req.body;
+    console.log(`[Task Sync] localId=${localId} \u2014 received sync request`);
+    if (!localId || localId === "unknown") {
+      return res.status(400).json({ success: false, error: "Missing required field: localId", localId });
     }
-    console.log(`[Task Sync] Received task for project ${projectId} (${projectName}): "${transcription.substring(0, 80)}..."`);
-    res.json({
-      success: true,
-      taskId: `archidoc_task_${Date.now()}`,
+    if (!projectId) {
+      return res.status(400).json({ success: false, error: "Missing required field: projectId", localId });
+    }
+    if (!transcription) {
+      return res.status(400).json({ success: false, error: "Missing required field: transcription", localId });
+    }
+    if (transcription.length > 1e4) {
+      return res.status(400).json({ success: false, error: "Transcription exceeds maximum length of 10000 characters", localId });
+    }
+    if (priority && !VALID_PRIORITIES.includes(priority)) {
+      return res.status(400).json({ success: false, error: `Invalid priority: ${priority}. Must be one of: ${VALID_PRIORITIES.join(", ")}`, localId });
+    }
+    if (classification && !VALID_CLASSIFICATIONS.includes(classification)) {
+      return res.status(400).json({ success: false, error: `Invalid classification: ${classification}. Must be one of: ${VALID_CLASSIFICATIONS.join(", ")}`, localId });
+    }
+    const archidocApiUrl = res.locals.archidocApiUrl;
+    const archidocPayload = {
       localId,
-      message: "Task received. ARCHIDOC endpoint not yet implemented - task stored locally."
-    });
-  } catch (error) {
-    console.error("[Task Sync] Error:", error);
-    res.status(500).json({ error: "Failed to sync task" });
-  }
-});
-syncRouter.post("/voice-task", async (req, res) => {
-  try {
-    const { audioBase64, mimeType = "audio/mp4", project_id, recorded_by, recorded_at, priority, classification } = req.body;
-    if (!audioBase64 || !project_id) {
-      return res.status(400).json({ error: "audioBase64 and project_id are required" });
-    }
-    const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
-    let archidocResult = null;
-    if (archidocApiUrl) {
-      try {
-        const fileBuffer = Buffer.from(audioBase64, "base64");
-        const fileExtension = mimeType === "audio/mpeg" ? "mp3" : "m4a";
-        const fileName = `voice-task-${Date.now()}.${fileExtension}`;
-        console.log(`[VoiceTask] Uploading ${fileBuffer.length} bytes for project ${project_id}`);
-        const boundary = `----FormBoundary${Date.now()}`;
-        const parts = [];
-        const addField = (name, value) => {
-          parts.push(Buffer.from(`--${boundary}\r
-Content-Disposition: form-data; name="${name}"\r
-\r
-${value}\r
-`));
-        };
-        addField("project_id", project_id);
-        addField("recorded_by", recorded_by || "OUVRO Field User");
-        if (recorded_at) addField("recorded_at", recorded_at);
-        if (priority) addField("priority", priority);
-        if (classification) addField("classification", classification);
-        parts.push(Buffer.from(
-          `--${boundary}\r
-Content-Disposition: form-data; name="file"; filename="${fileName}"\r
-Content-Type: ${mimeType}\r
-\r
-`
-        ));
-        parts.push(fileBuffer);
-        parts.push(Buffer.from(`\r
---${boundary}--\r
-`));
-        const body = Buffer.concat(parts);
-        const archidocResponse = await archidocFetch(`${archidocApiUrl}/api/ouvro/voice-task`, {
-          method: "POST",
-          headers: {
-            "Content-Type": `multipart/form-data; boundary=${boundary}`,
-            "Content-Length": String(body.length)
-          },
-          body,
-          timeout: ARCHIDOC_UPLOAD_TIMEOUT_MS
-        });
-        if (archidocResponse.ok) {
-          archidocResult = await archidocResponse.json();
-          console.log("[VoiceTask] Task created in ArchiDoc:", archidocResult.task_id);
-          return res.json(archidocResult);
-        }
-        const errorText = await archidocResponse.text();
-        console.warn(`[VoiceTask] ArchiDoc returned ${archidocResponse.status}, falling back to Gemini transcription`);
-      } catch (archidocError) {
-        console.warn("[VoiceTask] ArchiDoc unavailable, falling back to Gemini transcription:", archidocError.message);
-      }
-    } else {
-      console.log("[VoiceTask] No ARCHIDOC_API_URL configured, using Gemini transcription");
-    }
-    console.log("[VoiceTask] Transcribing with Gemini...");
-    const transcription = await transcribeWithGemini(audioBase64, mimeType);
-    const taskTitle = transcription.length > 80 ? transcription.substring(0, 77) + "..." : transcription;
-    console.log("[VoiceTask] Gemini transcription complete:", taskTitle);
-    res.json({
-      task_id: `local-${Date.now()}`,
+      projectId,
       transcription,
-      task_title: taskTitle,
-      source: "gemini-fallback"
-    });
+      priority: priority || "normal",
+      classification: classification || "general",
+      audioDuration: audioDuration || 0,
+      recordedAt: recordedAt || (/* @__PURE__ */ new Date()).toISOString(),
+      recordedBy: recordedBy || "OUVRO Field User"
+    };
+    console.log(`[Task Sync] localId=${localId} \u2014 posting to ArchiDoc for project ${projectId}`);
+    const result = await archidocJsonPost(
+      `${archidocApiUrl}/api/ouvro/tasks`,
+      archidocPayload,
+      "Sync task to ArchiDoc"
+    );
+    if ("error" in result) {
+      console.warn(`[Task Sync] localId=${localId} \u2014 ArchiDoc returned error: ${result.error} (status ${result.status})`);
+      return res.status(502).json({ success: false, error: result.error, localId });
+    }
+    const archidocTaskId = result.data?.id || result.data?.taskId || result.data?.task_id || `archidoc_${Date.now()}`;
+    console.log(`[Task Sync] localId=${localId} \u2014 successfully synced, archidocTaskId=${archidocTaskId}`);
+    return res.status(200).json({ success: true, localId, archidocTaskId });
   } catch (error) {
-    const { status, message } = formatServerError(error, "Voice Task");
-    res.status(status).json({ error: message });
+    console.error(`[Task Sync] localId=${localId} \u2014 unexpected error:`, error);
+    const { status, message } = formatServerError(error, "Task Sync");
+    const responseStatus = status === 503 || status === 504 ? status : 502;
+    return res.status(responseStatus).json({ success: false, error: message, localId });
   }
 });
 syncRouter.post("/mark-synced/:id", async (req, res) => {

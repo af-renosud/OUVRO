@@ -25,8 +25,23 @@ import { useOfflineTasks } from "@/hooks/useOfflineTasks";
 import { apiRequest } from "@/lib/query-client";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+import type { TaskPriority, TaskClassification } from "@shared/task-sync-types";
 
 type TaskStep = "record" | "transcribing" | "review";
+
+const PRIORITIES: { value: TaskPriority; label: string; color: string }[] = [
+  { value: "low", label: "Low", color: "#6B7280" },
+  { value: "normal", label: "Normal", color: BrandColors.info },
+  { value: "high", label: "High", color: BrandColors.warning },
+  { value: "urgent", label: "Urgent", color: BrandColors.error },
+];
+
+const CLASSIFICATIONS: { value: TaskClassification; label: string }[] = [
+  { value: "general", label: "General" },
+  { value: "defect", label: "Defect" },
+  { value: "action", label: "Action" },
+  { value: "followup", label: "Follow-up" },
+];
 
 export default function TaskCaptureScreen() {
   const { theme } = useTheme();
@@ -57,6 +72,8 @@ export default function TaskCaptureScreen() {
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [taskLocalId, setTaskLocalId] = useState<string | null>(null);
+  const [priority, setPriority] = useState<TaskPriority>("normal");
+  const [classification, setClassification] = useState<TaskClassification>("general");
 
   const isPhone = width < 500;
   const waveformSize = isPhone ? 100 : 140;
@@ -87,6 +104,10 @@ export default function TaskCaptureScreen() {
       projectName,
       audioUri: recordingUri,
       audioDuration: recordingDuration,
+      priority,
+      classification,
+      recordedAt: new Date().toISOString(),
+      recordedBy: "OUVRO Field User",
     });
     setTaskLocalId(localId);
 
@@ -146,7 +167,7 @@ export default function TaskCaptureScreen() {
 
     setIsSaving(true);
     try {
-      await acceptTask(taskLocalId, transcription);
+      await acceptTask(taskLocalId, transcription, { priority, classification });
 
       if (navigation.canGoBack()) {
         navigation.popToTop();
@@ -286,6 +307,60 @@ export default function TaskCaptureScreen() {
               placeholder="Edit the transcription here..."
               placeholderTextColor={theme.textTertiary}
             />
+          </View>
+
+          <View style={styles.chipSection}>
+            <ThemedText style={styles.chipSectionLabel}>Priority</ThemedText>
+            <View style={styles.chipRow}>
+              {PRIORITIES.map((p) => (
+                <Pressable
+                  key={p.value}
+                  style={[
+                    styles.chip,
+                    priority === p.value
+                      ? { backgroundColor: p.color, borderColor: p.color }
+                      : { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" },
+                  ]}
+                  onPress={() => setPriority(p.value)}
+                >
+                  <ThemedText
+                    style={[
+                      styles.chipText,
+                      { color: priority === p.value ? "#FFFFFF" : "#374151" },
+                    ]}
+                  >
+                    {p.label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.chipSection}>
+            <ThemedText style={styles.chipSectionLabel}>Classification</ThemedText>
+            <View style={styles.chipRow}>
+              {CLASSIFICATIONS.map((c) => (
+                <Pressable
+                  key={c.value}
+                  style={[
+                    styles.chip,
+                    classification === c.value
+                      ? { backgroundColor: BrandColors.accent, borderColor: BrandColors.accent }
+                      : { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" },
+                  ]}
+                  onPress={() => setClassification(c.value)}
+                >
+                  <ThemedText
+                    style={[
+                      styles.chipText,
+                      { color: classification === c.value ? "#FFFFFF" : "#374151" },
+                    ]}
+                  >
+                    {c.label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
           </View>
 
           <View style={styles.reviewActions}>
@@ -791,5 +866,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     marginBottom: Spacing.xl,
+  },
+  chipSection: {
+    marginBottom: Spacing.lg,
+  },
+  chipSectionLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: Spacing.sm,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  chip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

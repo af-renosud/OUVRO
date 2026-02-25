@@ -1,0 +1,39 @@
+System Context & Objective:
+We are executing a critical 10-task architectural refactor for the OUVRO app (React Native/Expo frontend, Express.js/TypeScript backend). We are migrating from a vulnerable "fire-and-forget" network flow to a robust, offline-first "Store-and-Forward" architecture to guarantee zero data loss.
+
+The core rules of this system are:
+
+Zero Data Loss: All captured data hits local durable storage immediately.
+
+Store-and-Forward: Tasks only dequeue from the phone when the server returns a explicit 200 OK (meaning the external ArchiDoc system confirmed receipt).
+
+Idempotency: A localId (UUID) generated on the client travels through the entire chain to prevent duplicates during network retries.
+
+Current Task - Execute T000: Define the Shared API Contract
+Before we touch the UI, persistence layer, or backend endpoints, we must establish the single source of truth for the payload data structure. Both the client queue and the backend sync endpoint will build against this contract.
+
+Directives for T000:
+
+Create/Update Shared Types: Define a TypeScript interface and a Zod schema (if using Zod) for the sync payload. This should live in a shared directory accessible to both the client and server (e.g., shared/types.ts or shared/schema.ts).
+
+Required Fields: The SyncTaskPayload interface MUST include:
+
+localId: string (UUID - mandatory for idempotency).
+
+status: string union (e.g., 'pending_transcription' | 'pending_sync' | 'synced' | 'failed').
+
+audioBase64: string (optional, depending on if it was already transcribed).
+
+transcriptionText: string (optional, populated by Gemini).
+
+priority: string (metadata from the UI).
+
+classification: string (metadata from the UI).
+
+createdAt: timestamp.
+
+(Include any other metadata fields previously required by ArchiDoc/VoiceTaskScreen).
+
+Action: Output the exact code for this shared TypeScript interface and/or schema.
+
+Constraint: Do not write any UI, local storage, or endpoint code yet. Output ONLY the shared data models for T000 so we can lock in the API contract. Await my explicit approval before moving on to T001 (UI Merge), T002 (Persistence Upgrade), and T006 (Backend Endpoint).

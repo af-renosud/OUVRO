@@ -1,0 +1,56 @@
+Copy and Paste the text below into your Coding Agent:
+System Context & Objective:
+We are refactoring the OUVRO Expo/React Native app and its Express.js backend. Currently, we are experiencing data loss because of a fragmented architecture (Flow B is fire-and-forget and drops data when our external system, ArchiDoc, returns 500s).
+
+Your objective is to unify task capture into a single, offline-first, highly resilient architecture ("Enhanced Option A"). The mobile device must act as the absolute source of truth until the backend confirms successful receipt and forwarding to ArchiDoc.
+
+The Golden Rule for this Refactor: Zero data loss. Under no circumstances should user input (audio or transcribed text) be held only in volatile memory. It must hit local durable storage immediately.
+
+Mandates for Industrial Strength & Security:
+
+Idempotency: The sync endpoint (POST /api/tasks/sync) must handle retries safely. Generate a unique localId (UUID) on the phone for every task. The server must use this to ensure we don't create duplicate tasks in ArchiDoc if a network timeout causes the phone to retry a successful sync.
+
+Atomic Queue Operations: The client-side DurableQueueStore must only dequeue an item after receiving a 200 OK from the backend. If the backend returns 500, 502, 503, or times out, the item remains in the queue.
+
+Graceful Degradation: If the user is completely offline, they cannot reach Gemini for transcription. The local queue must be capable of storing raw base64 audio to be transcribed later, or the UI must clearly block recording if transcription is strictly required upfront.
+
+Input Validation & Security: The backend must strictly validate the payload using Zod (or similar) before attempting to process it. Ensure file sizes/base64 strings do not exceed server limits.
+
+Phased Execution Plan:
+
+Phase 1: Merge the UI & Unify the Client
+
+Action: Extract the priority, classification, and metadata selection UI from client/screens/VoiceTaskScreen.tsx and integrate it into client/screens/TaskCaptureScreen.tsx.
+
+Result: TaskCaptureScreen.tsx is now the single screen for this flow. It uses useOfflineTasks to immediately push captured audio/metadata into the DurableQueueStore.
+
+Cleanup: Delete VoiceTaskScreen.tsx.
+
+Phase 2: Upgrade Client-Side Persistence & Sync Engine
+
+Action: Review client/lib/offline-tasks.ts and client/lib/durable-queue-store.ts.
+
+Enhancement: Ensure the queued task object includes: localId (UUID), status (pending_transcription, pending_sync, synced), audioBase64, transcriptionText, and user-selected metadata.
+
+Sync Logic: Implement a background or manual sync function that iterates through pending_sync items and POSTs them to /api/tasks/sync. It must parse standard HTTP error codes and leave items in the queue if the request fails.
+
+Phase 3: Implement the Resilient Sync Endpoint (Backend)
+
+Action: Rewrite the stub at POST /api/tasks/sync in server/routes/sync.ts.
+
+Logic Flow:
+
+Receive the task payload (with localId).
+
+Attempt to POST the task to ArchiDoc via server/routes/archidoc-helpers.ts.
+
+If ArchiDoc succeeds (returns 200/201), return 200 OK to the mobile app so it can dequeue.
+
+If ArchiDoc fails (returns 500, network error, etc.), the server must return a 502 Bad Gateway or 503 Service Unavailable to the mobile app.
+Do not return 200 if ArchiDoc fails. Let the mobile app retain the data.
+
+Phase 4: Remove Dead Code
+
+Action: Delete server/routes/sync.ts logic related to /api/voice-task (the old Flow B route) to ensure no traffic can hit the vulnerable, non-persistent endpoint.
+
+Start with Phase 1. Analyze the existing TaskCaptureScreen.tsx and VoiceTaskScreen.tsx and provide the merged code for the new unified screen.
