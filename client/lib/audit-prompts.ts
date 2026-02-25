@@ -19,12 +19,20 @@ export const AUDIT_PROMPTS: AuditPrompt[] = [
 You are auditing the OUVRO mobile companion app's PostgreSQL database (Neon-backed, managed by Drizzle ORM).
 
 SCHEMA TABLES TO VERIFY (defined in shared/schema.ts):
-- users: id (varchar/UUID PK), username (text, unique, NOT NULL), password (text, NOT NULL)
-- projects: id (serial PK), name (text, NOT NULL), location (text), status (text, default "active"), thumbnailUrl (text), createdAt/updatedAt (timestamps)
-- observations: id (serial PK), projectId (integer FK -> projects.id CASCADE), title (text, NOT NULL), description (text), transcription (text), translatedText (text), syncStatus (text, default "pending"), archidocProjectId (text), projectName (text), contractorName (text), contractorEmail (text), createdAt (timestamp), syncedAt (timestamp)
-- observation_media: id (serial PK), observationId (integer FK -> observations.id CASCADE), type (text, NOT NULL), localUri (text), remoteUrl (text), thumbnailUri (text), duration (integer), createdAt (timestamp)
-- project_files: id (serial PK), projectId (integer FK -> projects.id CASCADE), name (text, NOT NULL), type (text, NOT NULL), remoteUrl (text), localUri (text), fileSize (integer), isDownloaded (boolean, default false), createdAt (timestamp)
+- users: id (varchar/UUID PK, gen_random_uuid()), username (text, unique, NOT NULL), password (text, NOT NULL)
+- projects: id (serial PK), name (text, NOT NULL), location (text), status (text, default "active"), thumbnailUrl (text), createdAt/updatedAt (timestamps, NOT NULL)
+- observations: id (serial PK), projectId (integer FK -> projects.id CASCADE), title (text, NOT NULL), description (text), transcription (text), translatedText (text), syncStatus (text, default "pending"), archidocProjectId (text), projectName (text), contractorName (text), contractorEmail (text), createdAt (timestamp, NOT NULL), syncedAt (timestamp)
+- observation_media: id (serial PK), observationId (integer FK -> observations.id CASCADE), type (text, NOT NULL), localUri (text), remoteUrl (text), thumbnailUri (text), duration (integer), createdAt (timestamp, NOT NULL)
+- project_files: id (serial PK), projectId (integer FK -> projects.id CASCADE), name (text, NOT NULL), type (text, NOT NULL), remoteUrl (text), localUri (text), fileSize (integer), isDownloaded (boolean, default false), createdAt (timestamp, NOT NULL)
 - chat_messages: (defined in shared/models/chat.ts)
+
+SHARED API CONTRACT (defined in shared/task-sync-types.ts):
+- TaskSyncPayload: { localId, projectId, projectName, audioBase64?, transcription?, priority, classification, audioDuration, recordedAt, recordedBy }
+- TaskSyncSuccessResponse: { success: true, localId, archidocTaskId }
+- TaskSyncErrorResponse: { success: false, error, localId }
+- TaskPriority: "low" | "normal" | "high" | "urgent"
+- TaskClassification: "defect" | "action" | "followup" | "general"
+NOTE: Voice tasks are NOT stored in OUVRO's PostgreSQL database. They are persisted on-device via AsyncStorage/DurableQueueStore and synced directly to ArchiDoc. The shared types above define the sync contract.
 
 RELATIONS TO VERIFY:
 - projects -> observations (one-to-many)
@@ -40,22 +48,33 @@ AUDIT STEPS:
 5. Verify indexes exist on foreign key columns for query performance
 6. Check that syncStatus values in observations match expected enum: pending, uploading_metadata, uploading_media, partial, complete, failed, synced
 7. Verify Drizzle schema in shared/schema.ts matches actual DB structure (run npm run db:push --force if mismatched)
+8. Verify shared/task-sync-types.ts compiles and exports all expected types
 
 REPORT FORMAT:
 - Table-by-table comparison (schema.ts vs actual DB)
 - Foreign key integrity status
 - Orphaned record count
 - Missing indexes
+- Shared contract types validation
 - Recommendations`,
   },
   {
     id: "application",
     title: "Application Audit",
     icon: "code",
-    description: "Validates server routes, ARCHIDOC integration, Gemini AI, and client-server communication",
+    description: "Validates server routes, ARCHIDOC integration, Gemini AI, task sync, and client-server communication",
     prompt: `RUN APPLICATION AUDIT FOR OUVRO
 
-You are auditing the OUVRO Express.js backend (server/routes.ts) and its integrations with ARCHIDOC and Gemini AI.
+You are auditing the OUVRO Express.js backend and its integrations with ARCHIDOC and Gemini AI. Routes are split into domain routers under server/routes/ and registered in server/routes.ts.
+
+ROUTE ARCHITECTURE:
+- server/routes.ts: registerRoutes() mounts all routers under /api prefix
+- server/routes/projects.ts: projectsRouter (CRUD for projects and project files)
+- server/routes/observations.ts: observationsRouter (CRUD for observations and media)
+- server/routes/ai.ts: aiRouter (Gemini transcription and translation)
+- server/routes/archidoc.ts: archidocRouter (ARCHIDOC proxy with requireArchidocUrl middleware)
+- server/routes/sync.ts: syncRouter (observation sync, task sync, mark-synced)
+- server/routes/archidoc-helpers.ts: shared utilities (archidocFetch, archidocJsonPost, formatServerError, requireArchidocUrl, buildArchidocObservationPayload)
 
 ENVIRONMENT VARIABLES TO VERIFY:
 - DATABASE_URL, PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE (PostgreSQL)
@@ -64,31 +83,50 @@ ENVIRONMENT VARIABLES TO VERIFY:
 - SESSION_SECRET
 
 SERVER ROUTES TO TEST (all on port 5000):
+
+Health:
 1. GET /api/health -> { status: "ok", timestamp, uptime }
+
+Projects (server/routes/projects.ts):
 2. GET /api/projects -> array of projects from local DB
 3. GET /api/projects/:id -> single project
 4. POST /api/projects -> create project (body: { name, location?, status? })
-5. GET /api/observations -> all observations (optional ?projectId filter)
-6. GET /api/observations/pending -> pending observations with media and projectName
-7. GET /api/observations/:id -> observation with media array
-8. POST /api/observations -> create observation
-9. PATCH /api/observations/:id -> update observation fields
-10. DELETE /api/observations/:id -> delete observation (204)
-11. POST /api/observations/:id/media -> add media to observation
-12. GET /api/projects/:id/files -> project files from local DB
-13. POST /api/projects/:id/files -> create project file record
+5. GET /api/projects/:id/files -> project files from local DB
+6. POST /api/projects/:id/files -> create project file record
 
-GEMINI AI ROUTES:
+Observations (server/routes/observations.ts):
+7. GET /api/observations -> all observations (optional ?projectId filter)
+8. GET /api/observations/pending -> pending observations with media and projectName
+9. GET /api/observations/:id -> observation with media array
+10. POST /api/observations -> create observation
+11. PATCH /api/observations/:id -> update observation fields
+12. DELETE /api/observations/:id -> delete observation (204)
+13. POST /api/observations/:id/media -> add media to observation
+
+Gemini AI (server/routes/ai.ts):
 14. POST /api/transcribe -> { audioBase64, mimeType? } -> { transcription } (uses gemini-2.5-flash)
 15. POST /api/translate -> { text, targetLanguage? } -> { translation } (defaults to French)
 
-ARCHIDOC PROXY ROUTES:
+ARCHIDOC Proxy (server/routes/archidoc.ts — all use requireArchidocUrl middleware):
 16. POST /api/archidoc/upload-url -> get signed upload URL from ARCHIDOC
 17. POST /api/archidoc/proxy-upload -> full upload pipeline (get URL, upload binary, register asset)
 18. POST /api/archidoc/register-asset -> register uploaded asset with observation
 19. POST /api/archidoc/create-observation -> create field observation in ARCHIDOC
-20. POST /api/sync-observation/:id -> sync local observation to ARCHIDOC
-21. POST /api/mark-synced/:id -> mark observation as synced
+
+Sync (server/routes/sync.ts):
+20. POST /api/sync-observation/:id -> sync local observation to ARCHIDOC (uses requireArchidocUrl)
+21. POST /api/tasks/sync -> RESILIENT task sync endpoint (uses requireArchidocUrl):
+    - Accepts TaskSyncPayload from shared/task-sync-types.ts
+    - Validates: localId, projectId, transcription (required); priority, classification (enum check); transcription length < 10000
+    - POSTs to ArchiDoc: ${archidocApiUrl}/api/ouvro/tasks
+    - Returns 200 { success: true, localId, archidocTaskId } ONLY when ArchiDoc confirms (200/201)
+    - Returns 502 { success: false, error, localId } when ArchiDoc fails
+    - Returns 503/504 for network/timeout errors
+    - Golden rule: NEVER returns 200 unless ArchiDoc confirmed receipt
+22. POST /api/mark-synced/:id -> mark observation as synced
+
+REMOVED ROUTES (verify these return 404):
+- POST /api/voice-task -> DELETED (was fire-and-forget, caused data loss)
 
 ARCHIDOC API FIELD MAPPING (client/lib/archidoc-api.ts):
 - ARCHIDOC returns snake_case, app uses camelCase
@@ -107,12 +145,16 @@ AUDIT STEPS:
 6. Verify timeout handling (ARCHIDOC_TIMEOUT_MS = 15000, ARCHIDOC_UPLOAD_TIMEOUT_MS = 60000)
 7. Check that archidocFetch properly aborts on timeout
 8. Verify all env vars are set and non-empty
-9. Test the proxy-upload pipeline end-to-end if possible
+9. Test POST /api/tasks/sync with valid TaskSyncPayload — expect 502 (ArchiDoc endpoint may not exist yet) but verify validation works
+10. Test POST /api/tasks/sync with missing fields — expect 400 with specific error messages
+11. Verify POST /api/voice-task returns 404 (endpoint removed)
+12. Test the proxy-upload pipeline end-to-end if possible
 
 REPORT FORMAT:
 - Route-by-route status (pass/fail with response codes)
 - ARCHIDOC connectivity status
-- Gemini AI connectivity status  
+- Gemini AI connectivity status
+- Task sync endpoint validation status
 - Environment variable status
 - Error handling coverage
 - Recommendations`,
@@ -121,10 +163,16 @@ REPORT FORMAT:
     id: "data_persistence",
     title: "Data Persistence Audit",
     icon: "hard-drive",
-    description: "Validates offline sync queue, AsyncStorage, media file management, and sync state machine",
+    description: "Validates offline sync queues, task sync engine, AsyncStorage, media file management, and sync state machines",
     prompt: `RUN DATA PERSISTENCE AUDIT FOR OUVRO
 
-You are auditing OUVRO's offline data persistence layer (client/lib/offline-sync.ts and client/hooks/useOfflineSync.tsx).
+You are auditing OUVRO's TWO offline data persistence systems:
+1. Observation sync: client/lib/offline-sync.ts + client/hooks/useOfflineSync.tsx
+2. Task sync (store-and-forward): client/lib/offline-tasks.ts + client/hooks/useOfflineTasks.tsx
+
+Both systems use the shared DurableQueueStore<T> (client/lib/durable-queue-store.ts) for AsyncStorage persistence and FileSystem durable copying.
+
+=== SYSTEM 1: OBSERVATION SYNC ===
 
 ASYNCSTORAGE KEYS:
 - ouvro_pending_observations: JSON array of OfflineObservation objects
@@ -156,33 +204,18 @@ OFFLINE OBSERVATION STRUCTURE:
   uploadedMediaSize: number
 }
 
-OFFLINE MEDIA STRUCTURE:
-{
-  id: string (media_<timestamp>_<random>),
-  type: "photo" | "video" | "audio",
-  localUri: string,
-  fileName: string,
-  contentType: string (image/jpeg, video/mp4, audio/m4a),
-  fileSize?: number,
-  syncState: "pending" | "uploading" | "complete" | "failed",
-  uploadProgress: number (0-100),
-  retryCount: number,
-  lastError?: string,
-  remoteUrl?: string
-}
-
-SYNC STATE MACHINE:
+OBSERVATION SYNC STATE MACHINE:
 pending -> uploading_metadata -> uploading_media -> complete
   |            |                    |
   v            v                    v
 failed <--- failed <------------- partial (some media uploaded)
 
-DURABLE STORAGE:
+OBSERVATION DURABLE STORAGE:
 - Media files copied from temp camera URIs to: FileSystem.documentDirectory + "ouvro_media/"
 - Files renamed with timestamp prefix: <timestamp>_<originalName>
 - Files with "mock://" prefix or already in ouvro_media/ are skipped
 
-NETWORK HANDLING:
+OBSERVATION NETWORK HANDLING:
 - NetInfo listener for connectivity changes
 - Auto-retry on reconnect if autoSync enabled
 - Auto-retry interval: 120000ms (2 min)
@@ -190,7 +223,7 @@ NETWORK HANDLING:
 - Max backoff: 600000ms (10 min)
 - WiFi-only mode respects settings.wifiOnly
 
-SYNC PIPELINE (startSync method):
+OBSERVATION SYNC PIPELINE (startSync method):
 1. Check network availability
 2. Get all pending/failed observations
 3. For each observation:
@@ -200,31 +233,113 @@ SYNC PIPELINE (startSync method):
    d. On failure: increment retryCount, set lastSyncError, mark as failed
    e. On success: mark as complete, set syncCompletedAt
 
-INTERRUPTED UPLOAD RECOVERY:
+OBSERVATION INTERRUPTED UPLOAD RECOVERY:
 - On initialize(): observations in uploading_metadata/uploading_media reset to pending
 - Media in "uploading" state reset to pending with progress 0
 - Error message set to "Upload interrupted - will retry"
 
+=== SYSTEM 2: TASK SYNC (STORE-AND-FORWARD) ===
+
+ASYNCSTORAGE KEYS:
+- ouvro_pending_tasks: JSON array of OfflineTask objects
+
+OFFLINE TASK STRUCTURE (client/lib/offline-tasks.ts):
+{
+  localId: string (task_<timestamp>_<random>),
+  projectId: string,
+  projectName: string,
+  audioUri: string,
+  audioFileName: string,
+  audioDuration: number,
+  audioFileSize?: number,
+  transcription?: string,
+  editedTranscription?: string,
+  priority: "low" | "normal" | "high" | "urgent",
+  classification: "defect" | "action" | "followup" | "general",
+  recordedAt: string (ISO),
+  recordedBy: string (default "OUVRO Field User"),
+  syncState: TaskSyncState,
+  remoteTaskId?: string,
+  createdAt: string (ISO),
+  modifiedAt: string (ISO),
+  lastSyncAttempt?: string,
+  lastSyncError?: string,
+  syncCompletedAt?: string,
+  retryCount: number
+}
+
+TASK SYNC STATE MACHINE:
+pending -> transcribing -> review -> accepted -> uploading -> complete
+  |           |                                      |
+  v           v                                      v
+(reset)    (reset)                               accepted (retry)
+                                                     |
+                                                     v
+                                                   failed (400 = bad data, no retry)
+
+TASK SYNC RULES (CRITICAL — ZERO DATA LOSS):
+- Tasks ONLY dequeue when server returns 200 OK (ArchiDoc confirmed receipt)
+- On 502/503/504/network error: task reverts to "accepted" state, retryCount incremented
+- On 400: task set to "failed" (bad data, no automatic retry)
+- localId (UUID) travels through entire chain for idempotency
+- Audio hits durable storage IMMEDIATELY on recording (before transcription)
+
+TASK DURABLE STORAGE:
+- Audio files copied from temp recording URIs to: FileSystem.documentDirectory + "ouvro_tasks/"
+- Files renamed with timestamp prefix: <timestamp>_<originalName>
+- Files with "mock://" prefix or already in ouvro_tasks/ are skipped
+
+TASK SYNC PIPELINE (syncTask method):
+1. Verify task is in "accepted" state (reject if not)
+2. Set state to "uploading", persist to AsyncStorage
+3. Build TaskSyncPayload from shared/task-sync-types.ts
+4. POST to /api/tasks/sync with JSON payload
+5. On 200: set state "complete", store remoteTaskId, set syncCompletedAt
+6. On 400: set state "failed", store error (don't retry)
+7. On 502/503/network: revert to "accepted", increment retryCount, store error
+8. syncAllPending(): iterates all "accepted" tasks and syncs each sequentially
+
+TASK INTERRUPTED UPLOAD RECOVERY (in initialize()):
+- Tasks in "uploading" state reset to "accepted" with error "Upload interrupted - will retry"
+- Tasks in "transcribing" state reset to "pending" with error "Transcription interrupted - will retry"
+
+TASK SYNC CONTRACT (shared/task-sync-types.ts):
+- TaskSyncPayload: { localId, projectId, projectName, audioBase64?, transcription?, priority, classification, audioDuration, recordedAt, recordedBy }
+- Server endpoint: POST /api/tasks/sync -> forwards to ArchiDoc POST /api/ouvro/tasks
+- Server returns 200 ONLY when ArchiDoc confirms; 502/503 otherwise
+
+=== SHARED INFRASTRUCTURE: DurableQueueStore<T> ===
+
+File: client/lib/durable-queue-store.ts
+- Generic class parameterized by T extends { localId: string }
+- Methods: load(), save(items), copyToDurableStorage(uri, fileName), deleteFile(uri), subscribe(listener), emit(event, data)
+- Constructor: (storageKey: string, durableSubdir: string, logPrefix: string)
+- Observation instance: new DurableQueueStore("ouvro_pending_observations", "ouvro_media", "OfflineSync")
+- Task instance: new DurableQueueStore("ouvro_pending_tasks", "ouvro_tasks", "OfflineTasks")
+
 AUDIT STEPS:
-1. Read client/lib/offline-sync.ts and verify state machine transitions
-2. Verify AsyncStorage keys match expected format
-3. Check that copyToDurableStorage correctly copies files and handles edge cases
-4. Verify interrupted upload recovery logic in initialize()
-5. Test sync pipeline: add observation -> start sync -> verify state transitions
-6. Check error parsing in parseErrorMessage() covers all server error formats
-7. Verify persist() correctly serializes all observations to AsyncStorage
-8. Check that clearCompleted() only removes observations with syncState "complete"
-9. Verify media file cleanup happens for completed syncs
-10. Check SyncProgress tracking accuracy during multi-file uploads
-11. Verify the useOfflineSync React hook correctly subscribes/unsubscribes to events
-12. Check that createOfflineMedia helper generates correct contentType mappings
+1. Read client/lib/offline-sync.ts and verify observation state machine transitions
+2. Read client/lib/offline-tasks.ts and verify task state machine transitions
+3. Verify syncTask() enforces dequeue-only-on-200 rule (check all response code branches)
+4. Verify AsyncStorage keys match expected format for both systems
+5. Check that copyToDurableStorage correctly copies files and handles edge cases
+6. Verify interrupted upload recovery logic in BOTH initialize() methods
+7. Verify persist() correctly serializes to AsyncStorage in both systems
+8. Check that clearCompleted() only removes items with syncState "complete" in both systems
+9. Verify media/audio file cleanup happens for completed syncs
+10. Check that TaskSyncPayload construction in syncTask() includes all required fields
+11. Verify the useOfflineSync and useOfflineTasks React hooks correctly subscribe/unsubscribe to events
+12. Verify DurableQueueStore is correctly instantiated with different storage keys for each system
+13. Check that shared/task-sync-types.ts types are imported and used correctly in offline-tasks.ts
 
 REPORT FORMAT:
-- State machine integrity (all transitions valid)
-- AsyncStorage data format validation
-- Durable storage file management status
+- Observation state machine integrity (all transitions valid)
+- Task state machine integrity (all transitions valid, dequeue-only-on-200 verified)
+- AsyncStorage data format validation (both systems)
+- Durable storage file management status (both systems)
 - Network resilience coverage
 - Error recovery completeness
+- Store-and-forward contract compliance
 - Recommendations`,
   },
 ];
