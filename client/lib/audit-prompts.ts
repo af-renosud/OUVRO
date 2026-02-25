@@ -118,7 +118,7 @@ Sync (server/routes/sync.ts):
 21. POST /api/tasks/sync -> RESILIENT task sync endpoint (uses requireArchidocUrl):
     - Accepts TaskSyncPayload from shared/task-sync-types.ts
     - Validates: localId, projectId, transcription (required); priority, classification (enum check); transcription length < 10000
-    - POSTs to ArchiDoc: ${archidocApiUrl}/api/ouvro/tasks
+    - POSTs to ArchiDoc: \${archidocApiUrl}/api/ouvro/tasks
     - Returns 200 { success: true, localId, archidocTaskId } ONLY when ArchiDoc confirms (200/201)
     - Returns 502 { success: false, error, localId } when ArchiDoc fails
     - Returns 503/504 for network/timeout errors
