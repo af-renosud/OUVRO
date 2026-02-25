@@ -117,7 +117,8 @@ Sync (server/routes/sync.ts):
 20. POST /api/sync-observation/:id -> sync local observation to ARCHIDOC (uses requireArchidocUrl)
 21. POST /api/tasks/sync -> RESILIENT task sync endpoint (uses requireArchidocUrl):
     - Accepts TaskSyncPayload from shared/task-sync-types.ts
-    - Validates: localId, projectId, transcription (required); priority, classification (enum check); transcription length < 10000
+    - Validates: localId, projectId, at least one of transcription or audioBase64; priority, classification (enum check); transcription length < 10000
+    - AUTO-TRANSCRIPTION: When audioBase64 is present but transcription is empty, calls Gemini AI to transcribe before forwarding to ArchiDoc. If transcription fails, sends empty transcription (does not block sync).
     - POSTs to ArchiDoc: \${archidocApiUrl}/api/ouvro/tasks
     - Returns 200 { success: true, localId, archidocTaskId } ONLY when ArchiDoc confirms (200/201)
     - Returns 502 { success: false, error, localId } when ArchiDoc fails
@@ -306,6 +307,7 @@ TASK INTERRUPTED UPLOAD RECOVERY (in initialize()):
 TASK SYNC CONTRACT (shared/task-sync-types.ts):
 - TaskSyncPayload: { localId, projectId, projectName, audioBase64?, transcription?, priority, classification, audioDuration, recordedAt, recordedBy }
 - Server endpoint: POST /api/tasks/sync -> forwards to ArchiDoc POST /api/ouvro/tasks
+- AUTO-TRANSCRIPTION: When audioBase64 is present but transcription is empty, server calls Gemini AI to transcribe before forwarding. If transcription fails, sends with empty transcription (does not block sync).
 - Server returns 200 ONLY when ArchiDoc confirms; 502/503 otherwise
 
 === SHARED INFRASTRUCTURE: DurableQueueStore<T> ===

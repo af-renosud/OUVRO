@@ -36,7 +36,7 @@ OUVRO is a mobile companion app for architects and project managers, built with 
   Zero data loss guaranteed: tasks persist locally until ArchiDoc confirms receipt (200 OK). Idempotent sync via `localId` UUID. Auto-sync via NetInfo listener + 120s retry timer. `VoiceTaskScreen` (fire-and-forget flow) has been removed.
   - Key files: `client/lib/offline-tasks.ts`, `client/hooks/useOfflineTasks.tsx`, `client/screens/TaskCaptureScreen.tsx`, `shared/task-sync-types.ts`
   - Task states: pending -> transcribing -> review -> accepted -> uploading -> complete/failed
-  - Sync contract: `POST /api/tasks/sync` with `TaskSyncPayload` (see `shared/task-sync-types.ts`). Requires at least one of `transcription` or `audioBase64`. Returns 200 only when ArchiDoc confirms; 502/503 otherwise.
+  - Sync contract: `POST /api/tasks/sync` with `TaskSyncPayload` (see `shared/task-sync-types.ts`). Requires at least one of `transcription` or `audioBase64`. When `audioBase64` is present but `transcription` is empty, the server auto-transcribes via Gemini AI before forwarding to ArchiDoc. Returns 200 only when ArchiDoc confirms; 502/503 otherwise.
   - Auto-sync: NetInfo network listener triggers sync on reconnect; 120s interval auto-retry; max 20 retries
   - Priority: low/normal/high/urgent. Classification: defect/action/followup/general.
 - **Project Asset Hub:** A 2x3 grid of buttons (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE) with dynamic enablement logic based on project data availability.
