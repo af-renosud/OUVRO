@@ -946,7 +946,7 @@ syncRouter.post("/voice-task", async (req, res) => {
     if (!audioBase64 || !project_id) {
       return res.status(400).json({ error: "audioBase64 and project_id are required" });
     }
-    const archidocApiUrl = process.env.ARCHIDOC_API_URL;
+    const archidocApiUrl = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
     let archidocResult = null;
     if (archidocApiUrl) {
       try {
