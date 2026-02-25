@@ -848,6 +848,34 @@ archidocRouter.post("/archidoc/create-observation", async (req, res) => {
 
 // server/routes/sync.ts
 import { Router as Router5 } from "express";
+import { GoogleGenAI as GoogleGenAI4 } from "@google/genai";
+var ai4 = new GoogleGenAI4({
+  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+  httpOptions: {
+    apiVersion: "",
+    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL
+  }
+});
+async function transcribeWithGemini(audioBase64, mimeType) {
+  const response = await ai4.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: "Please transcribe the following audio accurately into English text. Only output the transcription, nothing else." },
+          {
+            inlineData: {
+              mimeType,
+              data: audioBase64
+            }
+          }
+        ]
+      }
+    ]
+  });
+  return response.text || "";
+}
 var syncRouter = Router5();
 syncRouter.post("/sync-observation/:id", requireArchidocUrl, async (req, res) => {
   try {
@@ -912,62 +940,78 @@ syncRouter.post("/tasks/sync", async (req, res) => {
     res.status(500).json({ error: "Failed to sync task" });
   }
 });
-syncRouter.post("/voice-task", requireArchidocUrl, async (req, res) => {
+syncRouter.post("/voice-task", async (req, res) => {
   try {
-    const { audioBase64, mimeType, project_id, recorded_by, recorded_at, priority, classification } = req.body;
+    const { audioBase64, mimeType = "audio/mp4", project_id, recorded_by, recorded_at, priority, classification } = req.body;
     if (!audioBase64 || !project_id) {
       return res.status(400).json({ error: "audioBase64 and project_id are required" });
     }
-    const archidocApiUrl = res.locals.archidocApiUrl;
-    const fileBuffer = Buffer.from(audioBase64, "base64");
-    const fileExtension = mimeType === "audio/mpeg" ? "mp3" : "m4a";
-    const fileName = `voice-task-${Date.now()}.${fileExtension}`;
-    console.log(`[VoiceTask] Uploading ${fileBuffer.length} bytes for project ${project_id}`);
-    const boundary = `----FormBoundary${Date.now()}`;
-    const parts = [];
-    const addField = (name, value) => {
-      parts.push(Buffer.from(`--${boundary}\r
+    const archidocApiUrl = process.env.ARCHIDOC_API_URL;
+    let archidocResult = null;
+    if (archidocApiUrl) {
+      try {
+        const fileBuffer = Buffer.from(audioBase64, "base64");
+        const fileExtension = mimeType === "audio/mpeg" ? "mp3" : "m4a";
+        const fileName = `voice-task-${Date.now()}.${fileExtension}`;
+        console.log(`[VoiceTask] Uploading ${fileBuffer.length} bytes for project ${project_id}`);
+        const boundary = `----FormBoundary${Date.now()}`;
+        const parts = [];
+        const addField = (name, value) => {
+          parts.push(Buffer.from(`--${boundary}\r
 Content-Disposition: form-data; name="${name}"\r
 \r
 ${value}\r
 `));
-    };
-    addField("project_id", project_id);
-    addField("recorded_by", recorded_by || "OUVRO Field User");
-    if (recorded_at) addField("recorded_at", recorded_at);
-    if (priority) addField("priority", priority);
-    if (classification) addField("classification", classification);
-    parts.push(Buffer.from(
-      `--${boundary}\r
+        };
+        addField("project_id", project_id);
+        addField("recorded_by", recorded_by || "OUVRO Field User");
+        if (recorded_at) addField("recorded_at", recorded_at);
+        if (priority) addField("priority", priority);
+        if (classification) addField("classification", classification);
+        parts.push(Buffer.from(
+          `--${boundary}\r
 Content-Disposition: form-data; name="file"; filename="${fileName}"\r
-Content-Type: ${mimeType || "audio/mp4"}\r
+Content-Type: ${mimeType}\r
 \r
 `
-    ));
-    parts.push(fileBuffer);
-    parts.push(Buffer.from(`\r
+        ));
+        parts.push(fileBuffer);
+        parts.push(Buffer.from(`\r
 --${boundary}--\r
 `));
-    const body = Buffer.concat(parts);
-    const archidocResponse = await archidocFetch(`${archidocApiUrl}/api/ouvro/voice-task`, {
-      method: "POST",
-      headers: {
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
-        "Content-Length": String(body.length)
-      },
-      body,
-      timeout: ARCHIDOC_UPLOAD_TIMEOUT_MS
-    });
-    if (!archidocResponse.ok) {
-      const errorText = await archidocResponse.text();
-      console.error("[VoiceTask] ArchiDoc error:", archidocResponse.status, errorText);
-      return res.status(archidocResponse.status).json({
-        error: errorText || "ArchiDoc rejected the voice task"
-      });
+        const body = Buffer.concat(parts);
+        const archidocResponse = await archidocFetch(`${archidocApiUrl}/api/ouvro/voice-task`, {
+          method: "POST",
+          headers: {
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
+            "Content-Length": String(body.length)
+          },
+          body,
+          timeout: ARCHIDOC_UPLOAD_TIMEOUT_MS
+        });
+        if (archidocResponse.ok) {
+          archidocResult = await archidocResponse.json();
+          console.log("[VoiceTask] Task created in ArchiDoc:", archidocResult.task_id);
+          return res.json(archidocResult);
+        }
+        const errorText = await archidocResponse.text();
+        console.warn(`[VoiceTask] ArchiDoc returned ${archidocResponse.status}, falling back to Gemini transcription`);
+      } catch (archidocError) {
+        console.warn("[VoiceTask] ArchiDoc unavailable, falling back to Gemini transcription:", archidocError.message);
+      }
+    } else {
+      console.log("[VoiceTask] No ARCHIDOC_API_URL configured, using Gemini transcription");
     }
-    const result = await archidocResponse.json();
-    console.log("[VoiceTask] Task created successfully:", result.task_id);
-    res.json(result);
+    console.log("[VoiceTask] Transcribing with Gemini...");
+    const transcription = await transcribeWithGemini(audioBase64, mimeType);
+    const taskTitle = transcription.length > 80 ? transcription.substring(0, 77) + "..." : transcription;
+    console.log("[VoiceTask] Gemini transcription complete:", taskTitle);
+    res.json({
+      task_id: `local-${Date.now()}`,
+      transcription,
+      task_title: taskTitle,
+      source: "gemini-fallback"
+    });
   } catch (error) {
     const { status, message } = formatServerError(error, "Voice Task");
     res.status(status).json({ error: message });
