@@ -5,6 +5,7 @@ import type { TaskPriority, TaskClassification } from "../../shared/task-sync-ty
 interface OfflineTasksContextValue {
   tasks: OfflineTask[];
   pendingCount: number;
+  isTaskSyncing: boolean;
   addTask: (params: {
     projectId: string;
     projectName: string;
@@ -29,19 +30,24 @@ const OfflineTasksContext = createContext<OfflineTasksContextValue | null>(null)
 
 export function OfflineTasksProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<OfflineTask[]>([]);
+  const [isTaskSyncing, setIsTaskSyncing] = useState(false);
 
   useEffect(() => {
     const init = async () => {
       await offlineTaskService.initialize();
       setTasks(offlineTaskService.getTasks());
+      setIsTaskSyncing(offlineTaskService.getIsSyncing());
     };
     init();
 
     const unsubscribe = offlineTaskService.subscribe(() => {
       setTasks(offlineTaskService.getTasks());
+      setIsTaskSyncing(offlineTaskService.getIsSyncing());
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const addTask = useCallback(async (params: {
@@ -94,6 +100,7 @@ export function OfflineTasksProvider({ children }: { children: ReactNode }) {
   const value: OfflineTasksContextValue = {
     tasks,
     pendingCount,
+    isTaskSyncing,
     addTask,
     updateTask,
     acceptTask,

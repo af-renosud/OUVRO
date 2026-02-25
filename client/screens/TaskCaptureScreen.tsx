@@ -92,6 +92,35 @@ export default function TaskCaptureScreen() {
     setStep("record");
   };
 
+  const handleQuickAccept = async () => {
+    if (!recordingUri) return;
+
+    setIsSaving(true);
+    try {
+      const localId = taskLocalId || await addTask({
+        projectId,
+        projectName,
+        audioUri: recordingUri,
+        audioDuration: recordingDuration,
+        priority,
+        classification,
+        recordedAt: new Date().toISOString(),
+        recordedBy: "OUVRO Field User",
+      });
+      setTaskLocalId(localId);
+
+      await acceptTask(localId, "", { priority, classification });
+
+      if (navigation.canGoBack()) {
+        navigation.popToTop();
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to save task. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleTranscribe = async () => {
     if (!recordingUri) return;
 
@@ -99,7 +128,7 @@ export default function TaskCaptureScreen() {
     setIsTranscribing(true);
     setTranscribeError(null);
 
-    const localId = await addTask({
+    const localId = taskLocalId || await addTask({
       projectId,
       projectName,
       audioUri: recordingUri,
@@ -386,7 +415,7 @@ export default function TaskCaptureScreen() {
                 isSaving && styles.buttonDisabled,
               ]}
               onPress={handleAcceptTask}
-              disabled={isSaving || !transcription.trim()}
+              disabled={isSaving}
             >
               {isSaving ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -522,7 +551,7 @@ export default function TaskCaptureScreen() {
             {isRecording
               ? "Describe your task, then tap to stop"
               : recordingUri
-              ? "Tap play to review, then transcribe"
+              ? "Tap play to review, then accept or transcribe"
               : "Tap to record your task description"}
           </ThemedText>
         </View>
@@ -537,32 +566,49 @@ export default function TaskCaptureScreen() {
         ) : null}
 
         {recordingUri ? (
-          <View style={styles.recordActions}>
+          <View style={styles.recordActionsColumn}>
             <Pressable
-              style={[styles.discardButton, { backgroundColor: theme.backgroundSecondary }]}
-              onPress={handleDiscard}
+              style={[styles.quickAcceptButton, { backgroundColor: BrandColors.success }]}
+              onPress={handleQuickAccept}
+              disabled={isSaving}
             >
-              <Feather name="trash-2" size={18} color={BrandColors.error} />
-              <ThemedText style={[styles.discardButtonText, { color: BrandColors.error }]}>
-                Re-record
-              </ThemedText>
+              {isSaving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Feather name="check-circle" size={20} color="#FFFFFF" />
+                  <ThemedText style={styles.quickAcceptButtonText}>Accept & Save</ThemedText>
+                </>
+              )}
             </Pressable>
-            <Pressable
-              style={[styles.transcribeButton, { backgroundColor: BrandColors.primary }]}
-              onPress={transcribeError ? handleRetryTranscription : handleTranscribe}
-            >
-              <Feather name="cpu" size={18} color="#FFFFFF" />
-              <ThemedText style={styles.transcribeButtonText}>
-                {transcribeError ? "Retry Transcribe" : "Transcribe"}
-              </ThemedText>
-            </Pressable>
+
+            <View style={styles.recordActions}>
+              <Pressable
+                style={[styles.discardButton, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={handleDiscard}
+              >
+                <Feather name="trash-2" size={18} color={BrandColors.error} />
+                <ThemedText style={[styles.discardButtonText, { color: BrandColors.error }]}>
+                  Re-record
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                style={[styles.transcribeButton, { backgroundColor: BrandColors.primary }]}
+                onPress={transcribeError ? handleRetryTranscription : handleTranscribe}
+              >
+                <Feather name="cpu" size={18} color="#FFFFFF" />
+                <ThemedText style={styles.transcribeButtonText}>
+                  {transcribeError ? "Retry Transcribe" : "Transcribe First"}
+                </ThemedText>
+              </Pressable>
+            </View>
           </View>
         ) : null}
 
         <View style={styles.infoCard}>
           <Feather name="info" size={18} color={BrandColors.info} />
           <ThemedText style={styles.infoText}>
-            Describe your task aloud. OUVRO will transcribe it using AI, and you can review and edit before accepting.
+            Tap Accept & Save to capture your task immediately. Use Transcribe First if you want to review the text before saving.
           </ThemedText>
         </View>
       </ScrollView>
@@ -727,11 +773,29 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
   },
+  recordActionsColumn: {
+    alignSelf: "stretch",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  quickAcceptButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md + 2,
+    borderRadius: BorderRadius.md,
+  },
+  quickAcceptButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 16,
+  },
   recordActions: {
     flexDirection: "row",
     gap: Spacing.md,
     alignSelf: "stretch",
-    marginTop: Spacing.md,
+    marginTop: Spacing.xs,
   },
   discardButton: {
     flexDirection: "row",

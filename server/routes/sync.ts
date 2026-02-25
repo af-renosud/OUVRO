@@ -81,10 +81,11 @@ syncRouter.post("/tasks/sync", requireArchidocUrl, async (req: Request, res: Res
     if (!projectId) {
       return res.status(400).json({ success: false, error: "Missing required field: projectId", localId } as TaskSyncErrorResponse);
     }
-    if (!transcription) {
-      return res.status(400).json({ success: false, error: "Missing required field: transcription", localId } as TaskSyncErrorResponse);
+    const audioBase64 = req.body.audioBase64;
+    if (!transcription && !audioBase64) {
+      return res.status(400).json({ success: false, error: "At least one of transcription or audioBase64 is required", localId } as TaskSyncErrorResponse);
     }
-    if (transcription.length > 10000) {
+    if (transcription && transcription.length > 10000) {
       return res.status(400).json({ success: false, error: "Transcription exceeds maximum length of 10000 characters", localId } as TaskSyncErrorResponse);
     }
     if (priority && !VALID_PRIORITIES.includes(priority)) {
@@ -96,16 +97,19 @@ syncRouter.post("/tasks/sync", requireArchidocUrl, async (req: Request, res: Res
 
     const archidocApiUrl = res.locals.archidocApiUrl;
 
-    const archidocPayload = {
+    const archidocPayload: Record<string, any> = {
       localId,
       projectId,
-      transcription,
+      transcription: transcription || "",
       priority: priority || "normal",
       classification: classification || "general",
       audioDuration: audioDuration || 0,
       recordedAt: recordedAt || new Date().toISOString(),
       recordedBy: recordedBy || "OUVRO Field User",
     };
+    if (audioBase64) {
+      archidocPayload.audioBase64 = audioBase64;
+    }
 
     console.log(`[Task Sync] localId=${localId} — posting to ArchiDoc for project ${projectId}`);
 

@@ -30,10 +30,14 @@ OUVRO is a mobile companion app for architects and project managers, built with 
 
 ### Feature Specifications
 - **Observation Capture:** Floating capture button (FAB) opens CaptureModal with 2x2 grid: Photo, Video, Audio, Task. Includes observation details form, Gemini AI-powered transcription (audio to English) and translation (to French).
-- **Task Capture (Unified, Offline-First):** Single voice-to-task workflow: Record audio -> Gemini AI transcription -> Review/Edit with priority & classification selectors -> Accept (saved to durable local queue) -> Store-and-forward sync to ArchiDoc. Zero data loss guaranteed: tasks persist locally until ArchiDoc confirms receipt (200 OK). Idempotent sync via `localId` UUID. `VoiceTaskScreen` (fire-and-forget flow) has been removed.
+- **Task Capture (Unified, Offline-First, Speed-Optimized):** Record audio -> Accept & Save immediately (transcription optional). Two paths after recording:
+  1. **Quick path (recommended):** "Accept & Save" — saves task with audio only, no internet required, syncs later with audioBase64
+  2. **Transcribe path (optional):** "Transcribe First" — calls Gemini AI for text review, then accept
+  Zero data loss guaranteed: tasks persist locally until ArchiDoc confirms receipt (200 OK). Idempotent sync via `localId` UUID. Auto-sync via NetInfo listener + 120s retry timer. `VoiceTaskScreen` (fire-and-forget flow) has been removed.
   - Key files: `client/lib/offline-tasks.ts`, `client/hooks/useOfflineTasks.tsx`, `client/screens/TaskCaptureScreen.tsx`, `shared/task-sync-types.ts`
   - Task states: pending -> transcribing -> review -> accepted -> uploading -> complete/failed
-  - Sync contract: `POST /api/tasks/sync` with `TaskSyncPayload` (see `shared/task-sync-types.ts`). Returns 200 only when ArchiDoc confirms; 502/503 otherwise.
+  - Sync contract: `POST /api/tasks/sync` with `TaskSyncPayload` (see `shared/task-sync-types.ts`). Requires at least one of `transcription` or `audioBase64`. Returns 200 only when ArchiDoc confirms; 502/503 otherwise.
+  - Auto-sync: NetInfo network listener triggers sync on reconnect; 120s interval auto-retry; max 20 retries
   - Priority: low/normal/high/urgent. Classification: defect/action/followup/general.
 - **Project Asset Hub:** A 2x3 grid of buttons (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE) with dynamic enablement logic based on project data availability.
 - **DQE Browser:** Displays DQE items, filterable by lot code or contractor (data fetched from `/api/contractors`).

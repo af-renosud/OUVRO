@@ -138,6 +138,8 @@ export default function QueueScreen() {
     pendingCount: taskPendingCount,
     removeTask,
     retryTask,
+    syncTask,
+    syncAllPending: syncAllTasks,
     clearCompleted: clearCompletedTasks,
   } = useOfflineTasks();
 
@@ -169,14 +171,14 @@ export default function QueueScreen() {
 
   const handleSyncAll = useCallback(async () => {
     if (!isNetworkAvailable) {
-      Alert.alert("No Connection", "Please connect to the internet to sync observations.");
+      Alert.alert("No Connection", "Please connect to the internet to sync.");
       return;
     }
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    await startSync();
-  }, [isNetworkAvailable, startSync]);
+    await Promise.all([startSync(), syncAllTasks()]);
+  }, [isNetworkAvailable, startSync, syncAllTasks]);
 
   const handleCancelSync = useCallback(() => {
     Alert.alert("Cancel Sync", "Are you sure you want to cancel the current sync?", [
@@ -252,6 +254,13 @@ export default function QueueScreen() {
     }
     await retryTask(localId);
   }, [retryTask]);
+
+  const handleSyncTask = useCallback(async (localId: string) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    await syncTask(localId);
+  }, [syncTask]);
 
   const getTaskStateInfo = (state: TaskSyncState): { color: string; icon: keyof typeof Feather.glyphMap; label: string } => {
     switch (state) {
@@ -497,7 +506,16 @@ export default function QueueScreen() {
         <View style={styles.actionButtons}>
           {!isComplete ? (
             <>
-              {item.syncState === "failed" ? (
+              {item.syncState === "accepted" ? (
+                <Pressable
+                  style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+                  onPress={() => handleSyncTask(item.localId)}
+                  disabled={!isNetworkAvailable}
+                >
+                  <Feather name="upload-cloud" size={16} color="#FFFFFF" />
+                  <ThemedText style={styles.actionButtonText}>Sync</ThemedText>
+                </Pressable>
+              ) : item.syncState === "failed" ? (
                 <Pressable
                   style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
                   onPress={() => handleRetryTask(item.localId)}
@@ -505,6 +523,13 @@ export default function QueueScreen() {
                   <Feather name="refresh-cw" size={16} color="#FFFFFF" />
                   <ThemedText style={styles.actionButtonText}>Retry</ThemedText>
                 </Pressable>
+              ) : isUploading ? (
+                <View style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}>
+                  <ActivityIndicator size="small" color={BrandColors.primary} />
+                  <ThemedText style={[styles.actionButtonText, { color: BrandColors.primary }]}>
+                    Syncing...
+                  </ThemedText>
+                </View>
               ) : null}
               <Pressable
                 style={[styles.actionButtonIcon, { backgroundColor: theme.backgroundSecondary }]}
@@ -583,7 +608,7 @@ export default function QueueScreen() {
         
         <SyncSuccessBanner count={totalCompleted} onClear={handleClearCompleted} />
         
-        {pendingCount > 0 ? (
+        {totalPending > 0 ? (
           <View style={styles.headerActions}>
             {isSyncing ? (
               <Pressable
@@ -604,7 +629,7 @@ export default function QueueScreen() {
               >
                 <Feather name="upload-cloud" size={18} color={isNetworkAvailable ? "#FFFFFF" : theme.textTertiary} />
                 <ThemedText style={[styles.syncAllText, { color: isNetworkAvailable ? "#FFFFFF" : theme.textTertiary }]}>
-                  Sync All ({pendingCount})
+                  Sync All ({totalPending})
                 </ThemedText>
               </Pressable>
             )}

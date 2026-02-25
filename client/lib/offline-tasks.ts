@@ -1,4 +1,5 @@
 import * as FileSystem from "expo-file-system/legacy";
+import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import { DurableQueueStore } from "./durable-queue-store";
 import { getApiUrl } from "./query-client";
 import type { TaskPriority, TaskClassification, TaskSyncPayload, TaskSyncSuccessResponse, TaskSyncErrorResponse } from "../../shared/task-sync-types";
@@ -53,6 +54,12 @@ class OfflineTaskService {
     "OfflineTasks"
   );
   private isInitialized = false;
+  private isSyncing = false;
+  private autoRetryTimer: ReturnType<typeof setInterval> | null = null;
+  private netInfoUnsubscribe: (() => void) | null = null;
+
+  private static AUTO_RETRY_INTERVAL = 120000;
+  private static MAX_AUTO_RETRIES = 20;
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
@@ -72,9 +79,56 @@ class OfflineTaskService {
       });
       this.isInitialized = true;
       if (__DEV__) console.log("[OfflineTasks] Initialized with", this.tasks.size, "tasks");
+
+      this.startNetworkListener();
+      this.startAutoRetryTimer();
+
+      const netState = await NetInfo.fetch();
+      if (netState.isConnected && this.getAcceptedCount() > 0) {
+        if (__DEV__) console.log("[OfflineTasks] Network available on init, syncing accepted tasks");
+        this.syncAllPending().catch(() => {});
+      }
     } catch (error) {
       console.error("[OfflineTasks] Initialization error:", error);
     }
+  }
+
+  private startNetworkListener(): void {
+    this.netInfoUnsubscribe = NetInfo.addEventListener((state: NetInfoState) => {
+      if (state.isConnected && this.getAcceptedCount() > 0 && !this.isSyncing) {
+        if (__DEV__) console.log("[OfflineTasks] Network reconnected, auto-syncing tasks");
+        this.syncAllPending().catch(() => {});
+      }
+    });
+  }
+
+  private startAutoRetryTimer(): void {
+    this.autoRetryTimer = setInterval(() => {
+      if (this.getAcceptedCount() > 0 && !this.isSyncing) {
+        const retriable = Array.from(this.tasks.values()).filter(
+          (t) => t.syncState === "accepted" && t.retryCount < OfflineTaskService.MAX_AUTO_RETRIES
+        );
+        if (retriable.length > 0) {
+          if (__DEV__) console.log("[OfflineTasks] Auto-retry:", retriable.length, "tasks");
+          this.syncAllPending().catch(() => {});
+        }
+      }
+    }, OfflineTaskService.AUTO_RETRY_INTERVAL);
+  }
+
+  destroy(): void {
+    if (this.netInfoUnsubscribe) {
+      this.netInfoUnsubscribe();
+      this.netInfoUnsubscribe = null;
+    }
+    if (this.autoRetryTimer) {
+      clearInterval(this.autoRetryTimer);
+      this.autoRetryTimer = null;
+    }
+  }
+
+  getIsSyncing(): boolean {
+    return this.isSyncing;
   }
 
   subscribe(listener: TaskEventListener): () => void {
@@ -261,11 +315,26 @@ class OfflineTaskService {
       const baseUrl = getApiUrl();
       const url = new URL("/api/tasks/sync", baseUrl);
 
+      const transcriptionText = task.editedTranscription || task.transcription || "";
+
+      let audioBase64: string | undefined;
+      if (!transcriptionText && task.audioUri) {
+        try {
+          audioBase64 = await FileSystem.readAsStringAsync(task.audioUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          if (__DEV__) console.log("[OfflineTasks] Read audio base64 for task:", localId, "size:", audioBase64.length);
+        } catch (e) {
+          if (__DEV__) console.warn("[OfflineTasks] Failed to read audio file for base64:", e);
+        }
+      }
+
       const payload: TaskSyncPayload = {
         localId: task.localId,
         projectId: task.projectId,
         projectName: task.projectName,
-        transcription: task.editedTranscription || task.transcription || "",
+        transcription: transcriptionText || undefined,
+        audioBase64,
         priority: task.priority,
         classification: task.classification,
         audioDuration: task.audioDuration,
@@ -327,14 +396,28 @@ class OfflineTaskService {
   }
 
   async syncAllPending(): Promise<void> {
+    if (this.isSyncing) {
+      if (__DEV__) console.log("[OfflineTasks] syncAllPending: already syncing, skipping");
+      return;
+    }
+
     const acceptedTasks = Array.from(this.tasks.values()).filter(
       (t) => t.syncState === "accepted"
     );
 
+    if (acceptedTasks.length === 0) return;
+
+    this.isSyncing = true;
+    this.emit("stateChanged");
     if (__DEV__) console.log("[OfflineTasks] syncAllPending:", acceptedTasks.length, "tasks");
 
-    for (const task of acceptedTasks) {
-      await this.syncTask(task.localId);
+    try {
+      for (const task of acceptedTasks) {
+        await this.syncTask(task.localId);
+      }
+    } finally {
+      this.isSyncing = false;
+      this.emit("stateChanged");
     }
   }
 }
