@@ -138,9 +138,14 @@ syncRouter.post("/tasks/sync", requireArchidocUrl, async (req: Request, res: Res
       }
     }
 
+    const titleText = finalTranscription
+      ? finalTranscription.substring(0, 80).replace(/\n/g, " ").trim() + (finalTranscription.length > 80 ? "..." : "")
+      : "Audio task (not yet transcribed)";
+
     const archidocPayload: Record<string, any> = {
       localId,
       projectId,
+      title: titleText,
       transcription: finalTranscription,
       priority: priority || "normal",
       classification: classification || "general",
