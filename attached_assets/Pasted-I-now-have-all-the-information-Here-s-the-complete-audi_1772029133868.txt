@@ -1,0 +1,76 @@
+I now have all the information. Here's the complete audit report:
+
+OUVRO Integration Audit Report
+1. Existing OUVRO Routes
+All three routes are defined in server.ts:
+
+Method	Path	Line	Description
+GET	/api/ouvro/projects	4102	Lists all non-deleted projects in snake_case format for the mobile app. Returns { projects: [{ project_id, project_name, client_name, address, status, created_at }] }
+GET	/api/ouvro/projects/:projectId	4132	Fetches a single project with full details including DQE items. Returns { project: {...}, items: [...] }
+POST	/api/ouvro/voice-task	4189	Accepts audio (multipart binary file OR JSON base64), transcribes via Gemini AI, generates a French task title, creates a construction_task record. Returns { success, task_id, transcription, task_title, task: { id, title, transcription, project_name, priority, classification, audio_path } }
+There is no /api/ouvro/tasks endpoint. Task listing/management is handled through the standard /api/projects/:projectId/tasks routes.
+
+2. Database / Storage
+Tasks table — construction_tasks (schema.ts, line 1109):
+
+Column	Type	Notes
+id	varchar(255)	Primary key (UUID)
+projectId	varchar(255)	Foreign key to projects
+title	varchar(500)	Required
+description	text	
+status	varchar(50)	Default: 'en_attente'
+lotCode	varchar(50)	Voice tasks use 'OUVRO-DICTATION'
+workModuleId	varchar(255)	Voice tasks use 'ouvro-field-observations'
+moduleDeploymentId	varchar(255)	Links to work module deployment
+priority	varchar(20)	Default: 'medium'
+assignedContractorId	varchar(255)	
+assignee	jsonb	Generic assignee object
+parentId	varchar(255)	For subtasks
+observationId	integer	Optional link to field observation
+createdAt / updatedAt	bigint	Millisecond timestamps
++ 10 more columns		comments, shareToken, dates, events, etc.
+Field observations table — field_observations (schema.ts, line 1275):
+
+Column	Type	Notes
+id	serial	Auto-increment primary key
+projectId	varchar(255)	Foreign key to projects
+taskId	varchar(255)	Optional link to construction task
+observedAt	timestamp	
+observedBy	varchar(255)	
+summary	text	
+classification	varchar(100)	progress, issue, safety, quality, general
+location	varchar(500)	Room/zone
+gpsCoordinates	jsonb	{ lat, lng }
+status	varchar(50)	pending, reviewed, resolved, archived
+notes	text	Editable in office UI
+transcription	text	English audio transcription
+translatedText	text	French translation
+acknowledged	boolean	
+There's also a child table field_observation_assets (line 1307) for photos/video/audio/document attachments.
+
+Where voice tasks are stored: New voice tasks go into the existing construction_tasks table with lotCode: 'OUVRO-DICTATION' — no new table needed.
+
+localId concept: The database does not have localId on construction_tasks or field_observations. However, localId exists on three meeting-related tables: site_meetings (line 1371), meeting_attendees (line 1418), and meeting_observations (line 1477). It's used as an offline-first idempotency key for those modules. If OUVRO needs idempotent task sync, a localId column would need to be added to construction_tasks.
+
+3. Project Linkage
+Projects primary key: id — a varchar(255) containing a UUID (table: projects, schema.ts line 298)
+Foreign key field name: projectId (varchar 255) — used consistently across construction_tasks, field_observations, and all other project-linked tables
+4. Authentication / Middleware
+Authentication: The /api/ouvro/ routes have no explicit authentication middleware (no isAuthenticated, no API key check). However, the global shadowRequireAuth middleware (applied at line 1947) runs on all /api/ routes. Currently in AUDIT mode (logs violations but doesn't block). In ENFORCE mode, these routes would be blocked unless /api/ouvro/ is added to the PUBLIC_PATHS whitelist in requireAuth.ts. Currently it is NOT whitelisted.
+
+Rate limiting: The general API rate limiter applies — 1,000 requests per 15 minutes per IP (line 1835). The voice-task endpoint also hits the general limit, not the stricter AI limiter.
+
+Request size limits: express.json and express.urlencoded both set to 50 MB (line 1815–1816). Multer file uploads also capped at 50 MB (line 299).
+
+CORS: In production, only *.replit.app, *.replit.dev, and *.repl.co origins are allowed (line 1892–1899). In development, all origins are permitted. If OUVRO's server makes requests from a non-Replit domain in production, requests would be blocked by CORS. However, if OUVRO is a native mobile app making direct HTTP calls (not browser-based), CORS doesn't apply.
+
+5. Response Format Conventions
+Generated ID field name: The voice-task endpoint returns both task_id (top-level) and task.id (nested). Standard task creation elsewhere uses id inside the returned object.
+HTTP status on creation: Returns 200 (not 201). This is consistent across the codebase.
+Typical error response: { success: false, error: "Human-readable message" } for OUVRO routes, or { error: "message" } for older routes.
+6. Current State of Voice-Task Processing
+Transcription: ArchiDoc handles transcription itself using Gemini AI. It sends the raw audio (as base64 inline data) to Gemini with a transcription prompt, then makes a second Gemini call to generate a French task title from the transcription. It does not expect pre-transcribed text.
+
+Previous 500 error — resolved: The root cause was that the handler only accepted JSON with an audioBase64 field, but OUVRO was sending multipart/form-data with a binary file. Without multer middleware on the route, req.body was empty and the handler crashed. This has been fixed — the endpoint now accepts both formats via upload.single('file') middleware. The fix was applied in the current session.
+
+That covers every question in the audit. Let me know if you need anything else before proceeding with OUVRO-side changes.
