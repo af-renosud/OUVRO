@@ -320,12 +320,22 @@ class OfflineTaskService {
       let audioBase64: string | undefined;
       if (!transcriptionText && task.audioUri) {
         try {
-          audioBase64 = await FileSystem.readAsStringAsync(task.audioUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          if (__DEV__) console.log("[OfflineTasks] Read audio base64 for task:", localId, "size:", audioBase64.length);
-        } catch (e) {
-          if (__DEV__) console.warn("[OfflineTasks] Failed to read audio file for base64:", e);
+          const fileInfo = await FileSystem.getInfoAsync(task.audioUri);
+          if (!fileInfo.exists) {
+            console.warn("[OfflineTasks] Audio file not found:", task.audioUri);
+          } else {
+            const fileSizeBytes = "size" in fileInfo ? fileInfo.size : 0;
+            const fileSizeMB = fileSizeBytes / (1024 * 1024);
+            if (fileSizeMB > 10) {
+              console.warn(`[OfflineTasks] Audio file is large (${fileSizeMB.toFixed(1)}MB), reading may use significant memory`);
+            }
+            audioBase64 = await FileSystem.readAsStringAsync(task.audioUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            if (__DEV__) console.log("[OfflineTasks] Read audio base64 for task:", localId, "size:", audioBase64.length);
+          }
+        } catch (e: any) {
+          console.warn("[OfflineTasks] Failed to read audio file for base64:", e?.message || e);
         }
       }
 

@@ -14,6 +14,14 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfflineSyncProvider } from "@/hooks/useOfflineSync";
 import { OfflineTasksProvider } from "@/hooks/useOfflineTasks";
 
+const defaultHandler = (ErrorUtils as any).getGlobalHandler?.();
+(ErrorUtils as any).setGlobalHandler?.((error: Error, isFatal?: boolean) => {
+  console.error(`[OUVRO] ${isFatal ? "FATAL" : "Unhandled"} error:`, error?.message, error?.stack);
+  if (defaultHandler) {
+    defaultHandler(error, isFatal);
+  }
+});
+
 export default function App() {
   return (
     <ErrorBoundary>
