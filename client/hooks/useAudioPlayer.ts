@@ -1,6 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Platform } from "react-native";
-import { Audio } from "expo-av";
+import {
+  useAudioPlayer as useExpoAudioPlayer,
+  useAudioPlayerStatus,
+} from "expo-audio";
 
 interface UseAudioPlayerReturn {
   isPlaying: boolean;
@@ -10,46 +13,45 @@ interface UseAudioPlayerReturn {
 
 export function useAudioPlayer(): UseAudioPlayerReturn {
   const [isPlaying, setIsPlaying] = useState(false);
-  const soundRef = useRef<Audio.Sound | null>(null);
   const webTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentUriRef = useRef<string | null>(null);
 
-  const cleanup = useCallback(async () => {
-    if (webTimeoutRef.current) {
-      clearTimeout(webTimeoutRef.current);
-      webTimeoutRef.current = null;
+  const player = useExpoAudioPlayer(null);
+  const status = useAudioPlayerStatus(player);
+
+  useEffect(() => {
+    if (!status.playing && isPlaying && currentUriRef.current && Platform.OS !== "web") {
+      if (status.currentTime > 0 && status.duration > 0 && status.currentTime >= status.duration - 0.5) {
+        setIsPlaying(false);
+      }
     }
-    if (soundRef.current) {
-      try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-      } catch {}
-      soundRef.current = null;
-    }
-    setIsPlaying(false);
-  }, []);
+  }, [status.playing, status.currentTime, status.duration, isPlaying]);
 
   useEffect(() => {
     return () => {
       if (webTimeoutRef.current) {
         clearTimeout(webTimeoutRef.current);
       }
-      if (soundRef.current) {
-        soundRef.current.unloadAsync().catch(() => {});
-        soundRef.current = null;
-      }
     };
   }, []);
 
   const stop = useCallback(async () => {
-    await cleanup();
-  }, [cleanup]);
+    if (webTimeoutRef.current) {
+      clearTimeout(webTimeoutRef.current);
+      webTimeoutRef.current = null;
+    }
+    try {
+      player.pause();
+    } catch {}
+    setIsPlaying(false);
+  }, [player]);
 
   const togglePlayback = useCallback(
     async (uri: string, durationSeconds: number) => {
       if (!uri) return;
 
       if (isPlaying) {
-        await cleanup();
+        await stop();
         return;
       }
 
@@ -63,30 +65,20 @@ export function useAudioPlayer(): UseAudioPlayerReturn {
       }
 
       try {
+        if (currentUriRef.current !== uri) {
+          player.replace(uri);
+          currentUriRef.current = uri;
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
         setIsPlaying(true);
-        const { sound } = await Audio.Sound.createAsync({ uri });
-        soundRef.current = sound;
-
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (
-            "isLoaded" in status &&
-            status.isLoaded &&
-            "didJustFinish" in status &&
-            status.didJustFinish
-          ) {
-            setIsPlaying(false);
-            sound.unloadAsync();
-            soundRef.current = null;
-          }
-        });
-
-        await sound.playAsync();
+        player.seekTo(0);
+        player.play();
       } catch (error) {
         if (__DEV__) console.error("Playback error:", error);
         setIsPlaying(false);
       }
     },
-    [isPlaying, cleanup]
+    [isPlaying, stop, player]
   );
 
   return {

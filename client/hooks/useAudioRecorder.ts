@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Platform, Alert } from "react-native";
-import { Audio } from "expo-av";
-import { requestRecordingPermissionsAsync } from "expo-audio";
+import {
+  useAudioRecorder as useExpoAudioRecorder,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  AudioModule,
+} from "expo-audio";
+import type { RecordingStatus } from "expo-audio";
 
 type PermissionStatus = "loading" | "granted" | "denied";
-
-type RecordingInstance = {
-  stopAndUnloadAsync: () => Promise<unknown>;
-  getURI: () => string | null;
-};
 
 interface UseAudioRecorderOptions {
   maxDurationSeconds?: number;
@@ -38,8 +38,23 @@ export function useAudioRecorder(
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordingRef = useRef<RecordingInstance | null>(null);
   const stopCalledRef = useRef(false);
+
+  const handleStatusUpdate = useCallback((status: RecordingStatus) => {
+    if (status.isFinished && status.url) {
+      setRecordingUri(status.url);
+      setIsRecording(false);
+    }
+    if (status.hasError) {
+      if (__DEV__) console.error("Recording error:", status.error);
+      setIsRecording(false);
+    }
+  }, []);
+
+  const recorder = useExpoAudioRecorder(
+    RecordingPresets.HIGH_QUALITY,
+    handleStatusUpdate
+  );
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -80,9 +95,6 @@ export function useAudioRecorder(
     requestPermission();
     return () => {
       clearTimer();
-      if (recordingRef.current) {
-        recordingRef.current.stopAndUnloadAsync().catch(() => {});
-      }
     };
   }, []);
 
@@ -100,26 +112,28 @@ export function useAudioRecorder(
     }
 
     try {
-      if (!recordingRef.current) {
+      const preState = recorder.getStatus();
+      if (!preState.isRecording) {
         setIsRecording(false);
         stopCalledRef.current = false;
         return;
       }
 
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
+      await recorder.stop();
+      const state = recorder.getStatus();
+      if (state.url) {
+        setRecordingUri(state.url);
+      }
       setIsRecording(false);
-      setRecordingUri(uri);
-      recordingRef.current = null;
 
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      await AudioModule.setAudioModeAsync({ allowsRecording: false }).catch(() => {});
     } catch (error) {
       if (__DEV__) console.error("Failed to stop recording:", error);
       setIsRecording(false);
     } finally {
       stopCalledRef.current = false;
     }
-  }, [clearTimer]);
+  }, [clearTimer, recorder]);
 
   const startRecording = useCallback(async () => {
     stopCalledRef.current = false;
@@ -141,16 +155,14 @@ export function useAudioRecorder(
     }
 
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      await AudioModule.setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      await recorder.prepareToRecordAsync();
+      recorder.record();
 
-      recordingRef.current = recording;
       setIsRecording(true);
       setRecordingDuration(0);
       setRecordingUri(null);
@@ -171,7 +183,7 @@ export function useAudioRecorder(
         "Could not start recording. Please try again."
       );
     }
-  }, [maxDuration, stopRecording, clearTimer]);
+  }, [maxDuration, stopRecording, clearTimer, recorder]);
 
   const discardRecording = useCallback(() => {
     setRecordingUri(null);
