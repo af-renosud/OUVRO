@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
   <head>
-    <title>OUVRO</title>
+    <title>APP_NAME_PLACEHOLDER</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
@@ -18,23 +18,91 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #ffffff;
+        background: #0B2545;
         min-height: 100vh;
+        color: #ffffff;
       }
       .container {
         text-align: center;
         padding: 40px;
+        max-width: 480px;
       }
       .logo {
-        max-width: 280px;
+        max-width: 220px;
         width: 100%;
         height: auto;
+        margin-bottom: 32px;
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+      .subtitle {
+        font-size: 14px;
+        color: #8DA9C4;
+        margin-bottom: 40px;
+      }
+      .open-btn {
+        display: inline-block;
+        background: #4299E1;
+        color: #ffffff;
+        text-decoration: none;
+        padding: 16px 40px;
+        border-radius: 12px;
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        transition: background 0.2s;
+      }
+      .open-btn:hover {
+        background: #3182CE;
+      }
+      .instructions {
+        font-size: 13px;
+        color: #8DA9C4;
+        margin-top: 24px;
+        line-height: 1.6;
+      }
+      .url-display {
+        background: rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-top: 16px;
+        font-family: monospace;
+        font-size: 12px;
+        word-break: break-all;
+        color: #B8D4E3;
+      }
+      .status {
+        display: inline-block;
+        background: #10B981;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+      .status-text {
+        font-size: 13px;
+        color: #10B981;
+        margin-bottom: 32px;
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <img src="/assets/images/ouvro-logo.png" alt="OUVRO" class="logo" />
+      <img src="/assets/images/ouvro-logo.png" alt="APP_NAME_PLACEHOLDER" class="logo" />
+      <h1>APP_NAME_PLACEHOLDER</h1>
+      <p class="subtitle">Mobile Companion for Architects</p>
+      <p class="status-text"><span class="status"></span> Server Online</p>
+      <a href="exps://EXPS_URL_PLACEHOLDER" class="open-btn">Open in Expo Go</a>
+      <div class="instructions">
+        <p>Open Expo Go on your phone and scan the QR code from Replit, or tap the button above from your mobile browser.</p>
+      </div>
+      <div class="url-display">
+        exps://EXPS_URL_PLACEHOLDER
+      </div>
     </div>
   </body>
 </html>

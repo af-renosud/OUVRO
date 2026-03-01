@@ -848,6 +848,34 @@ archidocRouter.post("/archidoc/create-observation", async (req, res) => {
 
 // server/routes/sync.ts
 import { Router as Router5 } from "express";
+import { GoogleGenAI as GoogleGenAI4 } from "@google/genai";
+var ai4 = new GoogleGenAI4({
+  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+  httpOptions: {
+    apiVersion: "",
+    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL
+  }
+});
+async function transcribeAudio(audioBase64, mimeType = "audio/mp4") {
+  const response = await ai4.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: "Please transcribe the following audio accurately into English text. Only output the transcription, nothing else." },
+          {
+            inlineData: {
+              mimeType,
+              data: audioBase64
+            }
+          }
+        ]
+      }
+    ]
+  });
+  return response.text || "";
+}
 var syncRouter = Router5();
 syncRouter.post("/sync-observation/:id", requireArchidocUrl, async (req, res) => {
   try {
@@ -907,10 +935,11 @@ syncRouter.post("/tasks/sync", requireArchidocUrl, async (req, res) => {
     if (!projectId) {
       return res.status(400).json({ success: false, error: "Missing required field: projectId", localId });
     }
-    if (!transcription) {
-      return res.status(400).json({ success: false, error: "Missing required field: transcription", localId });
+    const audioBase64 = req.body.audioBase64;
+    if (!transcription && !audioBase64) {
+      return res.status(400).json({ success: false, error: "At least one of transcription or audioBase64 is required", localId });
     }
-    if (transcription.length > 1e4) {
+    if (transcription && transcription.length > 1e4) {
       return res.status(400).json({ success: false, error: "Transcription exceeds maximum length of 10000 characters", localId });
     }
     if (priority && !VALID_PRIORITIES.includes(priority)) {
@@ -920,16 +949,31 @@ syncRouter.post("/tasks/sync", requireArchidocUrl, async (req, res) => {
       return res.status(400).json({ success: false, error: `Invalid classification: ${classification}. Must be one of: ${VALID_CLASSIFICATIONS.join(", ")}`, localId });
     }
     const archidocApiUrl = res.locals.archidocApiUrl;
+    let finalTranscription = transcription || "";
+    if (!finalTranscription && audioBase64) {
+      console.log(`[Task Sync] localId=${localId} \u2014 no transcription provided, auto-transcribing audio`);
+      try {
+        finalTranscription = await transcribeAudio(audioBase64);
+        console.log(`[Task Sync] localId=${localId} \u2014 auto-transcription complete (${finalTranscription.length} chars)`);
+      } catch (transcribeErr) {
+        console.warn(`[Task Sync] localId=${localId} \u2014 auto-transcription failed: ${transcribeErr?.message}. Sending with empty transcription.`);
+      }
+    }
+    const titleText = finalTranscription ? finalTranscription.substring(0, 80).replace(/\n/g, " ").trim() + (finalTranscription.length > 80 ? "..." : "") : "Audio task (not yet transcribed)";
     const archidocPayload = {
       localId,
       projectId,
-      transcription,
+      title: titleText,
+      transcription: finalTranscription,
       priority: priority || "normal",
       classification: classification || "general",
       audioDuration: audioDuration || 0,
       recordedAt: recordedAt || (/* @__PURE__ */ new Date()).toISOString(),
       recordedBy: recordedBy || "OUVRO Field User"
     };
+    if (audioBase64) {
+      archidocPayload.audioBase64 = audioBase64;
+    }
     console.log(`[Task Sync] localId=${localId} \u2014 posting to ArchiDoc for project ${projectId}`);
     const result = await archidocJsonPost(
       `${archidocApiUrl}/api/ouvro/tasks`,
