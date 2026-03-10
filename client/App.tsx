@@ -13,6 +13,7 @@ import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfflineSyncProvider } from "@/hooks/useOfflineSync";
 import { OfflineTasksProvider } from "@/hooks/useOfflineTasks";
+import { OfflineAnnotationsProvider } from "@/hooks/useOfflineAnnotations";
 
 const defaultHandler = (ErrorUtils as any).getGlobalHandler?.();
 (ErrorUtils as any).setGlobalHandler?.((error: Error, isFatal?: boolean) => {
@@ -28,6 +29,7 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <OfflineSyncProvider>
           <OfflineTasksProvider>
+          <OfflineAnnotationsProvider>
           <SafeAreaProvider>
             <GestureHandlerRootView style={styles.root}>
               <KeyboardProvider>
@@ -38,6 +40,7 @@ export default function App() {
               </KeyboardProvider>
             </GestureHandlerRootView>
           </SafeAreaProvider>
+          </OfflineAnnotationsProvider>
           </OfflineTasksProvider>
         </OfflineSyncProvider>
       </QueryClientProvider>

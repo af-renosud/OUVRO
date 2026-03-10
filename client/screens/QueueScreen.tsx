@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -22,10 +23,12 @@ import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useOfflineTasks } from "@/hooks/useOfflineTasks";
+import { useOfflineAnnotations } from "@/hooks/useOfflineAnnotations";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNavigator";
 import type { OfflineObservation, ObservationSyncState } from "@/lib/offline-sync";
 import type { OfflineTask, TaskSyncState } from "@/lib/offline-tasks";
+import type { OfflineAnnotation, AnnotationSyncState } from "@/lib/offline-annotations";
 
 function SyncProgressBar({ progress, isActive }: { progress: number; isActive: boolean }) {
   const { theme } = useTheme();
@@ -143,11 +146,23 @@ export default function QueueScreen() {
     clearCompleted: clearCompletedTasks,
   } = useOfflineTasks();
 
+  const {
+    annotations,
+    pendingCount: annotationPendingCount,
+    removeAnnotation,
+    retryAnnotation,
+    syncAllPending: syncAllAnnotations,
+    clearCompleted: clearCompletedAnnotations,
+  } = useOfflineAnnotations();
+
   const completedObservations = observations.filter((obs) => obs.syncState === "complete");
   const pendingObservations = observations.filter((obs) => obs.syncState !== "complete");
 
   const pendingTasks = tasks.filter((t) => t.syncState !== "complete");
   const completedTasks = tasks.filter((t) => t.syncState === "complete");
+
+  const pendingAnnotations = annotations.filter((a) => a.syncState !== "complete");
+  const completedAnnotations = annotations.filter((a) => a.syncState === "complete");
 
   useEffect(() => {
     if (previousSyncingRef.current && !isSyncing && pendingCount === 0 && completedObservations.length > 0) {
@@ -177,8 +192,8 @@ export default function QueueScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    await Promise.all([startSync(), syncAllTasks()]);
-  }, [isNetworkAvailable, startSync, syncAllTasks]);
+    await Promise.all([startSync(), syncAllTasks(), syncAllAnnotations()]);
+  }, [isNetworkAvailable, startSync, syncAllTasks, syncAllAnnotations]);
 
   const handleCancelSync = useCallback(() => {
     Alert.alert("Cancel Sync", "Are you sure you want to cancel the current sync?", [
@@ -207,8 +222,35 @@ export default function QueueScreen() {
     );
   }, [removeObservation]);
 
+  const handleDeleteAnnotation = useCallback((localId: string) => {
+    Alert.alert(
+      "Delete Annotation",
+      "This will permanently delete the annotation from your device. This cannot be undone.",
+      [
+        { text: "Keep", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            if (Platform.OS !== "web") {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            }
+            removeAnnotation(localId);
+          },
+        },
+      ]
+    );
+  }, [removeAnnotation]);
+
+  const handleRetryAnnotation = useCallback(async (localId: string) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    await retryAnnotation(localId);
+  }, [retryAnnotation]);
+
   const handleClearCompleted = useCallback(() => {
-    const totalCompleted = completedObservations.length + completedTasks.length;
+    const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length;
     Alert.alert(
       "Clear Synced Items",
       `Remove ${totalCompleted} synced item${totalCompleted > 1 ? "s" : ""} from this list? They are safely stored in ARCHIDOC.`,
@@ -219,6 +261,7 @@ export default function QueueScreen() {
           onPress: () => {
             clearCompleted();
             clearCompletedTasks();
+            clearCompletedAnnotations();
             if (Platform.OS !== "web") {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
@@ -226,7 +269,7 @@ export default function QueueScreen() {
         },
       ]
     );
-  }, [completedObservations.length, completedTasks.length, clearCompleted, clearCompletedTasks]);
+  }, [completedObservations.length, completedTasks.length, completedAnnotations.length, clearCompleted, clearCompletedTasks, clearCompletedAnnotations]);
 
   const handleDeleteTask = useCallback((localId: string) => {
     Alert.alert(
@@ -544,13 +587,134 @@ export default function QueueScreen() {
     );
   };
 
+  const getAnnotationStateInfo = (state: AnnotationSyncState): { color: string; icon: keyof typeof Feather.glyphMap; label: string } => {
+    switch (state) {
+      case "pending":
+        return { color: BrandColors.warning, icon: "clock", label: "Pending" };
+      case "uploading":
+        return { color: BrandColors.info, icon: "upload-cloud", label: "Uploading..." };
+      case "complete":
+        return { color: BrandColors.success, icon: "check-circle", label: "Synced" };
+      case "failed":
+        return { color: BrandColors.error, icon: "alert-circle", label: "Failed" };
+      default:
+        return { color: theme.textTertiary, icon: "clock", label: "Unknown" };
+    }
+  };
+
+  const renderAnnotation = ({ item }: { item: OfflineAnnotation }) => {
+    const stateInfo = getAnnotationStateInfo(item.syncState);
+    const isComplete = item.syncState === "complete";
+    const isUploading = item.syncState === "uploading";
+
+    const hasLocalImage = item.localUri && !isComplete;
+
+    return (
+      <Card style={isComplete ? { ...styles.observationCard, ...styles.completedCard } : styles.observationCard}>
+        <View style={styles.observationHeader}>
+          {hasLocalImage ? (
+            <Image
+              source={{ uri: item.localUri }}
+              style={styles.annotationThumbnail}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.thumbnailPlaceholder, { backgroundColor: "#FFF7ED" }, isComplete && { backgroundColor: `${BrandColors.success}15` }]}>
+              <Feather
+                name={isComplete ? "check-circle" : "edit-3"}
+                size={24}
+                color={isComplete ? BrandColors.success : BrandColors.warning}
+              />
+            </View>
+          )}
+          <View style={styles.observationInfo}>
+            <View style={styles.taskBadgeRow}>
+              <View style={[styles.taskTypeBadge, { backgroundColor: `${BrandColors.warning}20` }]}>
+                <ThemedText style={[styles.taskTypeBadgeText, { color: BrandColors.warning }]}>ANNOTATION</ThemedText>
+              </View>
+            </View>
+            <ThemedText style={styles.observationTitle} numberOfLines={1}>
+              {item.originalFileName}
+            </ThemedText>
+            <ThemedText style={[styles.observationDate, { color: theme.textSecondary }]}>
+              {item.projectName} - {new Date(item.createdAt).toLocaleDateString()}
+            </ThemedText>
+            {isComplete && item.syncCompletedAt ? (
+              <ThemedText style={[styles.syncTimestamp, { color: BrandColors.success }]}>
+                Synced {new Date(item.syncCompletedAt).toLocaleString()}
+              </ThemedText>
+            ) : null}
+          </View>
+          <View style={[styles.syncBadge, { backgroundColor: stateInfo.color }]}>
+            {isUploading ? (
+              <ActivityIndicator size={14} color="#FFFFFF" />
+            ) : (
+              <Feather name={stateInfo.icon} size={14} color="#FFFFFF" />
+            )}
+          </View>
+        </View>
+
+        {item.lastSyncError && !isComplete ? (
+          <View style={[styles.errorBanner, { backgroundColor: `${BrandColors.error}20` }]}>
+            <Feather name="alert-circle" size={14} color={BrandColors.error} />
+            <ThemedText style={[styles.errorText, { color: BrandColors.error }]} numberOfLines={2}>
+              {item.lastSyncError}
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {item.retryCount > 0 && !isComplete ? (
+          <ThemedText style={[styles.retryCountText, { color: theme.textTertiary }]}>
+            Retry attempts: {item.retryCount}/10
+          </ThemedText>
+        ) : null}
+
+        <View style={styles.actionButtons}>
+          {!isComplete ? (
+            <>
+              {item.syncState === "failed" ? (
+                <Pressable
+                  style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+                  onPress={() => handleRetryAnnotation(item.localId)}
+                  disabled={!isNetworkAvailable}
+                >
+                  <Feather name="refresh-cw" size={16} color="#FFFFFF" />
+                  <ThemedText style={styles.actionButtonText}>Retry</ThemedText>
+                </Pressable>
+              ) : isUploading ? (
+                <View style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}>
+                  <ActivityIndicator size="small" color={BrandColors.primary} />
+                  <ThemedText style={[styles.actionButtonText, { color: BrandColors.primary }]}>
+                    Uploading...
+                  </ThemedText>
+                </View>
+              ) : null}
+              <Pressable
+                style={[styles.actionButtonIcon, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={() => handleDeleteAnnotation(item.localId)}
+              >
+                <Feather name="trash-2" size={18} color={BrandColors.error} />
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+      </Card>
+    );
+  };
+
   type QueueItem = 
     | { type: "observation"; data: OfflineObservation }
     | { type: "task"; data: OfflineTask }
+    | { type: "annotation"; data: OfflineAnnotation }
     | { type: "section"; title: string };
 
   const buildQueueItems = (): QueueItem[] => {
     const items: QueueItem[] = [];
+
+    if (pendingAnnotations.length > 0) {
+      items.push({ type: "section", title: `Pending Annotations (${pendingAnnotations.length})` });
+      pendingAnnotations.forEach((a) => items.push({ type: "annotation", data: a }));
+    }
 
     if (pendingTasks.length > 0) {
       items.push({ type: "section", title: `Pending Tasks (${pendingTasks.length})` });
@@ -562,9 +726,10 @@ export default function QueueScreen() {
       pendingObservations.forEach((o) => items.push({ type: "observation", data: o }));
     }
 
-    const totalCompleted = completedObservations.length + completedTasks.length;
+    const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length;
     if (totalCompleted > 0) {
       items.push({ type: "section", title: `Synced (${totalCompleted})` });
+      completedAnnotations.forEach((a) => items.push({ type: "annotation", data: a }));
       completedTasks.forEach((t) => items.push({ type: "task", data: t }));
       completedObservations.forEach((o) => items.push({ type: "observation", data: o }));
     }
@@ -573,8 +738,8 @@ export default function QueueScreen() {
   };
 
   const queueItems = buildQueueItems();
-  const totalPending = pendingCount + taskPendingCount;
-  const totalCompleted = completedObservations.length + completedTasks.length;
+  const totalPending = pendingCount + taskPendingCount + annotationPendingCount;
+  const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length;
 
   const renderQueueItem = ({ item }: { item: QueueItem }) => {
     if (item.type === "section") {
@@ -586,6 +751,9 @@ export default function QueueScreen() {
     }
     if (item.type === "task") {
       return renderTask({ item: item.data });
+    }
+    if (item.type === "annotation") {
+      return renderAnnotation({ item: item.data });
     }
     return renderObservation({ item: item.data });
   };
@@ -781,6 +949,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  annotationThumbnail: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.sm,
   },
   observationInfo: {
     flex: 1,

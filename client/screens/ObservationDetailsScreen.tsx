@@ -237,6 +237,7 @@ export default function ObservationDetailsScreen() {
       file,
       signedUrl: item.uri,
       projectId,
+      projectName,
     });
   };
 

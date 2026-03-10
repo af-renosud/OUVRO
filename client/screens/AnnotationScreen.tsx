@@ -10,12 +10,12 @@ import { GestureDetector, Gesture } from "react-native-gesture-handler";
 import { runOnJS, useSharedValue } from "react-native-reanimated";
 import Animated, { useAnimatedStyle, withSpring } from "react-native-reanimated";
 import ViewShot, { captureRef } from "react-native-view-shot";
-import * as FileSystem from "expo-file-system/legacy";
 import { ThemedText } from "@/components/ThemedText";
 import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
+import { useOfflineAnnotations } from "@/hooks/useOfflineAnnotations";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
-import { ANNOTATION_COLORS, requestUploadUrl, archiveUploadedFile, type AnnotationType } from "@/lib/archidoc-api";
+import { ANNOTATION_COLORS, type AnnotationType } from "@/lib/archidoc-api";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type DrawingElement = {
@@ -44,7 +44,8 @@ export default function AnnotationScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "Annotation">>();
-  const { file, signedUrl, projectId } = route.params;
+  const { file, signedUrl, projectId, projectName } = route.params;
+  const { addAnnotation } = useOfflineAnnotations();
 
   const viewShotRef = useRef<ViewShot>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -254,95 +255,79 @@ export default function AnnotationScreen() {
     );
   };
 
+  const saveOperationIdRef = useRef(0);
+
+  const handleCancelSave = useCallback(() => {
+    saveOperationIdRef.current += 1;
+    setIsSaving(false);
+  }, []);
+
   const handleSave = async () => {
     if (elements.length === 0) {
       Alert.alert("No Annotations", "Please add some annotations before saving.");
       return;
     }
 
-    // Validate canvas dimensions before capture
     if (canvasWidth <= 0 || canvasHeight <= 0) {
       Alert.alert("Error", "Canvas not ready. Please wait a moment and try again.");
       return;
     }
 
+    const thisOperationId = ++saveOperationIdRef.current;
+    const isCancelled = () => saveOperationIdRef.current !== thisOperationId;
+
     try {
       setIsSaving(true);
-      const startTime = Date.now();
-      
-      // Reset zoom before capture to ensure full image is saved
+
       const wasZoomed = scale.value !== 1 || translateX.value !== 0 || translateY.value !== 0;
       if (wasZoomed) {
         scale.value = 1;
         translateX.value = 0;
         translateY.value = 0;
-        // Minimal wait for transform - just one frame
         await new Promise(resolve => requestAnimationFrame(resolve));
       }
 
+      if (isCancelled()) return;
+
       if (viewShotRef.current) {
-        if (__DEV__) console.log("[Annotation] Starting capture...");
-        
-        // Use JPEG format for faster encoding and smaller file size
-        // Quality 0.85 provides good balance of quality vs speed
-        const uri = await captureRef(viewShotRef, {
+        const capturePromise = captureRef(viewShotRef, {
           format: "jpg",
           quality: 0.85,
           result: "tmpfile",
           width: Math.max(canvasWidth, 100),
           height: Math.max(canvasHeight, 100),
         });
-        if (__DEV__) console.log("[Annotation] Captured in", Date.now() - startTime, "ms");
-        
-        const fileName = `annotated-${file.originalName.replace(/\.[^/.]+$/, "")}-${Date.now()}.jpg`;
 
-        // Get file info while preparing upload URL request in parallel
-        const [fileInfo, uploadInfo] = await Promise.all([
-          FileSystem.getInfoAsync(uri),
-          requestUploadUrl(fileName, "image/jpeg", 0), // Size unknown yet, but not critical for URL request
-        ]);
-        
-        const fileSize = (fileInfo as any).size || 0;
-        if (__DEV__) console.log("[Annotation] File size:", fileSize, "- Got upload URL in", Date.now() - startTime, "ms");
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Image capture timed out. Please try again.")), 15000)
+        );
 
-        // Upload using native binary upload for maximum speed
-        const uploadResult = await FileSystem.uploadAsync(uploadInfo.uploadURL, uri, {
-          httpMethod: "PUT",
-          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-          headers: { "Content-Type": "image/jpeg" },
-        });
-        if (__DEV__) console.log("[Annotation] Upload complete in", Date.now() - startTime, "ms");
+        const uri = await Promise.race([capturePromise, timeoutPromise]);
 
-        // Verify upload succeeded (200 or 201)
-        if (uploadResult.status < 200 || uploadResult.status >= 300) {
-          throw new Error(`Upload failed with status ${uploadResult.status}: ${uploadResult.body}`);
-        }
+        if (isCancelled()) return;
 
-        // Archive the file
-        await archiveUploadedFile({
-          objectId: uploadInfo.objectId,
-          bucketName: uploadInfo.bucketName,
-          objectName: uploadInfo.objectName,
-          originalName: fileName,
-          contentType: "image/jpeg",
-          size: fileSize,
+        await addAnnotation({
+          capturedUri: uri,
           projectId,
-          category: "annotations",
+          projectName: projectName || "Unknown Project",
+          originalFileName: file.originalName,
         });
-        if (__DEV__) console.log("[Annotation] Total time:", Date.now() - startTime, "ms");
 
         Alert.alert(
           "Saved",
-          "Annotation saved to project files.",
+          "Annotation saved. It will upload automatically when connected.",
           [{ text: "OK", onPress: () => navigation.goBack() }]
         );
       }
     } catch (error) {
+      if (isCancelled()) return;
       console.error("Save error:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      Alert.alert("Error", `Failed to save annotation. ${errorMessage}`);
+      Alert.alert("Save Failed", errorMessage);
     } finally {
-      setIsSaving(false);
+      if (!isCancelled()) {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -513,20 +498,23 @@ export default function AnnotationScreen() {
           >
             <Feather name="rotate-ccw" size={20} color={elements.length ? "#FFFFFF" : "#666"} />
           </Pressable>
-          <Pressable
-            style={[styles.saveButton, { backgroundColor: BrandColors.primary }]}
-            onPress={handleSave}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Feather name="save" size={18} color="#FFFFFF" />
-                <ThemedText style={styles.saveText}>Save</ThemedText>
-              </>
-            )}
-          </Pressable>
+          {isSaving ? (
+            <Pressable
+              style={[styles.saveButton, { backgroundColor: BrandColors.error }]}
+              onPress={handleCancelSave}
+            >
+              <Feather name="x" size={18} color="#FFFFFF" />
+              <ThemedText style={styles.saveText}>Cancel</ThemedText>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[styles.saveButton, { backgroundColor: BrandColors.primary }]}
+              onPress={handleSave}
+            >
+              <Feather name="save" size={18} color="#FFFFFF" />
+              <ThemedText style={styles.saveText}>Save</ThemedText>
+            </Pressable>
+          )}
         </View>
       </View>
 
