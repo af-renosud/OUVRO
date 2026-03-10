@@ -39,6 +39,7 @@ OUVRO is a mobile companion app for architects and project managers, built with 
   - Sync contract: `POST /api/tasks/sync` with `TaskSyncPayload` (see `shared/task-sync-types.ts`). Requires at least one of `transcription` or `audioBase64`. When `audioBase64` is present but `transcription` is empty, the server auto-transcribes via Gemini AI before forwarding to ArchiDoc. Returns 200 only when ArchiDoc confirms; 502/503 otherwise.
   - Auto-sync: NetInfo network listener triggers sync on reconnect; 120s interval auto-retry; max 20 retries
   - Priority: low/normal/high/urgent. Classification: defect/action/followup/general.
+- **Project Lock:** Users can lock a project from the Asset Hub so all media captures (photo, video, audio, task) automatically use that project — no re-selection needed. Lock persists across screens and app restarts (AsyncStorage). Lock badge shows on project cards, Settings shows active lock with unlock option, Capture Modal shows locked project as read-only. Key file: `client/hooks/useProjectLock.tsx`.
 - **Project Asset Hub:** A 2x3 grid of buttons (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE) with dynamic enablement logic based on project data availability.
 - **DQE Browser:** Displays DQE items, filterable by lot code or contractor (data fetched from `/api/contractors`).
 

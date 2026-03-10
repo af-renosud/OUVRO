@@ -10,11 +10,13 @@ import { Spacing, BrandColors, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
+import { useProjectLock } from "@/hooks/useProjectLock";
 
 export default function CaptureModalScreen() {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { lockedProject, isLocked } = useProjectLock();
   const [selectedProject, setSelectedProject] = useState<MappedProject | null>(null);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
 
@@ -24,17 +26,27 @@ export default function CaptureModalScreen() {
   });
 
   useEffect(() => {
+    if (isLocked && projects.length > 0) {
+      const locked = projects.find((p) => p.id === lockedProject!.id);
+      if (locked) {
+        setSelectedProject(locked);
+        return;
+      }
+    }
     if (projects.length > 0 && !selectedProject) {
       setSelectedProject(projects[0]);
     }
-  }, [projects, selectedProject]);
+  }, [projects, selectedProject, isLocked, lockedProject]);
 
   const handleSelectProject = (project: MappedProject) => {
     setSelectedProject(project);
     setShowProjectPicker(false);
   };
 
-  const getProject = () => {
+  const getProject = (): { id: string; name: string } | null => {
+    if (isLocked && lockedProject) {
+      return lockedProject;
+    }
     const project = selectedProject || projects[0];
     if (!project) {
       Alert.alert("No Project", "Please wait for projects to load");
@@ -85,24 +97,38 @@ export default function CaptureModalScreen() {
         </View>
       </View>
       <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
-        <Pressable
-          style={styles.projectSelector}
-          onPress={() => setShowProjectPicker(true)}
-        >
-          {projectsLoading ? (
-            <ActivityIndicator size="small" color={BrandColors.primary} />
-          ) : (
-            <>
-              <View style={styles.projectInfo}>
-                <ThemedText style={styles.projectLabel}>Project:</ThemedText>
-                <ThemedText style={styles.projectName} numberOfLines={1}>
-                  {selectedProject?.name || "Tap to select a project"}
-                </ThemedText>
-              </View>
-              <Feather name="chevron-down" size={20} color={BrandColors.primary} />
-            </>
-          )}
-        </Pressable>
+        {isLocked ? (
+          <View style={styles.lockedProjectSelector}>
+            <View style={styles.lockIconContainer}>
+              <Feather name="lock" size={16} color={BrandColors.accent} />
+            </View>
+            <View style={styles.projectInfo}>
+              <ThemedText style={styles.lockedLabel}>Locked Project</ThemedText>
+              <ThemedText style={styles.projectName} numberOfLines={1}>
+                {lockedProject!.name}
+              </ThemedText>
+            </View>
+          </View>
+        ) : (
+          <Pressable
+            style={styles.projectSelector}
+            onPress={() => setShowProjectPicker(true)}
+          >
+            {projectsLoading ? (
+              <ActivityIndicator size="small" color={BrandColors.primary} />
+            ) : (
+              <>
+                <View style={styles.projectInfo}>
+                  <ThemedText style={styles.projectLabel}>Project:</ThemedText>
+                  <ThemedText style={styles.projectName} numberOfLines={1}>
+                    {selectedProject?.name || "Tap to select a project"}
+                  </ThemedText>
+                </View>
+                <Feather name="chevron-down" size={20} color={BrandColors.primary} />
+              </>
+            )}
+          </Pressable>
+        )}
 
         <View style={styles.captureArea}>
           <View style={styles.captureGrid}>
@@ -293,6 +319,33 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     borderWidth: 2,
     borderColor: BrandColors.accent,
+  },
+  lockedProjectSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xl,
+    borderWidth: 2,
+    borderColor: BrandColors.accent,
+    gap: Spacing.sm,
+  },
+  lockIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.full,
+    backgroundColor: "#E6FFFA",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockedLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: BrandColors.accent,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   projectInfo: {
     flex: 1,

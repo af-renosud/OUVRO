@@ -22,6 +22,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
+import { useProjectLock } from "@/hooks/useProjectLock";
 
 type StatusFilter = "active" | "archived" | "all";
 
@@ -37,6 +38,7 @@ export default function ProjectsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
+  const { lockedProject } = useProjectLock();
 
   const { data: projects = [], isLoading, refetch, isRefetching } = useQuery<MappedProject[]>({
     queryKey: ["archidoc-projects"],
@@ -66,6 +68,11 @@ export default function ProjectsScreen() {
     >
       <View style={styles.projectThumbnail}>
         <Feather name="briefcase" size={32} color={BrandColors.primary} />
+        {lockedProject?.id === item.id ? (
+          <View style={styles.lockBadge}>
+            <Feather name="lock" size={10} color="#FFFFFF" />
+          </View>
+        ) : null}
       </View>
       <View style={styles.projectInfo}>
         <ThemedText style={styles.projectName}>{item.name}</ThemedText>
@@ -273,6 +280,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  lockBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: BrandColors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
   projectInfo: {
     flex: 1,

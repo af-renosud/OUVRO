@@ -20,6 +20,7 @@ import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import { fetchArchidocProjects, fetchProjectById, type MappedProject } from "@/lib/archidoc-api";
+import { useProjectLock } from "@/hooks/useProjectLock";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 const googleDriveLogo = require("../../attached_assets/google_drive_PNG4_1767526724030.png");
@@ -65,6 +66,8 @@ export default function ProjectAssetHubScreen() {
   const route = useRoute<Props["route"]>();
   const { projectId } = route.params;
   const [linksModalVisible, setLinksModalVisible] = useState(false);
+  const { lockedProject, isLocked, lockProject, unlockProject } = useProjectLock();
+  const isLockedToThis = isLocked && lockedProject?.id === projectId;
 
   // Fetch basic project list for fallback
   const { data: projects = [] } = useQuery<MappedProject[]>({
@@ -271,6 +274,56 @@ export default function ProjectAssetHubScreen() {
           </ThemedText>
         </View>
 
+        <Pressable
+          style={[
+            styles.lockButton,
+            isLockedToThis
+              ? { backgroundColor: BrandColors.accent }
+              : { backgroundColor: theme.backgroundSecondary },
+          ]}
+          onPress={() => {
+            if (isLockedToThis) {
+              Alert.alert(
+                "Unlock Project",
+                `Stop locking all captures to "${project.name}"?`,
+                [
+                  { text: "Keep Locked", style: "cancel" },
+                  { text: "Unlock", onPress: () => unlockProject() },
+                ]
+              );
+            } else if (isLocked) {
+              Alert.alert(
+                "Switch Locked Project?",
+                `Currently locked to "${lockedProject!.name}". Switch to "${project.name}"?`,
+                [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Switch", onPress: () => lockProject(project.id, project.name) },
+                ]
+              );
+            } else {
+              lockProject(project.id, project.name);
+            }
+          }}
+        >
+          <Feather
+            name={isLockedToThis ? "lock" : "unlock"}
+            size={16}
+            color={isLockedToThis ? "#FFFFFF" : theme.textSecondary}
+          />
+          <ThemedText
+            style={[
+              styles.lockButtonText,
+              { color: isLockedToThis ? "#FFFFFF" : theme.textSecondary },
+            ]}
+          >
+            {isLockedToThis
+              ? "Project Locked"
+              : isLocked
+              ? `Locked: ${lockedProject!.name}`
+              : "Lock to This Project"}
+          </ThemedText>
+        </Pressable>
+
         <View style={styles.buttonsGrid}>
           {assetButtons.map((button) => {
             const enabled = isButtonEnabled(button.id);
@@ -340,7 +393,22 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     alignItems: "center",
-    marginBottom: Spacing.md * 1.5,
+    marginBottom: Spacing.sm,
+  },
+  lockButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    marginBottom: Spacing.md,
+  },
+  lockButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
   projectName: {
     ...Typography.h2,

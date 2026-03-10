@@ -18,6 +18,7 @@ import { Card } from "@/components/Card";
 import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useProjectLock } from "@/hooks/useProjectLock";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import { AUDIT_PROMPTS, type AuditType } from "@/lib/audit-prompts";
 
@@ -37,6 +38,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { settings, saveSettings, pendingCount, isNetworkAvailable } = useOfflineSync();
+  const { lockedProject, isLocked, unlockProject } = useProjectLock();
   const [defaultLanguage, setDefaultLanguage] = useState<"english" | "french">("english");
   const [expandedAudit, setExpandedAudit] = useState<AuditType | null>(null);
   const [copiedAudit, setCopiedAudit] = useState<AuditType | null>(null);
@@ -219,6 +221,57 @@ export default function SettingsScreen() {
           <HeaderTitle />
         </View>
 
+        <View style={styles.settingsGroup}>
+          <ThemedText style={[styles.groupTitle, { color: theme.textSecondary }]}>
+            Active Project
+          </ThemedText>
+          <Card style={styles.groupCard}>
+            <View style={styles.settingsItem}>
+              <View style={[styles.iconContainer, isLocked ? { backgroundColor: "#E6FFFA" } : undefined]}>
+                <Feather
+                  name={isLocked ? "lock" : "unlock"}
+                  size={20}
+                  color={isLocked ? BrandColors.accent : theme.textTertiary}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.itemLabel}>
+                  {isLocked ? lockedProject!.name : "No project locked"}
+                </ThemedText>
+                {isLocked ? (
+                  <ThemedText style={{ fontSize: 12, color: theme.textTertiary, marginTop: 2 }}>
+                    All captures go to this project
+                  </ThemedText>
+                ) : (
+                  <ThemedText style={{ fontSize: 12, color: theme.textTertiary, marginTop: 2 }}>
+                    Lock a project from its hub screen
+                  </ThemedText>
+                )}
+              </View>
+              {isLocked ? (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.unlockButton,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  onPress={() => {
+                    Alert.alert(
+                      "Unlock Project",
+                      `Stop locking all captures to "${lockedProject!.name}"?`,
+                      [
+                        { text: "Keep Locked", style: "cancel" },
+                        { text: "Unlock", onPress: unlockProject },
+                      ]
+                    );
+                  }}
+                >
+                  <ThemedText style={styles.unlockButtonText}>Unlock</ThemedText>
+                </Pressable>
+              ) : null}
+            </View>
+          </Card>
+        </View>
+
         {settingsGroups.map((group, groupIndex) => (
           <View key={groupIndex} style={styles.settingsGroup}>
             <ThemedText style={[styles.groupTitle, { color: theme.textSecondary }]}>
@@ -372,6 +425,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  unlockButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    backgroundColor: "#FEE2E2",
+  },
+  unlockButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: BrandColors.error,
   },
   itemLabel: {
     ...Typography.body,

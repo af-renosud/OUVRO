@@ -14,6 +14,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfflineSyncProvider } from "@/hooks/useOfflineSync";
 import { OfflineTasksProvider } from "@/hooks/useOfflineTasks";
 import { OfflineAnnotationsProvider } from "@/hooks/useOfflineAnnotations";
+import { ProjectLockProvider } from "@/hooks/useProjectLock";
 
 const defaultHandler = (ErrorUtils as any).getGlobalHandler?.();
 (ErrorUtils as any).setGlobalHandler?.((error: Error, isFatal?: boolean) => {
@@ -27,6 +28,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
+        <ProjectLockProvider>
         <OfflineSyncProvider>
           <OfflineTasksProvider>
           <OfflineAnnotationsProvider>
@@ -43,6 +45,7 @@ export default function App() {
           </OfflineAnnotationsProvider>
           </OfflineTasksProvider>
         </OfflineSyncProvider>
+        </ProjectLockProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );
