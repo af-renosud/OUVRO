@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   FlatList,
@@ -7,7 +7,10 @@ import {
   RefreshControl,
   Pressable,
   ActivityIndicator,
+  Alert,
+  Platform,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -38,7 +41,7 @@ export default function ProjectsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
-  const { lockedProject } = useProjectLock();
+  const { lockedProject, isLocked, lockProject, unlockProject } = useProjectLock();
 
   const { data: projects = [], isLoading, refetch, isRefetching } = useQuery<MappedProject[]>({
     queryKey: ["archidoc-projects"],
@@ -61,19 +64,72 @@ export default function ProjectsScreen() {
     });
   }, [projects, searchQuery, statusFilter]);
 
-  const renderProject = ({ item }: { item: MappedProject }) => (
+  const handleToggleLock = useCallback((projectId: string, projectName: string) => {
+    const isLockedToThis = lockedProject?.id === projectId;
+    if (isLockedToThis) {
+      Alert.alert(
+        "Unlock Project",
+        `Stop locking captures to "${projectName}"?`,
+        [
+          { text: "Keep Locked", style: "cancel" },
+          {
+            text: "Unlock",
+            onPress: () => {
+              unlockProject();
+              if (Platform.OS !== "web") {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+            },
+          },
+        ]
+      );
+    } else if (isLocked) {
+      Alert.alert(
+        "Switch Project",
+        `Switch lock from "${lockedProject!.name}" to "${projectName}"?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Switch",
+            onPress: () => {
+              lockProject(projectId, projectName);
+              if (Platform.OS !== "web") {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      lockProject(projectId, projectName);
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    }
+  }, [lockedProject, isLocked, lockProject, unlockProject]);
+
+  const renderProject = ({ item }: { item: MappedProject }) => {
+    const isLockedToThis = lockedProject?.id === item.id;
+
+    return (
     <Card 
       style={styles.projectCard}
       onPress={() => navigation.navigate("ProjectAssetHub", { projectId: item.id })}
     >
-      <View style={styles.projectThumbnail}>
-        <Feather name="briefcase" size={32} color={BrandColors.primary} />
-        {lockedProject?.id === item.id ? (
-          <View style={styles.lockBadge}>
-            <Feather name="lock" size={10} color="#FFFFFF" />
-          </View>
-        ) : null}
-      </View>
+      <Pressable
+        style={[
+          styles.projectThumbnail,
+          isLockedToThis && styles.projectThumbnailLocked,
+        ]}
+        onPress={() => handleToggleLock(item.id, item.name)}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Feather
+          name={isLockedToThis ? "lock" : "unlock"}
+          size={28}
+          color={isLockedToThis ? "#FFFFFF" : BrandColors.primary}
+        />
+      </Pressable>
       <View style={styles.projectInfo}>
         <ThemedText style={styles.projectName}>{item.name}</ThemedText>
         {item.clientName ? (
@@ -96,7 +152,8 @@ export default function ProjectsScreen() {
       </View>
       <Feather name="chevron-right" size={24} color={theme.textTertiary} />
     </Card>
-  );
+    );
+  };
 
   const getStatusColor = (status: string | null) => {
     const s = status?.toUpperCase() || "";
@@ -281,18 +338,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  lockBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+  projectThumbnailLocked: {
     backgroundColor: BrandColors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
   },
   projectInfo: {
     flex: 1,
