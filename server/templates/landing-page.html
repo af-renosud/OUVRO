@@ -4,105 +4,275 @@
     <title>APP_NAME_PLACEHOLDER</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0B2545" />
     <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-      html, body {
-        height: 100%;
-      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; }
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #0B2545;
+        color: #ffffff;
+        min-height: 100vh;
+        padding: 0 0 40px;
+      }
+
+      .header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 48px 32px 32px;
+        text-align: center;
+      }
+      .logo {
+        max-width: 160px;
+        width: 100%;
+        height: auto;
+        margin-bottom: 20px;
+      }
+      h1 { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+      .subtitle { font-size: 14px; color: #8DA9C4; }
+
+      .status-row {
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #0B2545;
-        min-height: 100vh;
-        color: #ffffff;
+        gap: 8px;
+        margin-top: 12px;
+        font-size: 13px;
+        color: #10B981;
       }
-      .container {
-        text-align: center;
-        padding: 40px;
-        max-width: 480px;
+      .dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: #10B981;
+        flex-shrink: 0;
       }
-      .logo {
-        max-width: 220px;
-        width: 100%;
-        height: auto;
-        margin-bottom: 32px;
+
+      .card {
+        background: rgba(255,255,255,0.07);
+        border-radius: 16px;
+        margin: 0 16px 16px;
+        padding: 20px;
       }
-      h1 {
-        font-size: 24px;
+
+      .card-title {
+        font-size: 11px;
         font-weight: 700;
-        margin-bottom: 8px;
-      }
-      .subtitle {
-        font-size: 14px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
         color: #8DA9C4;
-        margin-bottom: 40px;
+        margin-bottom: 14px;
       }
+
       .open-btn {
-        display: inline-block;
-        background: #4299E1;
+        display: block;
+        background: #319795;
         color: #ffffff;
         text-decoration: none;
-        padding: 16px 40px;
+        padding: 16px;
         border-radius: 12px;
-        font-size: 18px;
+        font-size: 17px;
         font-weight: 600;
-        margin-bottom: 16px;
+        text-align: center;
         transition: background 0.2s;
+        margin-bottom: 12px;
       }
-      .open-btn:hover {
-        background: #3182CE;
-      }
-      .instructions {
-        font-size: 13px;
-        color: #8DA9C4;
-        margin-top: 24px;
-        line-height: 1.6;
-      }
-      .url-display {
-        background: rgba(255,255,255,0.1);
-        border-radius: 8px;
+      .open-btn:hover { background: #2C7A7B; }
+
+      .url-box {
+        background: rgba(0,0,0,0.3);
+        border-radius: 10px;
         padding: 12px 16px;
-        margin-top: 16px;
         font-family: monospace;
         font-size: 12px;
         word-break: break-all;
         color: #B8D4E3;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        cursor: pointer;
       }
-      .status {
-        display: inline-block;
-        background: #10B981;
-        width: 8px;
-        height: 8px;
+      .url-text { flex: 1; }
+      .copy-btn {
+        background: rgba(255,255,255,0.12);
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        font-size: 11px;
+        padding: 4px 10px;
+        cursor: pointer;
+        flex-shrink: 0;
+        font-family: inherit;
+      }
+      .copy-btn:active { background: rgba(255,255,255,0.22); }
+
+      .warning-card {
+        background: rgba(234, 82, 111, 0.12);
+        border: 1px solid rgba(234, 82, 111, 0.35);
+        border-radius: 16px;
+        margin: 0 16px 16px;
+        padding: 16px 20px;
+      }
+      .warning-card .card-title { color: #EA526F; }
+      .warning-text { font-size: 13px; color: #FCA5A5; line-height: 1.55; }
+      .warning-text strong { color: #fff; }
+
+      .steps { list-style: none; }
+      .steps li {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+      .steps li:last-child { margin-bottom: 0; }
+      .step-num {
+        width: 26px; height: 26px;
         border-radius: 50%;
-        margin-right: 6px;
-        vertical-align: middle;
-      }
-      .status-text {
+        background: #319795;
+        color: #fff;
         font-size: 13px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+      .step-text { font-size: 14px; line-height: 1.5; color: #D4E6F1; }
+      .step-text strong { color: #fff; }
+
+      .offline-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(16,185,129,0.15);
+        border: 1px solid rgba(16,185,129,0.3);
+        border-radius: 20px;
+        padding: 4px 12px;
+        font-size: 12px;
         color: #10B981;
-        margin-bottom: 32px;
+        margin-top: 10px;
+      }
+
+      .divider {
+        height: 1px;
+        background: rgba(255,255,255,0.08);
+        margin: 8px 16px 16px;
       }
     </style>
   </head>
   <body>
-    <div class="container">
+    <div class="header">
       <img src="/assets/images/ouvro-logo.png" alt="APP_NAME_PLACEHOLDER" class="logo" />
       <h1>APP_NAME_PLACEHOLDER</h1>
       <p class="subtitle">Mobile Companion for Architects</p>
-      <p class="status-text"><span class="status"></span> Server Online</p>
-      <a href="exps://EXPS_URL_PLACEHOLDER" class="open-btn">Open in Expo Go</a>
-      <div class="instructions">
-        <p>Open Expo Go on your phone and scan the QR code from Replit, or tap the button above from your mobile browser.</p>
-      </div>
-      <div class="url-display">
-        exps://EXPS_URL_PLACEHOLDER
+      <div class="status-row">
+        <span class="dot"></span>
+        Server Online
       </div>
     </div>
+
+    <div class="card">
+      <div class="card-title">Open App</div>
+      <a href="exps://EXPS_URL_PLACEHOLDER" class="open-btn">&#x1F4F1; Open in Expo Go</a>
+      <div class="url-box" id="urlBox" onclick="copyUrl()">
+        <span class="url-text" id="urlText">exps://EXPS_URL_PLACEHOLDER</span>
+        <button class="copy-btn" id="copyBtn">Copy</button>
+      </div>
+    </div>
+
+    <div class="warning-card">
+      <div class="card-title">&#x26A0;&#xFE0F; Important — Bookmark This Page</div>
+      <p class="warning-text">
+        Always open OUVRO from <strong>this address</strong> — never use the
+        <code>*.replit.dev</code> link. The <code>.replit.dev</code> address only
+        works while the developer's workspace is open and will show a 503 error
+        on building sites.
+      </p>
+      <div class="url-box" style="margin-top:12px;" onclick="copyPageUrl()">
+        <span class="url-text" id="pageUrlText">BASE_URL_PLACEHOLDER</span>
+        <button class="copy-btn" id="copyPageBtn">Copy</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">How to Use Offline on Site</div>
+      <ul class="steps">
+        <li>
+          <div class="step-num">1</div>
+          <div class="step-text">
+            <strong>Before arriving on site</strong>, open Expo Go and load the app while
+            you have good WiFi. The app bundle is saved to your device.
+          </div>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <div class="step-text">
+            On site with poor or no signal, <strong>open Expo Go directly</strong> —
+            the app loads from the saved bundle on your phone without needing network.
+          </div>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <div class="step-text">
+            All photos, annotations and observations <strong>save locally</strong>
+            the moment you capture them. Nothing is lost if signal drops.
+          </div>
+        </li>
+        <li>
+          <div class="step-num">4</div>
+          <div class="step-text">
+            When signal returns, the app <strong>automatically uploads</strong>
+            everything in the background. Check the Queue screen for status.
+          </div>
+        </li>
+      </ul>
+      <div class="offline-badge">
+        <span>&#x2714;</span> All captures are offline-first
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="card">
+      <div class="card-title">Quick Setup</div>
+      <ul class="steps">
+        <li>
+          <div class="step-num" style="background:#4299E1;">1</div>
+          <div class="step-text">Install <strong>Expo Go</strong> from the App Store or Google Play</div>
+        </li>
+        <li>
+          <div class="step-num" style="background:#4299E1;">2</div>
+          <div class="step-text">Open this page on your phone and tap <strong>Open in Expo Go</strong></div>
+        </li>
+        <li>
+          <div class="step-num" style="background:#4299E1;">3</div>
+          <div class="step-text"><strong>Bookmark this page</strong> so you can reload the app any time</div>
+        </li>
+      </ul>
+    </div>
+
+    <script>
+      function copyUrl() {
+        const text = document.getElementById('urlText').textContent;
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = document.getElementById('copyBtn');
+          btn.textContent = 'Copied!';
+          setTimeout(() => btn.textContent = 'Copy', 2000);
+        });
+      }
+      function copyPageUrl() {
+        const text = document.getElementById('pageUrlText').textContent;
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = document.getElementById('copyPageBtn');
+          btn.textContent = 'Copied!';
+          setTimeout(() => btn.textContent = 'Copy', 2000);
+        });
+      }
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      }
+    </script>
   </body>
 </html>

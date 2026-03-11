@@ -194,8 +194,49 @@ function configureExpoAndLanding(app: express.Application) {
     next();
   });
 
-  app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
-  app.use(express.static(path.resolve(process.cwd(), "static-build")));
+  app.get("/sw.js", (_req, res) => {
+    const swPath = path.resolve(process.cwd(), "server", "templates", "sw.js");
+    if (fs.existsSync(swPath)) {
+      res.setHeader("Content-Type", "application/javascript");
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.sendFile(swPath);
+    } else {
+      res.status(404).send("Not found");
+    }
+  });
+
+  app.use(
+    "/assets",
+    express.static(path.resolve(process.cwd(), "assets"), {
+      maxAge: "365d",
+      immutable: true,
+    }),
+  );
+
+  app.use(
+    express.static(path.resolve(process.cwd(), "static-build"), {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith("manifest.json")) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        } else if (
+          filePath.endsWith(".bundle") ||
+          filePath.includes("/bundles/")
+        ) {
+          res.setHeader(
+            "Cache-Control",
+            "public, max-age=31536000, immutable",
+          );
+        } else if (filePath.match(/\.[0-9a-f]{8,}\./)) {
+          res.setHeader(
+            "Cache-Control",
+            "public, max-age=31536000, immutable",
+          );
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=86400");
+        }
+      },
+    }),
+  );
 
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }
