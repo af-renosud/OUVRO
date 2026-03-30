@@ -2,6 +2,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import { DurableQueueStore } from "./durable-queue-store";
 import { getApiUrl } from "./query-client";
+import { submitDQECapture } from "./archidoc-api";
 import type { PendingDQECapture, DQEQualityTier } from "./archidoc-types";
 
 type DQEEventType =
@@ -11,7 +12,8 @@ type DQEEventType =
   | "captureSynced"
   | "captureFailed";
 
-type DQEEventListener = (event: DQEEventType, data?: any) => void;
+type DQEEventPayload = { localId?: string; error?: string } | undefined;
+type DQEEventListener = (event: DQEEventType, data?: DQEEventPayload) => void;
 
 class OfflineDQEService {
   private captures: Map<string, PendingDQECapture> = new Map();
@@ -87,7 +89,7 @@ class OfflineDQEService {
     return this.store.subscribe(listener as (event: string, data?: any) => void);
   }
 
-  private emit(event: DQEEventType, data?: any): void {
+  private emit(event: DQEEventType, data?: DQEEventPayload): void {
     this.store.emit(event, data);
   }
 
@@ -113,8 +115,8 @@ class OfflineDQEService {
     let videoFileSize: number | undefined;
     try {
       const fileInfo = await FileSystem.getInfoAsync(durableUri);
-      if (fileInfo.exists && "size" in fileInfo) {
-        videoFileSize = (fileInfo as any).size;
+      if (fileInfo.exists && !fileInfo.isDirectory) {
+        videoFileSize = fileInfo.size;
       }
     } catch (e) {
       if (__DEV__) console.warn("[OfflineDQE] Could not get file size:", e);
@@ -268,63 +270,74 @@ class OfflineDQEService {
         throw new Error(`Storage upload failed with status ${uploadResult?.status ?? "unknown"}`);
       }
 
-      if (__DEV__) console.log("[OfflineDQE] Video uploaded, submitting DQE metadata...");
+      if (__DEV__) console.log("[OfflineDQE] Video uploaded, fetching download URL...");
 
-      const submitRes = await fetch(new URL("/api/dqe/submit", baseUrl).href, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
+      let videoUrl: string | undefined;
+      try {
+        const dlUrlRes = await fetch(new URL("/api/archidoc/download-url", baseUrl).href, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ objectPath }),
+        });
+        if (dlUrlRes.ok) {
+          const dlData = await dlUrlRes.json();
+          videoUrl = dlData.downloadURL || dlData.downloadUrl || dlData.url;
+        }
+      } catch (dlErr: unknown) {
+        if (__DEV__) console.warn("[OfflineDQE] Could not get download URL:", dlErr);
+      }
+
+      if (__DEV__) console.log("[OfflineDQE] Submitting DQE metadata...");
+
+      try {
+        const submitResult = await submitDQECapture(baseUrl, {
           localId: capture.localId,
           projectId: capture.projectId,
           projectName: capture.projectName,
           videoObjectPath: objectPath,
+          videoUrl,
           architectNotes: capture.architectNotes,
           videoDuration: capture.videoDuration,
           qualityTier: capture.qualityTier,
           capturedAt: capture.capturedAt,
           capturedBy: capture.capturedBy,
-        }),
-      });
+        });
 
-      if (submitRes.ok) {
-        const data = await submitRes.json();
         capture.syncState = "complete";
-        capture.remoteId = data.archidocDQEId;
+        capture.remoteId = submitResult.archidocDQEId;
         capture.syncCompletedAt = new Date().toISOString();
         capture.modifiedAt = new Date().toISOString();
         await this.persist();
         this.emit("captureSynced", { localId });
         this.emit("stateChanged");
-        if (__DEV__) console.log("[OfflineDQE] Capture synced:", localId, "remoteId:", data.archidocDQEId);
-      } else if (submitRes.status === 400) {
-        const data = await submitRes.json().catch(() => ({ error: "Bad request" }));
-        capture.syncState = "failed";
-        capture.lastSyncError = data.error || "Invalid DQE submission data";
-        capture.modifiedAt = new Date().toISOString();
-        await this.persist();
-        this.emit("captureFailed", { localId, error: capture.lastSyncError });
-        this.emit("stateChanged");
-        if (__DEV__) console.warn("[OfflineDQE] Capture failed (400):", localId, capture.lastSyncError);
-      } else {
-        let errorMsg = `Server error (${submitRes.status})`;
-        try {
-          const data = await submitRes.json();
-          errorMsg = data.error || errorMsg;
-        } catch {}
-        capture.syncState = "pending";
-        capture.retryCount += 1;
-        capture.lastSyncError = errorMsg;
-        capture.modifiedAt = new Date().toISOString();
-        await this.persist();
-        this.emit("captureUpdated", { localId });
-        this.emit("stateChanged");
-        if (__DEV__) console.warn("[OfflineDQE] Capture retry:", localId, errorMsg);
+        if (__DEV__) console.log("[OfflineDQE] Capture synced:", localId, "remoteId:", submitResult.archidocDQEId);
+      } catch (submitErr: unknown) {
+        const errMsg = submitErr instanceof Error ? submitErr.message : "Submit failed";
+        const is400 = errMsg.includes("400");
+        if (is400) {
+          capture.syncState = "failed";
+          capture.lastSyncError = errMsg;
+          capture.modifiedAt = new Date().toISOString();
+          await this.persist();
+          this.emit("captureFailed", { localId, error: capture.lastSyncError });
+          this.emit("stateChanged");
+          if (__DEV__) console.warn("[OfflineDQE] Capture failed (400):", localId, errMsg);
+        } else {
+          capture.syncState = "pending";
+          capture.retryCount += 1;
+          capture.lastSyncError = errMsg;
+          capture.modifiedAt = new Date().toISOString();
+          await this.persist();
+          this.emit("captureUpdated", { localId });
+          this.emit("stateChanged");
+          if (__DEV__) console.warn("[OfflineDQE] Capture retry:", localId, errMsg);
+        }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       capture.syncState = "pending";
       capture.retryCount += 1;
-      capture.lastSyncError = error?.message || "Network error";
+      capture.lastSyncError = error instanceof Error ? error.message : "Network error";
       capture.modifiedAt = new Date().toISOString();
       await this.persist();
       this.emit("captureUpdated", { localId });

@@ -34,6 +34,31 @@ archidocRouter.post("/archidoc/upload-url", async (req: Request, res: Response) 
   }
 });
 
+archidocRouter.post("/archidoc/download-url", async (req: Request, res: Response) => {
+  try {
+    const { objectPath } = req.body;
+    if (!objectPath) {
+      return res.status(400).json({ error: "objectPath is required" });
+    }
+    const archidocApiUrl = res.locals.archidocApiUrl;
+
+    const result = await archidocJsonPost(
+      `${archidocApiUrl}/api/field-observations/download-url`,
+      { objectPath },
+      "Download URL request"
+    );
+
+    if ("error" in result) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    res.json(result.data);
+  } catch (error) {
+    const { status, message } = formatServerError(error, "Download URL request");
+    res.status(status).json({ error: message });
+  }
+});
+
 archidocRouter.post("/archidoc/proxy-upload", async (req: Request, res: Response) => {
   try {
     const { observationId, fileName, contentType, assetType, fileBase64 } = req.body;

@@ -46,7 +46,7 @@ export default function DQECaptureReviewScreen() {
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isLandscapePad = (Platform as any).isPad === true && width > height;
+  const isLandscapePad = (Platform as { isPad?: boolean }).isPad === true && width > height;
 
   const player = useVideoPlayer(videoUri, (p) => {
     p.loop = true;
@@ -91,8 +91,8 @@ export default function DQECaptureReviewScreen() {
           },
         ]
       );
-    } catch (error: any) {
-      console.error("[DQEReview] Submit error:", error);
+    } catch (error: unknown) {
+      if (__DEV__) console.error("[DQEReview] Submit error:", error);
       Alert.alert("Erreur", "Impossible de sauvegarder la capture DQE. Veuillez réessayer.");
     } finally {
       setIsSubmitting(false);

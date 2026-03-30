@@ -305,3 +305,42 @@ export function getUniqueLotCodes(items: DQEItem[]): string[] {
 export function filterItemsByLot(items: DQEItem[], lotCode: string): DQEItem[] {
   return items.filter((item) => item.lotCode === lotCode);
 }
+
+export type DQECaptureSubmitParams = {
+  localId: string;
+  projectId: string;
+  projectName: string;
+  videoObjectPath: string;
+  videoUrl?: string;
+  architectNotes?: string;
+  videoDuration: number;
+  qualityTier: import("./archidoc-types").DQEQualityTier;
+  capturedAt: string;
+  capturedBy?: string;
+};
+
+export type DQECaptureSubmitResult = {
+  success: boolean;
+  localId: string;
+  archidocDQEId?: string;
+  transcription?: string;
+  error?: string;
+};
+
+export async function submitDQECapture(
+  apiBaseUrl: string,
+  params: DQECaptureSubmitParams
+): Promise<DQECaptureSubmitResult> {
+  const url = new URL("/api/dqe/submit", apiBaseUrl).href;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(params),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || `DQE submit failed: ${response.status}`);
+  }
+  return data as DQECaptureSubmitResult;
+}

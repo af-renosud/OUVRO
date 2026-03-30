@@ -7,14 +7,18 @@ import {
   Text,
   StatusBar,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
+import type { CameraRecordingOptions } from "expo-camera";
 import { Feather } from "@expo/vector-icons";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import type { DQEQualityTier } from "@/lib/archidoc-types";
+
+const DQE_QUALITY_STORAGE_KEY = "ouvro_dqe_quality_tier";
 
 const DQE_AMBER = "#D97706";
 const DQE_AMBER_LIGHT = "#FEF3C7";
@@ -26,7 +30,7 @@ type QualityConfig = {
   sublabel: string;
   videoQuality: "720p" | "1080p" | "2160p";
   videoBitrate: number;
-  codec: "h264" | "hvc1";
+  codec: "avc1" | "hvc1";
   ipadOnly: boolean;
 };
 
@@ -37,7 +41,7 @@ const QUALITY_CONFIGS: QualityConfig[] = [
     sublabel: "720p H.264",
     videoQuality: "720p",
     videoBitrate: 4_000_000,
-    codec: "h264",
+    codec: "avc1",
     ipadOnly: false,
   },
   {
@@ -96,13 +100,18 @@ export default function DQECaptureScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const durationRef = useRef(0);
 
-  const isPad = (Platform as any).isPad === true;
+  const isPad = (Platform as { isPad?: boolean }).isPad === true;
   const availableConfigs = QUALITY_CONFIGS.filter(
     (q) => !q.ipadOnly || isPad
   );
   const currentConfig = availableConfigs.find((q) => q.tier === qualityTier) || availableConfigs[1] || availableConfigs[0];
 
   useEffect(() => {
+    AsyncStorage.getItem(DQE_QUALITY_STORAGE_KEY).then((stored) => {
+      if (stored === "efficient" || stored === "standard" || (stored === "maximum" && isPad)) {
+        setQualityTier(stored);
+      }
+    }).catch(() => {});
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
@@ -126,6 +135,7 @@ export default function DQECaptureScreen() {
     if (isRecording) return;
     setQualityTier(tier);
     setCameraKey((k) => k + 1);
+    AsyncStorage.setItem(DQE_QUALITY_STORAGE_KEY, tier).catch(() => {});
   };
 
   const handleCycleLens = () => {
@@ -147,12 +157,10 @@ export default function DQECaptureScreen() {
     }, 1000);
 
     try {
-      const recordOptions: any = {
+      const recordOptions: CameraRecordingOptions = {
         maxDuration: MAX_DURATION_SECONDS,
+        ...(Platform.OS === "ios" ? { codec: currentConfig.codec } : {}),
       };
-      if (Platform.OS === "ios") {
-        recordOptions.codec = currentConfig.codec;
-      }
 
       const video = await cameraRef.current.recordAsync(recordOptions);
 
@@ -256,7 +264,7 @@ export default function DQECaptureScreen() {
 
       {isRecording ? (
         <View style={[styles.progressBar, { top: 0 }]}>
-          <View style={[styles.progressFill, { width: `${progressFraction * 100}%` as any }]} />
+          <View style={[styles.progressFill, { width: `${progressFraction * 100}%` }]} />
         </View>
       ) : null}
 
