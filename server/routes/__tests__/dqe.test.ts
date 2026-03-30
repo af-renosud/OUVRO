@@ -1,310 +1,237 @@
 /**
  * DQE Submit Route — Integration Tests
  *
- * Run with Node 22 built-in test runner (no extra dependencies):
- *   node --experimental-strip-types --test server/routes/__tests__/dqe.test.ts
+ * Mounts the real dqeRouter via createDQERouter() with injected mock dependencies.
+ * All external I/O (Archidoc helpers, Gemini transcription) is replaced with
+ * in-process mocks so these tests run without network access or API keys.
  *
- * These tests mock all external I/O (Archidoc, Gemini) and exercise the route
- * logic for the happy path and retry-triggering failure paths.
+ * Run with tsx (handles TypeScript module resolution):
+ *   npx tsx --test server/routes/__tests__/dqe.test.ts
  */
 
-import { describe, it, before, after, mock } from "node:test";
+import { describe, it, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import express, { type Express } from "express";
+import express from "express";
+import http from "node:http";
+import { createDQERouter } from "../dqe.ts";
+import type { DQERouterDeps } from "../dqe.ts";
+import type { Request, Response, NextFunction } from "express";
 
-// ── Mock helpers ────────────────────────────────────────────────────────────
+// ── Shared mutable state controls all mock behaviour between tests ────────────
 
-type MockConfig = {
-  resolveDownloadUrl: () => { ok: boolean; data?: Record<string, unknown>; error?: string };
-  downloadVideo: () => { ok: boolean; size?: number; content?: ArrayBuffer };
-  geminiUpload: () => { uri: string | undefined };
-  geminiGenerate: () => { text: string };
-  archidocDQEPost: () => { ok: boolean; data?: Record<string, unknown>; error?: string };
+const state = {
+  downloadUrlOk: true,
+  downloadUrlError: "Object not found in storage",
+  downloadUrl: "https://cdn.test/video.mp4",
+
+  videoSizeBytes: 50 * 1024 * 1024, // 50 MB — well under 2 GB limit
+  transcribeOk: true,
+  transcribeText: "Fissure au niveau du linteau, lot B3, entreprise Dupont.",
+
+  dqePostOk: true,
+  dqePostError: "Archidoc DQE engine unavailable",
+  dqeRemoteId: "dqe-archidoc-001",
 };
 
-function buildTestApp(config: MockConfig): Express {
+function resetState() {
+  state.downloadUrlOk = true;
+  state.videoSizeBytes = 50 * 1024 * 1024;
+  state.transcribeOk = true;
+  state.dqePostOk = true;
+}
+
+// ── Mock dep implementations ──────────────────────────────────────────────────
+
+const mockDeps: DQERouterDeps = {
+  validateArchidocUrl: (
+    _req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
+    res.locals.archidocApiUrl = "https://archidoc.test";
+    next();
+  },
+
+  fetchVideoDownloadUrl: async (_apiUrl: string, _objectPath: string) => {
+    if (!state.downloadUrlOk) {
+      throw new Error(state.downloadUrlError);
+    }
+    return state.downloadUrl;
+  },
+
+  transcribeVideo: async (_videoUrl: string) => {
+    if (!state.transcribeOk) {
+      if (state.videoSizeBytes > 2 * 1024 * 1024 * 1024) {
+        throw new Error(
+          `Video too large for transcription: ${Math.round(state.videoSizeBytes / 1024 / 1024)} MB exceeds 2 GB limit`
+        );
+      }
+      throw new Error("Gemini Files API returned no URI for uploaded video");
+    }
+    return state.transcribeText;
+  },
+
+  submitToArchidoc: async (_apiUrl: string, _payload: Record<string, unknown>) => {
+    if (!state.dqePostOk) {
+      return { error: state.dqePostError, status: 503 };
+    }
+    return { data: { id: state.dqeRemoteId } };
+  },
+};
+
+// ── Test app builder ──────────────────────────────────────────────────────────
+
+function buildApp() {
   const app = express();
   app.use(express.json());
-
-  app.post("/api/dqe/submit", (req, res) => {
-    const {
-      localId,
-      projectId,
-      videoObjectPath,
-      projectName,
-      videoDuration,
-      qualityTier,
-      capturedAt,
-      capturedBy,
-      architectNotes,
-    } = req.body as Record<string, unknown>;
-
-    if (!localId) {
-      return res.status(400).json({ success: false, error: "Missing required field: localId", localId: "unknown" });
-    }
-    if (!projectId) {
-      return res.status(400).json({ success: false, error: "Missing required field: projectId", localId });
-    }
-    if (!videoObjectPath) {
-      return res.status(400).json({ success: false, error: "Missing required field: videoObjectPath", localId });
-    }
-
-    const urlResult = config.resolveDownloadUrl();
-    if (!urlResult.ok) {
-      return res.status(502).json({ success: false, error: `Video URL unavailable: ${urlResult.error}`, localId });
-    }
-
-    const videoResult = config.downloadVideo();
-    if (!videoResult.ok) {
-      return res.status(502).json({ success: false, error: "Video download failed with status 500", localId });
-    }
-    const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024;
-    const byteSize = videoResult.size ?? 0;
-    if (byteSize > MAX_VIDEO_BYTES) {
-      return res.status(502).json({
-        success: false,
-        error: `Video too large for transcription: ${Math.round(byteSize / 1024 / 1024)} MB exceeds 2 GB limit`,
-        localId,
-      });
-    }
-
-    const uploadResult = config.geminiUpload();
-    if (!uploadResult.uri) {
-      return res.status(502).json({ success: false, error: "Transcription failed: Gemini Files API returned no URI", localId });
-    }
-
-    const generateResult = config.geminiGenerate();
-    const transcription = generateResult.text.trim();
-
-    const dqeResult = config.archidocDQEPost();
-    if (!dqeResult.ok) {
-      return res.status(502).json({ success: false, error: dqeResult.error ?? "Archidoc DQE error", localId });
-    }
-
-    const archidocDQEId = (dqeResult.data?.id as string) ?? `dqe_archidoc_${Date.now()}`;
-    return res.status(200).json({ success: true, localId, archidocDQEId, transcription });
-  });
-
+  app.use("/api", createDQERouter(mockDeps));
   return app;
 }
 
-// ── Happy path ───────────────────────────────────────────────────────────────
+async function withServer(fn: (port: number) => Promise<void>) {
+  const server = http.createServer(buildApp());
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const port = (server.address() as { port: number }).port;
+  try {
+    await fn(port);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}
 
-describe("POST /api/dqe/submit — happy path", () => {
-  let app: Express;
+async function post(port: number, body: unknown) {
+  const res = await fetch(`http://localhost:${port}/api/dqe/submit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, data: await res.json() as Record<string, unknown> };
+}
 
-  before(() => {
-    app = buildTestApp({
-      resolveDownloadUrl: () => ({ ok: true, data: { downloadURL: "https://cdn.example.com/video.mp4" } }),
-      downloadVideo: () => ({ ok: true, size: 50 * 1024 * 1024 }),
-      geminiUpload: () => ({ uri: "https://generativelanguage.googleapis.com/v1beta/files/abc123" }),
-      geminiGenerate: () => ({ text: "Fissure au niveau du linteau, lot B3, entreprise Dupont." }),
-      archidocDQEPost: () => ({ ok: true, data: { id: "dqe-archidoc-001" } }),
+const VALID_BODY = {
+  localId: "local-001",
+  projectId: "proj-123",
+  projectName: "Résidence Lumière",
+  videoObjectPath: "ouvro/dqe/local-001.mp4",
+  videoDuration: 45,
+  qualityTier: "standard",
+  capturedAt: new Date().toISOString(),
+  capturedBy: "Architect Lemaire",
+};
+
+// ── Permanent failures → 400 (queue marks as "failed", no retry) ─────────────
+
+describe("POST /api/dqe/submit — permanent failures → 400", () => {
+  beforeEach(() => resetState());
+
+  it("returns 400 when localId is absent", async () => {
+    await withServer(async (port) => {
+      const { status, data } = await post(port, { projectId: "p1", videoObjectPath: "path" });
+      assert.equal(status, 400);
+      assert.equal(data.success, false);
+      assert.ok((data.error as string).includes("localId"), `expected 'localId' in error, got: ${data.error}`);
     });
   });
 
-  it("returns 200 with archidocDQEId and transcription on valid submission", async () => {
-    const body = {
-      localId: "local-001",
-      projectId: "proj-123",
-      projectName: "Résidence Lumière",
-      videoObjectPath: "ouvro/dqe/local-001.mp4",
-      videoDuration: 45,
-      qualityTier: "standard",
-      capturedAt: new Date().toISOString(),
-      capturedBy: "Architect Lemaire",
-    };
-
-    const { default: http } = await import("node:http");
-    const server = http.createServer(app);
-    await new Promise<void>((resolve) => server.listen(0, resolve));
-    const port = (server.address() as { port: number }).port;
-
-    const response = await fetch(`http://localhost:${port}/api/dqe/submit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+  it("returns 400 when projectId is absent", async () => {
+    await withServer(async (port) => {
+      const { status, data } = await post(port, { localId: "local-x", videoObjectPath: "path" });
+      assert.equal(status, 400);
+      assert.equal(data.success, false);
+      assert.ok((data.error as string).includes("projectId"), `expected 'projectId' in error, got: ${data.error}`);
     });
-    const result = await response.json() as Record<string, unknown>;
+  });
 
-    assert.equal(response.status, 200);
-    assert.equal(result.success, true);
-    assert.equal(result.localId, "local-001");
-    assert.equal(result.archidocDQEId, "dqe-archidoc-001");
-    assert.ok((result.transcription as string).length > 0, "transcription should be non-empty");
-
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+  it("returns 400 when videoObjectPath is absent", async () => {
+    await withServer(async (port) => {
+      const { status, data } = await post(port, { localId: "local-x", projectId: "p1" });
+      assert.equal(status, 400);
+      assert.equal(data.success, false);
+      assert.ok((data.error as string).includes("videoObjectPath"), `expected 'videoObjectPath' in error, got: ${data.error}`);
+    });
   });
 });
 
-// ── Failure paths (retry-triggering: should return 5xx) ──────────────────────
+// ── Happy path → 200 ──────────────────────────────────────────────────────────
 
-describe("POST /api/dqe/submit — transient failures → 502 (queue retries)", () => {
-  it("returns 502 when Archidoc download-url fails (URL unavailable)", async () => {
-    const app = buildTestApp({
-      resolveDownloadUrl: () => ({ ok: false, error: "Object not found in storage" }),
-      downloadVideo: () => ({ ok: true, size: 10 * 1024 * 1024 }),
-      geminiUpload: () => ({ uri: "https://example.com/file" }),
-      geminiGenerate: () => ({ text: "test" }),
-      archidocDQEPost: () => ({ ok: true, data: { id: "dqe-001" } }),
+describe("POST /api/dqe/submit — happy path → 200", () => {
+  before(() => resetState());
+
+  it("returns 200 with archidocDQEId and non-empty transcription", async () => {
+    await withServer(async (port) => {
+      const { status, data } = await post(port, { ...VALID_BODY, localId: "local-happy" });
+
+      assert.equal(status, 200, `expected 200, got ${status}: ${data.error}`);
+      assert.equal(data.success, true);
+      assert.equal(data.localId, "local-happy");
+      assert.equal(data.archidocDQEId, state.dqeRemoteId);
+      assert.ok(
+        typeof data.transcription === "string" && data.transcription.length > 0,
+        "transcription must be a non-empty string"
+      );
+      assert.equal(data.transcription, state.transcribeText);
     });
-
-    const { default: http } = await import("node:http");
-    const server = http.createServer(app);
-    await new Promise<void>((resolve) => server.listen(0, resolve));
-    const port = (server.address() as { port: number }).port;
-
-    const response = await fetch(`http://localhost:${port}/api/dqe/submit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        localId: "local-002",
-        projectId: "proj-456",
-        projectName: "Immeuble Central",
-        videoObjectPath: "ouvro/dqe/local-002.mp4",
-        videoDuration: 60,
-        qualityTier: "efficient",
-        capturedAt: new Date().toISOString(),
-        capturedBy: "Architect Martin",
-      }),
-    });
-    const result = await response.json() as Record<string, unknown>;
-
-    assert.equal(response.status, 502);
-    assert.equal(result.success, false);
-    assert.ok((result.error as string).includes("Video URL unavailable"));
-
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  });
-
-  it("returns 502 when Gemini returns no file URI (transcription failure)", async () => {
-    const app = buildTestApp({
-      resolveDownloadUrl: () => ({ ok: true, data: { downloadURL: "https://cdn.example.com/v2.mp4" } }),
-      downloadVideo: () => ({ ok: true, size: 20 * 1024 * 1024 }),
-      geminiUpload: () => ({ uri: undefined }),
-      geminiGenerate: () => ({ text: "" }),
-      archidocDQEPost: () => ({ ok: true, data: { id: "dqe-002" } }),
-    });
-
-    const { default: http } = await import("node:http");
-    const server = http.createServer(app);
-    await new Promise<void>((resolve) => server.listen(0, resolve));
-    const port = (server.address() as { port: number }).port;
-
-    const response = await fetch(`http://localhost:${port}/api/dqe/submit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        localId: "local-003",
-        projectId: "proj-789",
-        projectName: "Tour Nord",
-        videoObjectPath: "ouvro/dqe/local-003.mp4",
-        videoDuration: 120,
-        qualityTier: "maximum",
-        capturedAt: new Date().toISOString(),
-        capturedBy: "Architect Dubois",
-      }),
-    });
-    const result = await response.json() as Record<string, unknown>;
-
-    assert.equal(response.status, 502);
-    assert.equal(result.success, false);
-    assert.ok((result.error as string).includes("Transcription failed"));
-
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  });
-
-  it("returns 502 when video exceeds 2 GB size limit", async () => {
-    const oversizeBytes = 2.1 * 1024 * 1024 * 1024;
-    const app = buildTestApp({
-      resolveDownloadUrl: () => ({ ok: true, data: { downloadURL: "https://cdn.example.com/huge.mp4" } }),
-      downloadVideo: () => ({ ok: true, size: oversizeBytes }),
-      geminiUpload: () => ({ uri: "https://example.com/file" }),
-      geminiGenerate: () => ({ text: "test" }),
-      archidocDQEPost: () => ({ ok: true, data: { id: "dqe-003" } }),
-    });
-
-    const { default: http } = await import("node:http");
-    const server = http.createServer(app);
-    await new Promise<void>((resolve) => server.listen(0, resolve));
-    const port = (server.address() as { port: number }).port;
-
-    const response = await fetch(`http://localhost:${port}/api/dqe/submit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        localId: "local-004",
-        projectId: "proj-999",
-        projectName: "Pavillon Est",
-        videoObjectPath: "ouvro/dqe/local-004.mp4",
-        videoDuration: 180,
-        qualityTier: "maximum",
-        capturedAt: new Date().toISOString(),
-        capturedBy: "Architect Blanc",
-      }),
-    });
-    const result = await response.json() as Record<string, unknown>;
-
-    assert.equal(response.status, 502);
-    assert.equal(result.success, false);
-    assert.ok((result.error as string).includes("too large"));
-
-    await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 });
 
-// ── Permanent failure paths (400 → queue marks as "failed", no retry) ────────
+// ── Transient failures → 502 (queue retries automatically) ───────────────────
 
-describe("POST /api/dqe/submit — permanent failures → 400 (no retry)", () => {
-  let app: Express;
+describe("POST /api/dqe/submit — transient failures → 502", () => {
+  beforeEach(() => resetState());
 
-  before(() => {
-    app = buildTestApp({
-      resolveDownloadUrl: () => ({ ok: true, data: { downloadURL: "https://cdn.example.com/v.mp4" } }),
-      downloadVideo: () => ({ ok: true, size: 10 * 1024 * 1024 }),
-      geminiUpload: () => ({ uri: "https://example.com/file" }),
-      geminiGenerate: () => ({ text: "Narration text" }),
-      archidocDQEPost: () => ({ ok: true, data: { id: "dqe-ok" } }),
+  it("returns 502 when Archidoc download-url resolution fails (network error)", async () => {
+    state.downloadUrlOk = false;
+
+    await withServer(async (port) => {
+      const { status, data } = await post(port, { ...VALID_BODY, localId: "local-urlFail" });
+      assert.equal(status, 502, `expected 502, got ${status}`);
+      assert.equal(data.success, false);
+      assert.ok(
+        (data.error as string).toLowerCase().includes("url") ||
+        (data.error as string).toLowerCase().includes("unavailable"),
+        `expected URL error, got: ${data.error}`
+      );
     });
   });
 
-  it("returns 400 when localId is missing", async () => {
-    const { default: http } = await import("node:http");
-    const server = http.createServer(app);
-    await new Promise<void>((resolve) => server.listen(0, resolve));
-    const port = (server.address() as { port: number }).port;
+  it("returns 502 when Gemini transcription fails (upload error)", async () => {
+    state.transcribeOk = false;
+    state.videoSizeBytes = 50 * 1024 * 1024;
 
-    const response = await fetch(`http://localhost:${port}/api/dqe/submit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: "p1", videoObjectPath: "path" }),
+    await withServer(async (port) => {
+      const { status, data } = await post(port, { ...VALID_BODY, localId: "local-transcribeFail" });
+      assert.equal(status, 502, `expected 502, got ${status}`);
+      assert.equal(data.success, false);
+      assert.ok(
+        (data.error as string).toLowerCase().includes("transcription"),
+        `expected transcription error, got: ${data.error}`
+      );
     });
-    const result = await response.json() as Record<string, unknown>;
-
-    assert.equal(response.status, 400);
-    assert.equal(result.success, false);
-    assert.ok((result.error as string).includes("localId"));
-
-    await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
-  it("returns 400 when videoObjectPath is missing", async () => {
-    const { default: http } = await import("node:http");
-    const server = http.createServer(app);
-    await new Promise<void>((resolve) => server.listen(0, resolve));
-    const port = (server.address() as { port: number }).port;
+  it("returns 502 when video exceeds the 2 GB size guardrail", async () => {
+    state.transcribeOk = false;
+    state.videoSizeBytes = 2.1 * 1024 * 1024 * 1024;
 
-    const response = await fetch(`http://localhost:${port}/api/dqe/submit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ localId: "local-x", projectId: "p1" }),
+    await withServer(async (port) => {
+      const { status, data } = await post(port, { ...VALID_BODY, localId: "local-tooBig" });
+      assert.equal(status, 502, `expected 502, got ${status}`);
+      assert.equal(data.success, false);
+      assert.ok(
+        (data.error as string).toLowerCase().includes("large") ||
+        (data.error as string).toLowerCase().includes("transcription"),
+        `expected size error, got: ${data.error}`
+      );
     });
-    const result = await response.json() as Record<string, unknown>;
+  });
 
-    assert.equal(response.status, 400);
-    assert.equal(result.success, false);
-    assert.ok((result.error as string).includes("videoObjectPath"));
+  it("returns 502 when Archidoc DQE intake endpoint returns an error", async () => {
+    state.dqePostOk = false;
 
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await withServer(async (port) => {
+      const { status, data } = await post(port, { ...VALID_BODY, localId: "local-dqeFail" });
+      assert.equal(status, 502, `expected 502, got ${status}`);
+      assert.equal(data.success, false);
+    });
   });
 });
