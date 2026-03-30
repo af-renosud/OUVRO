@@ -3,6 +3,7 @@ import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import { DurableQueueStore } from "./durable-queue-store";
 import { getApiUrl } from "./query-client";
 import { submitDQECapture, DQESubmitError } from "./archidoc-api";
+import { mimeTypeFromUri } from "./video-utils";
 import type { PendingDQECapture, DQEQualityTier } from "./archidoc-types";
 
 type DQEEventType =
@@ -234,13 +235,15 @@ class OfflineDQEService {
 
       const baseUrl = getApiUrl();
 
+      const videoMimeType = mimeTypeFromUri(capture.videoUri);
+
       const urlRes = await fetch(new URL("/api/archidoc/upload-url", baseUrl).href, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           fileName: capture.videoFileName,
-          contentType: "video/mp4",
+          contentType: videoMimeType,
           assetType: "video",
         }),
       });
@@ -260,7 +263,7 @@ class OfflineDQEService {
         {
           httpMethod: "PUT",
           uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-          headers: { "Content-Type": "video/mp4" },
+          headers: { "Content-Type": videoMimeType },
         }
       );
 
@@ -278,6 +281,7 @@ class OfflineDQEService {
           projectId: capture.projectId,
           projectName: capture.projectName,
           videoObjectPath: objectPath,
+          videoMimeType,
           architectNotes: capture.architectNotes,
           videoDuration: capture.videoDuration,
           qualityTier: capture.qualityTier,

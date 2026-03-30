@@ -70,12 +70,16 @@ function formatDuration(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-function getLensLabel(lensName: string): string {
-  const lower = lensName.toLowerCase();
-  if (lower.includes("ultra")) return ".5x";
-  if (lower.includes("telephoto") || lower.includes("dual_camera") || lower.includes("dual camera")) return "2x";
-  return "1x";
+function isUltraWideLens(name: string): boolean {
+  const l = name.toLowerCase();
+  return l.includes("ultra");
 }
+
+function isWideLens(name: string): boolean {
+  const l = name.toLowerCase();
+  return l.includes("wide") && !l.includes("ultra");
+}
+
 
 export default function DQECaptureScreen() {
   const insets = useSafeAreaInsets();
@@ -90,7 +94,8 @@ export default function DQECaptureScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [torchEnabled, setTorchEnabled] = useState(false);
-  const [availableLenses, setAvailableLenses] = useState<string[]>([]);
+  const [wideLens, setWideLens] = useState<string | undefined>(undefined);
+  const [ultraWideLens, setUltraWideLens] = useState<string | undefined>(undefined);
   const [selectedLens, setSelectedLens] = useState<string | undefined>(undefined);
   const [cameraKey, setCameraKey] = useState(0);
 
@@ -120,10 +125,12 @@ export default function DQECaptureScreen() {
       cameraRef.current
         ?.getAvailableLensesAsync?.()
         .then((lenses) => {
-          if (lenses && lenses.length > 1) {
-            setAvailableLenses(lenses);
-            setSelectedLens(lenses.find((l) => l.toLowerCase().includes("wide") && !l.toLowerCase().includes("ultra")) || lenses[0]);
-          }
+          if (!lenses) return;
+          const wide = lenses.find(isWideLens);
+          const ultraWide = lenses.find(isUltraWideLens);
+          setWideLens(wide);
+          setUltraWideLens(ultraWide);
+          setSelectedLens(wide ?? ultraWide);
         })
         .catch(() => {});
     }
@@ -136,11 +143,11 @@ export default function DQECaptureScreen() {
     AsyncStorage.setItem(DQE_QUALITY_STORAGE_KEY, tier).catch(() => {});
   };
 
-  const handleCycleLens = () => {
-    if (availableLenses.length <= 1 || isRecording) return;
-    const currentIdx = availableLenses.indexOf(selectedLens || "");
-    const nextIdx = (currentIdx + 1) % availableLenses.length;
-    setSelectedLens(availableLenses[nextIdx]);
+  const canToggleLens = wideLens !== undefined && ultraWideLens !== undefined;
+
+  const handleToggleLens = () => {
+    if (!canToggleLens || isRecording) return;
+    setSelectedLens((cur) => (cur === wideLens ? ultraWideLens : wideLens));
   };
 
   const handleStartRecording = async () => {
@@ -312,14 +319,14 @@ export default function DQECaptureScreen() {
           <Feather name={torchEnabled ? "zap" : "zap-off"} size={22} color="#FFFFFF" />
         </Pressable>
 
-        {availableLenses.length > 1 ? (
+        {canToggleLens ? (
           <Pressable
             style={[styles.sideButton, isRecording && styles.sideButtonDisabled]}
-            onPress={handleCycleLens}
+            onPress={handleToggleLens}
             disabled={isRecording}
           >
             <Text style={styles.lensLabel}>
-              {selectedLens ? getLensLabel(selectedLens) : "1x"}
+              {selectedLens && isUltraWideLens(selectedLens) ? ".5x" : "1x"}
             </Text>
           </Pressable>
         ) : null}

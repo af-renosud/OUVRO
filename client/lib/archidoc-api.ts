@@ -311,6 +311,7 @@ export type DQECaptureSubmitParams = {
   projectId: string;
   projectName: string;
   videoObjectPath: string;
+  videoMimeType?: string;
   architectNotes?: string;
   videoDuration: number;
   qualityTier: import("./archidoc-types").DQEQualityTier;
