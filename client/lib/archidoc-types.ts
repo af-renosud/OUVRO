@@ -212,3 +212,29 @@ export const ANNOTATION_COLORS = [
   { key: "green", hex: "#00AA00", label: "Approuvé" },
   { key: "black", hex: "#000000", label: "Général" },
 ];
+
+export type DQEQualityTier = "efficient" | "standard" | "maximum";
+
+export type DQESyncState = "pending" | "uploading" | "complete" | "failed";
+
+export interface PendingDQECapture {
+  localId: string;
+  projectId: string;
+  projectName: string;
+  videoUri: string;
+  videoFileName: string;
+  videoDuration: number;
+  videoFileSize?: number;
+  qualityTier: DQEQualityTier;
+  architectNotes?: string;
+  capturedAt: string;
+  capturedBy: string;
+  syncState: DQESyncState;
+  remoteId?: string;
+  createdAt: string;
+  modifiedAt: string;
+  lastSyncAttempt?: string;
+  lastSyncError?: string;
+  syncCompletedAt?: string;
+  retryCount: number;
+}

@@ -55,7 +55,7 @@ export default function CaptureModalScreen() {
     return project;
   };
 
-  const handleButtonPress = (type: "photo" | "video" | "audio" | "action") => {
+  const handleButtonPress = (type: "photo" | "video" | "audio" | "action" | "dqe") => {
     const project = getProject();
     if (!project) return;
 
@@ -72,10 +72,13 @@ export default function CaptureModalScreen() {
       case "action":
         navigation.navigate("TaskCapture", { projectId: project.id, projectName: project.name });
         break;
+      case "dqe":
+        navigation.navigate("DQECapture", { projectId: project.id, projectName: project.name });
+        break;
     }
   };
 
-  const buttonSize = Math.min((height - 200) / 4, 120);
+  const buttonSize = Math.min((height - 200) / 5, 100);
 
   return (
     <View style={styles.container}>
@@ -132,57 +135,75 @@ export default function CaptureModalScreen() {
 
         <View style={styles.captureArea}>
           <View style={styles.captureGrid}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.captureCardWrapper,
-                pressed ? styles.pressed : null,
-              ]}
-              onPress={() => handleButtonPress("photo")}
-            >
-              <View style={[styles.iconCircle, { width: buttonSize, height: buttonSize }]}>
-                <Feather name="camera" size={buttonSize * 0.38} color={BrandColors.accent} />
-              </View>
-              <ThemedText style={styles.captureLabel}>Photo</ThemedText>
-            </Pressable>
+            <View style={styles.captureRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.captureCardWrapper,
+                  pressed ? styles.pressed : null,
+                ]}
+                onPress={() => handleButtonPress("photo")}
+              >
+                <View style={[styles.iconCircle, { width: buttonSize, height: buttonSize }]}>
+                  <Feather name="camera" size={buttonSize * 0.38} color={BrandColors.accent} />
+                </View>
+                <ThemedText style={styles.captureLabel}>Photo</ThemedText>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.captureCardWrapper,
+                  pressed ? styles.pressed : null,
+                ]}
+                onPress={() => handleButtonPress("video")}
+              >
+                <View style={[styles.iconCircle, { width: buttonSize, height: buttonSize }]}>
+                  <Feather name="video" size={buttonSize * 0.38} color={BrandColors.accent} />
+                </View>
+                <ThemedText style={styles.captureLabel}>Video</ThemedText>
+              </Pressable>
+            </View>
 
             <Pressable
               style={({ pressed }) => [
-                styles.captureCardWrapper,
+                styles.dqeCardWrapper,
                 pressed ? styles.pressed : null,
               ]}
-              onPress={() => handleButtonPress("video")}
+              onPress={() => handleButtonPress("dqe")}
             >
-              <View style={[styles.iconCircle, { width: buttonSize, height: buttonSize }]}>
-                <Feather name="video" size={buttonSize * 0.38} color={BrandColors.accent} />
+              <View style={[styles.dqeIconCircle, { width: buttonSize * 1.15, height: buttonSize * 1.15 }]}>
+                <Feather name="film" size={buttonSize * 0.42} color="#D97706" />
               </View>
-              <ThemedText style={styles.captureLabel}>Video</ThemedText>
+              <ThemedText style={styles.captureLabel}>DQE</ThemedText>
+              <ThemedText style={styles.dqeSubLabel}>Capture Vidéo</ThemedText>
             </Pressable>
 
-            <Pressable
-              style={({ pressed }) => [
-                styles.captureCardWrapper,
-                pressed ? styles.pressed : null,
-              ]}
-              onPress={() => handleButtonPress("audio")}
-            >
-              <View style={[styles.iconCircle, { width: buttonSize, height: buttonSize }]}>
-                <Feather name="mic" size={buttonSize * 0.38} color={BrandColors.accent} />
-              </View>
-              <ThemedText style={styles.captureLabel}>Audio</ThemedText>
-            </Pressable>
+            <View style={styles.captureRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.captureCardWrapper,
+                  pressed ? styles.pressed : null,
+                ]}
+                onPress={() => handleButtonPress("audio")}
+              >
+                <View style={[styles.iconCircle, { width: buttonSize, height: buttonSize }]}>
+                  <Feather name="mic" size={buttonSize * 0.38} color={BrandColors.accent} />
+                </View>
+                <ThemedText style={styles.captureLabel}>Audio</ThemedText>
+              </Pressable>
 
-            <Pressable
-              style={({ pressed }) => [
-                styles.captureCardWrapper,
-                pressed ? styles.pressed : null,
-              ]}
-              onPress={() => handleButtonPress("action")}
-            >
-              <View style={[styles.iconCircle, styles.actionIconCircle, { width: buttonSize, height: buttonSize }]}>
-                <Feather name="clipboard" size={buttonSize * 0.38} color={BrandColors.accent} />
-              </View>
-              <ThemedText style={styles.captureLabel}>Action</ThemedText>
-            </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.captureCardWrapper,
+                  pressed ? styles.pressed : null,
+                ]}
+                onPress={() => handleButtonPress("action")}
+              >
+                <View style={[styles.iconCircle, styles.actionIconCircle, { width: buttonSize, height: buttonSize }]}>
+                  <Feather name="clipboard" size={buttonSize * 0.38} color={BrandColors.accent} />
+                </View>
+                <ThemedText style={styles.captureLabel}>Action</ThemedText>
+              </Pressable>
+            </View>
           </View>
         </View>
       </View>
@@ -275,16 +296,24 @@ const styles = StyleSheet.create({
     marginTop: -Spacing.xl * 2,
   },
   captureGrid: {
+    flexDirection: "column",
+    alignItems: "center",
+    gap: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+  },
+  captureRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.xl,
-    paddingHorizontal: Spacing.md,
   },
   captureCardWrapper: {
     alignItems: "center",
-    width: "40%",
+    width: 100,
+    gap: Spacing.sm,
+  },
+  dqeCardWrapper: {
+    alignItems: "center",
     gap: Spacing.sm,
   },
   captureLabel: {
@@ -303,6 +332,21 @@ const styles = StyleSheet.create({
   },
   actionIconCircle: {
     borderColor: "#DC2626",
+  },
+  dqeIconCircle: {
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFBEB",
+    borderWidth: 3.5,
+    borderColor: "#D97706",
+  },
+  dqeSubLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#D97706",
+    textAlign: "center",
+    marginTop: -4,
   },
   pressed: {
     opacity: 0.9,

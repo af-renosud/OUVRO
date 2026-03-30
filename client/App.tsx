@@ -15,6 +15,7 @@ import { OfflineSyncProvider } from "@/hooks/useOfflineSync";
 import { OfflineTasksProvider } from "@/hooks/useOfflineTasks";
 import { OfflineAnnotationsProvider } from "@/hooks/useOfflineAnnotations";
 import { ProjectLockProvider } from "@/hooks/useProjectLock";
+import { DQESyncProvider } from "@/hooks/useDQESync";
 
 const defaultHandler = (ErrorUtils as any).getGlobalHandler?.();
 (ErrorUtils as any).setGlobalHandler?.((error: Error, isFatal?: boolean) => {
@@ -32,6 +33,7 @@ export default function App() {
         <OfflineSyncProvider>
           <OfflineTasksProvider>
           <OfflineAnnotationsProvider>
+          <DQESyncProvider>
           <SafeAreaProvider>
             <GestureHandlerRootView style={styles.root}>
               <KeyboardProvider>
@@ -42,6 +44,7 @@ export default function App() {
               </KeyboardProvider>
             </GestureHandlerRootView>
           </SafeAreaProvider>
+          </DQESyncProvider>
           </OfflineAnnotationsProvider>
           </OfflineTasksProvider>
         </OfflineSyncProvider>

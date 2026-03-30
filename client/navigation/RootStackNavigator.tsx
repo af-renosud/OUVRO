@@ -18,9 +18,11 @@ import PlansScreen from "@/screens/PlansScreen";
 import DocsScreen from "@/screens/DocsScreen";
 import FichesScreen from "@/screens/FichesScreen";
 import TaskCaptureScreen from "@/screens/TaskCaptureScreen";
+import DQECaptureScreen from "@/screens/DQECaptureScreen";
+import DQECaptureReviewScreen from "@/screens/DQECaptureReviewScreen";
 
 import { useScreenOptions } from "@/hooks/useScreenOptions";
-import type { FileCategory, ProjectFile, ProjectLink, DQEItem } from "@/lib/archidoc-api";
+import type { FileCategory, ProjectFile, ProjectLink, DQEItem, DQEQualityTier } from "@/lib/archidoc-api";
 
 export type ShareObservation = {
   id: number;
@@ -38,6 +40,14 @@ export type RootStackParamList = {
   VideoCapture: { projectId: string; projectName?: string };
   AudioCapture: { projectId: string; projectName?: string };
   TaskCapture: { projectId: string; projectName: string };
+  DQECapture: { projectId: string; projectName: string };
+  DQECaptureReview: {
+    projectId: string;
+    projectName: string;
+    videoUri: string;
+    videoDuration: number;
+    qualityTier: DQEQualityTier;
+  };
 
   ObservationDetails: { projectId: string; projectName?: string; mediaItems?: MediaItem[] };
   ProjectDetail: { projectId: string };
@@ -94,6 +104,16 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="TaskCapture"
         component={TaskCaptureScreen}
+        options={{ presentation: "fullScreenModal", headerShown: false }}
+      />
+      <Stack.Screen
+        name="DQECapture"
+        component={DQECaptureScreen}
+        options={{ presentation: "fullScreenModal", headerShown: false }}
+      />
+      <Stack.Screen
+        name="DQECaptureReview"
+        component={DQECaptureReviewScreen}
         options={{ presentation: "fullScreenModal", headerShown: false }}
       />
       <Stack.Screen

@@ -7,6 +7,7 @@ import { observationsRouter } from "./routes/observations";
 import { aiRouter } from "./routes/ai";
 import { archidocRouter } from "./routes/archidoc";
 import { syncRouter } from "./routes/sync";
+import { dqeRouter } from "./routes/dqe";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   registerChatRoutes(app);
@@ -21,6 +22,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api", aiRouter);
   app.use("/api", archidocRouter);
   app.use("/api", syncRouter);
+  app.use("/api", dqeRouter);
 
   const httpServer = createServer(app);
   return httpServer;

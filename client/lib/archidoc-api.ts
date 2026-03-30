@@ -14,6 +14,9 @@ export type {
   Annotation,
   AnnotatedFile,
   ArchidocFileResponse,
+  DQEQualityTier,
+  DQESyncState,
+  PendingDQECapture,
 } from "./archidoc-types";
 
 export {
