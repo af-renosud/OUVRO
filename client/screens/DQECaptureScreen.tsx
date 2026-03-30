@@ -21,8 +21,6 @@ import type { DQEQualityTier } from "@/lib/archidoc-types";
 const DQE_QUALITY_STORAGE_KEY = "ouvro_dqe_quality_tier";
 
 const DQE_AMBER = "#D97706";
-const DQE_AMBER_LIGHT = "#FEF3C7";
-const DQE_AMBER_DARK = "#92400E";
 
 type QualityConfig = {
   tier: DQEQualityTier;
@@ -240,7 +238,6 @@ export default function DQECaptureScreen() {
     );
   }
 
-  const timeRemaining = MAX_DURATION_SECONDS - recordingDuration;
   const progressFraction = recordingDuration / MAX_DURATION_SECONDS;
 
   return (

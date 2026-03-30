@@ -2,7 +2,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import { DurableQueueStore } from "./durable-queue-store";
 import { getApiUrl } from "./query-client";
-import { submitDQECapture } from "./archidoc-api";
+import { submitDQECapture, DQESubmitError } from "./archidoc-api";
 import type { PendingDQECapture, DQEQualityTier } from "./archidoc-types";
 
 type DQEEventType =
@@ -295,15 +295,15 @@ class OfflineDQEService {
         if (__DEV__) console.log("[OfflineDQE] Capture synced:", localId, "remoteId:", submitResult.archidocDQEId);
       } catch (submitErr: unknown) {
         const errMsg = submitErr instanceof Error ? submitErr.message : "Submit failed";
-        const is400 = errMsg.includes("400");
-        if (is400) {
+        const isPermanent = submitErr instanceof DQESubmitError && submitErr.isPermanent;
+        if (isPermanent) {
           capture.syncState = "failed";
           capture.lastSyncError = errMsg;
           capture.modifiedAt = new Date().toISOString();
           await this.persist();
           this.emit("captureFailed", { localId, error: capture.lastSyncError });
           this.emit("stateChanged");
-          if (__DEV__) console.warn("[OfflineDQE] Capture failed (400):", localId, errMsg);
+          if (__DEV__) console.warn("[OfflineDQE] Capture permanently failed:", localId, errMsg);
         } else {
           capture.syncState = "pending";
           capture.retryCount += 1;
@@ -312,7 +312,7 @@ class OfflineDQEService {
           await this.persist();
           this.emit("captureUpdated", { localId });
           this.emit("stateChanged");
-          if (__DEV__) console.warn("[OfflineDQE] Capture retry:", localId, errMsg);
+          if (__DEV__) console.warn("[OfflineDQE] Capture transient error, will retry:", localId, errMsg);
         }
       }
     } catch (error: unknown) {

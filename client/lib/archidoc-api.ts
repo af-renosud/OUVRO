@@ -326,6 +326,20 @@ export type DQECaptureSubmitResult = {
   error?: string;
 };
 
+export class DQESubmitError extends Error {
+  constructor(
+    message: string,
+    public readonly httpStatus: number
+  ) {
+    super(message);
+    this.name = "DQESubmitError";
+  }
+
+  get isPermanent(): boolean {
+    return this.httpStatus >= 400 && this.httpStatus < 500;
+  }
+}
+
 export async function submitDQECapture(
   apiBaseUrl: string,
   params: DQECaptureSubmitParams
@@ -337,9 +351,12 @@ export async function submitDQECapture(
     credentials: "include",
     body: JSON.stringify(params),
   });
-  const data = await response.json();
+  const data = (await response.json()) as { error?: string } & DQECaptureSubmitResult;
   if (!response.ok) {
-    throw new Error(data.error || `DQE submit failed: ${response.status}`);
+    throw new DQESubmitError(
+      data.error || `DQE submit failed with status ${response.status}`,
+      response.status
+    );
   }
-  return data as DQECaptureSubmitResult;
+  return data;
 }

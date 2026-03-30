@@ -26,14 +26,12 @@ const DQESyncContext = createContext<DQESyncContextValue | null>(null);
 export function DQESyncProvider({ children }: { children: ReactNode }) {
   const [captures, setCaptures] = useState<PendingDQECapture[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     const init = async () => {
       await offlineDQEService.initialize();
       setCaptures(offlineDQEService.getCaptures());
       setIsSyncing(offlineDQEService.getIsSyncing());
-      setIsInitialized(true);
     };
     init();
 

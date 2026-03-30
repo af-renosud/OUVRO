@@ -18,11 +18,9 @@ import { Feather } from "@expo/vector-icons";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
-import { offlineDQEService } from "@/lib/offline-dqe";
+import { useDQESync } from "@/hooks/useDQESync";
 
 const DQE_AMBER = "#D97706";
-const DQE_AMBER_BG = "#FFFBEB";
-const DQE_AMBER_BORDER = "#FDE68A";
 
 const QUALITY_LABELS: Record<string, string> = {
   efficient: "Efficace — 720p H.264",
@@ -45,6 +43,7 @@ export default function DQECaptureReviewScreen() {
 
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { addCapture } = useDQESync();
 
   const isLandscapePad = (Platform as { isPad?: boolean }).isPad === true && width > height;
 
@@ -71,8 +70,7 @@ export default function DQECaptureReviewScreen() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      await offlineDQEService.initialize();
-      await offlineDQEService.addCapture({
+      await addCapture({
         projectId,
         projectName,
         videoUri,
