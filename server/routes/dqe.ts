@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import {
   requireArchidocUrl,
   archidocJsonPost,
+  archidocFetch,
   formatServerError,
 } from "./archidoc-helpers";
 
@@ -16,18 +17,35 @@ const ai = new GoogleGenAI({
 
 export const dqeRouter = Router();
 
-async function transcribeVideoNarration(videoUrl: string): Promise<string> {
-  let videoBuffer: ArrayBuffer;
-  try {
-    const videoResponse = await fetch(videoUrl, { signal: AbortSignal.timeout(60000) });
-    if (!videoResponse.ok) {
-      throw new Error(`Failed to download video for transcription: ${videoResponse.status}`);
-    }
-    videoBuffer = await videoResponse.arrayBuffer();
-  } catch (fetchErr: unknown) {
-    throw new Error(`Video download failed: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`);
+async function resolveVideoDownloadUrl(
+  archidocApiUrl: string,
+  videoObjectPath: string
+): Promise<string> {
+  const result = await archidocJsonPost(
+    `${archidocApiUrl}/api/field-observations/download-url`,
+    { objectPath: videoObjectPath },
+    "Resolve video download URL",
+    15000
+  );
+  if ("error" in result) {
+    throw new Error(`Could not resolve download URL for objectPath: ${result.error}`);
   }
+  const url: unknown =
+    (result.data as Record<string, unknown>).downloadURL ||
+    (result.data as Record<string, unknown>).downloadUrl ||
+    (result.data as Record<string, unknown>).url;
+  if (typeof url !== "string" || !url) {
+    throw new Error("Archidoc download-url response missing URL field");
+  }
+  return url;
+}
 
+async function transcribeVideoNarration(videoDownloadUrl: string): Promise<string> {
+  const videoResponse = await archidocFetch(videoDownloadUrl, { timeout: 90000 });
+  if (!videoResponse.ok) {
+    throw new Error(`Video download failed with status ${videoResponse.status}`);
+  }
+  const videoBuffer = await videoResponse.arrayBuffer();
   const videoBlob = new Blob([videoBuffer], { type: "video/mp4" });
 
   const uploadedFile = await ai.files.upload({
@@ -63,13 +81,11 @@ async function transcribeVideoNarration(videoUrl: string): Promise<string> {
   return response.text?.trim() || "";
 }
 
-type DQESubmitPayload = {
+type DQESubmitBody = {
   localId: string;
   projectId: string;
   projectName: string;
   videoObjectPath: string;
-  videoUrl?: string;
-  transcription?: string;
   architectNotes?: string;
   videoDuration: number;
   qualityTier: string;
@@ -85,13 +101,12 @@ dqeRouter.post("/dqe/submit", requireArchidocUrl, async (req: Request, res: Resp
       projectId,
       projectName,
       videoObjectPath,
-      videoUrl,
       architectNotes,
       videoDuration,
       qualityTier,
       capturedAt,
       capturedBy,
-    } = req.body as DQESubmitPayload;
+    } = req.body as DQESubmitBody;
 
     console.log(`[DQE Submit] localId=${localId} — received DQE submission`);
 
@@ -105,61 +120,65 @@ dqeRouter.post("/dqe/submit", requireArchidocUrl, async (req: Request, res: Resp
       return res.status(400).json({ success: false, error: "Missing required field: videoObjectPath", localId });
     }
 
-    let transcription: string | undefined;
-    if (videoUrl) {
-      try {
-        console.log(`[DQE Submit] localId=${localId} — transcribing video narration via Gemini`);
-        transcription = await transcribeVideoNarration(videoUrl);
-        console.log(`[DQE Submit] localId=${localId} — transcription complete (${transcription.length} chars)`);
-      } catch (transcribeErr: unknown) {
-        console.warn(
-          `[DQE Submit] localId=${localId} — transcription failed (non-blocking):`,
-          transcribeErr instanceof Error ? transcribeErr.message : transcribeErr
-        );
-      }
-    } else {
-      console.log(`[DQE Submit] localId=${localId} — no videoUrl provided, skipping transcription`);
+    const archidocApiUrl: string = res.locals.archidocApiUrl;
+
+    console.log(`[DQE Submit] localId=${localId} — resolving video download URL from Archidoc`);
+    let videoUrl: string;
+    try {
+      videoUrl = await resolveVideoDownloadUrl(archidocApiUrl, videoObjectPath);
+    } catch (urlErr: unknown) {
+      const msg = urlErr instanceof Error ? urlErr.message : "Failed to resolve video URL";
+      console.warn(`[DQE Submit] localId=${localId} — download URL resolution failed: ${msg}`);
+      return res.status(502).json({ success: false, error: `Video URL unavailable: ${msg}`, localId });
     }
 
-    const archidocApiUrl = res.locals.archidocApiUrl;
+    console.log(`[DQE Submit] localId=${localId} — transcribing video narration via Gemini`);
+    let transcription: string;
+    try {
+      transcription = await transcribeVideoNarration(videoUrl);
+      console.log(`[DQE Submit] localId=${localId} — transcription complete (${transcription.length} chars)`);
+    } catch (transcribeErr: unknown) {
+      const msg = transcribeErr instanceof Error ? transcribeErr.message : "Transcription failed";
+      console.warn(`[DQE Submit] localId=${localId} — transcription failed: ${msg}`);
+      return res.status(502).json({ success: false, error: `Transcription failed: ${msg}`, localId });
+    }
 
-    const payload: DQESubmitPayload & { transcription?: string } = {
+    const archidocPayload = {
       localId,
       projectId,
       projectName: projectName || "Unknown Project",
       videoObjectPath,
       videoUrl,
+      transcription,
       videoDuration: videoDuration || 0,
       qualityTier: qualityTier || "standard",
       capturedAt: capturedAt || new Date().toISOString(),
       capturedBy: capturedBy || "OUVRO Field User",
+      ...(architectNotes ? { architectNotes } : {}),
     };
-
-    if (architectNotes) payload.architectNotes = architectNotes;
-    if (transcription) payload.transcription = transcription;
 
     console.log(`[DQE Submit] localId=${localId} — posting to ArchiDoc DQE for project ${projectId}`);
 
     const result = await archidocJsonPost(
       `${archidocApiUrl}/api/ouvro/dqe/capture`,
-      payload,
+      archidocPayload,
       "Submit DQE capture to ArchiDoc",
       60000
     );
 
     if ("error" in result) {
-      console.warn(`[DQE Submit] localId=${localId} — ArchiDoc returned error: ${result.error} (status ${result.status})`);
+      console.warn(`[DQE Submit] localId=${localId} — ArchiDoc error: ${result.error} (${result.status})`);
       return res.status(502).json({ success: false, error: result.error, localId });
     }
 
-    const archidocDQEId =
-      result.data?.id ||
-      result.data?.dqeId ||
-      result.data?.dqe_id ||
-      result.data?.captureId ||
+    const archidocDQEId: string =
+      (result.data as Record<string, unknown>)?.id as string ||
+      (result.data as Record<string, unknown>)?.dqeId as string ||
+      (result.data as Record<string, unknown>)?.dqe_id as string ||
+      (result.data as Record<string, unknown>)?.captureId as string ||
       `dqe_archidoc_${Date.now()}`;
 
-    console.log(`[DQE Submit] localId=${localId} — successfully submitted, archidocDQEId=${archidocDQEId}`);
+    console.log(`[DQE Submit] localId=${localId} — submitted OK, archidocDQEId=${archidocDQEId}`);
 
     return res.status(200).json({ success: true, localId, archidocDQEId, transcription });
   } catch (error: unknown) {

@@ -270,25 +270,7 @@ class OfflineDQEService {
         throw new Error(`Storage upload failed with status ${uploadResult?.status ?? "unknown"}`);
       }
 
-      if (__DEV__) console.log("[OfflineDQE] Video uploaded, fetching download URL...");
-
-      let videoUrl: string | undefined;
-      try {
-        const dlUrlRes = await fetch(new URL("/api/archidoc/download-url", baseUrl).href, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ objectPath }),
-        });
-        if (dlUrlRes.ok) {
-          const dlData = await dlUrlRes.json();
-          videoUrl = dlData.downloadURL || dlData.downloadUrl || dlData.url;
-        }
-      } catch (dlErr: unknown) {
-        if (__DEV__) console.warn("[OfflineDQE] Could not get download URL:", dlErr);
-      }
-
-      if (__DEV__) console.log("[OfflineDQE] Submitting DQE metadata...");
+      if (__DEV__) console.log("[OfflineDQE] Video uploaded, submitting DQE metadata...");
 
       try {
         const submitResult = await submitDQECapture(baseUrl, {
@@ -296,7 +278,6 @@ class OfflineDQEService {
           projectId: capture.projectId,
           projectName: capture.projectName,
           videoObjectPath: objectPath,
-          videoUrl,
           architectNotes: capture.architectNotes,
           videoDuration: capture.videoDuration,
           qualityTier: capture.qualityTier,
