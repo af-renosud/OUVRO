@@ -36,12 +36,15 @@ export function DQESyncProvider({ children }: { children: ReactNode }) {
     };
     init();
 
-    const unsubscribe = offlineDQEService.subscribe((event) => {
+    const unsubscribe = offlineDQEService.subscribe((_event) => {
       setCaptures(offlineDQEService.getCaptures());
       setIsSyncing(offlineDQEService.getIsSyncing());
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      offlineDQEService.destroy();
+    };
   }, []);
 
   const addCapture = useCallback(async (params: {
