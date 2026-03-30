@@ -61,7 +61,7 @@ export default function DQECaptureReviewScreen() {
         {
           text: "Abandonner",
           style: "destructive",
-          onPress: () => navigation.navigate("CaptureModal"),
+          onPress: () => navigation.popToTop(),
         },
       ]
     );
@@ -85,7 +85,7 @@ export default function DQECaptureReviewScreen() {
         [
           {
             text: "OK",
-            onPress: () => navigation.navigate("CaptureModal"),
+            onPress: () => navigation.popToTop(),
           },
         ]
       );

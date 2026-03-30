@@ -84,6 +84,7 @@ class OfflineDQEService {
       clearInterval(this.autoRetryTimer);
       this.autoRetryTimer = null;
     }
+    this.isInitialized = false;
   }
 
   subscribe(listener: DQEEventListener): () => void {
