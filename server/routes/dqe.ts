@@ -123,6 +123,10 @@ async function defaultSubmitToArchidoc(
   );
 }
 
+// DQE submit payload contract:
+// Client sends `videoObjectPath` (object store key); server resolves the presigned
+// download URL internally via Archidoc's /api/field-observations/download-url
+// endpoint so that no arbitrary URL is accepted from untrusted input (SSRF prevention).
 type DQESubmitBody = {
   localId: string;
   projectId: string;
