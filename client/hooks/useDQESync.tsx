@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
+import NetInfo from "@react-native-community/netinfo";
 import { offlineDQEService } from "@/lib/offline-dqe";
 import type { PendingDQECapture, DQEQualityTier } from "@/lib/archidoc-types";
 
@@ -52,7 +53,15 @@ export function DQESyncProvider({ children }: { children: ReactNode }) {
     architectNotes?: string;
     capturedBy?: string;
   }) => {
-    return offlineDQEService.addCapture(params);
+    const localId = await offlineDQEService.addCapture(params);
+    // Trigger immediate sync when online so the user sees progress quickly
+    const netState = await NetInfo.fetch();
+    if (netState.isConnected) {
+      offlineDQEService.syncAllPending().catch(() => {
+        // Background sync — ignore errors (queue will retry automatically)
+      });
+    }
+    return localId;
   }, []);
 
   const removeCapture = useCallback(async (localId: string) => {

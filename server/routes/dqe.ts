@@ -40,12 +40,29 @@ async function resolveVideoDownloadUrl(
   return url;
 }
 
+const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB ceiling (covers 3-min 4K hvc1)
+const TRANSCRIPTION_DOWNLOAD_TIMEOUT_MS = 120_000; // 2 min to download large video
+
 async function transcribeVideoNarration(videoDownloadUrl: string): Promise<string> {
-  const videoResponse = await archidocFetch(videoDownloadUrl, { timeout: 90000 });
+  const videoResponse = await archidocFetch(videoDownloadUrl, { timeout: TRANSCRIPTION_DOWNLOAD_TIMEOUT_MS });
   if (!videoResponse.ok) {
     throw new Error(`Video download failed with status ${videoResponse.status}`);
   }
+  const contentLength = videoResponse.headers.get("content-length");
+  if (contentLength !== null) {
+    const byteSize = parseInt(contentLength, 10);
+    if (!isNaN(byteSize) && byteSize > MAX_VIDEO_BYTES) {
+      throw new Error(
+        `Video too large for transcription: ${(byteSize / (1024 * 1024)).toFixed(0)} MB exceeds ${(MAX_VIDEO_BYTES / (1024 * 1024 * 1024)).toFixed(0)} GB limit`
+      );
+    }
+  }
   const videoBuffer = await videoResponse.arrayBuffer();
+  if (videoBuffer.byteLength > MAX_VIDEO_BYTES) {
+    throw new Error(
+      `Video too large for transcription: ${(videoBuffer.byteLength / (1024 * 1024)).toFixed(0)} MB exceeds ${(MAX_VIDEO_BYTES / (1024 * 1024 * 1024)).toFixed(0)} GB limit`
+    );
+  }
   const videoBlob = new Blob([videoBuffer], { type: "video/mp4" });
 
   const uploadedFile = await ai.files.upload({
