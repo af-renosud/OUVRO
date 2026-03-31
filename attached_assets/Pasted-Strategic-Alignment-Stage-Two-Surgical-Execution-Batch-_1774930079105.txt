@@ -1,0 +1,63 @@
+Strategic Alignment: Stage Two - Surgical Execution (Batch 4)
+
+Perfect execution on Batch 3. Handling the Drizzle migration cleanly confirms that our database is now free of the boilerplate schema drift.
+
+We are now moving to the frontend for Batch 4: React Native UI Consolidation.
+
+We need to address R4 from your audit: the ~85% duplicate code across PlansScreen.tsx, DocsScreen.tsx, and ProjectFilesScreen.tsx. Because React Navigation configurations are highly sensitive, we will not delete these screen files. Instead, we will extract their shared logic into a single reusable component.
+
+Directives for Batch 4:
+
+1. Create the Shared Component:
+
+Create a new file: client/components/ProjectFileBrowser.tsx.
+
+Extract the shared logic from the three screens into this component. This must include:
+
+The useQuery hook calling fetchProjectFiles.
+
+The handleFilePress logic (getting the download URL and navigating to "FileViewer").
+
+The ActivityIndicator (loading state).
+
+The Error state UI (icon, text, "Réessayer" button).
+
+The Empty state UI.
+
+The FlatList and its renderFileItem row structure.
+
+Define strict TypeScript props for this component: projectId: string, category?: string (or strictly typed category if applicable), and props for the localized text/icons (e.g., emptyStateTitle, emptyStateIcon).
+
+2. Refactor PlansScreen & DocsScreen:
+
+Open client/screens/PlansScreen.tsx and client/screens/DocsScreen.tsx.
+
+Strip out the duplicated fetching, loading, and list-rendering logic.
+
+Replace the body of these screens with the new <ProjectFileBrowser /> component, passing the relevant projectId (from route.params) and their specific category strings and localized text.
+
+3. Refactor ProjectFilesScreen:
+
+Open client/screens/ProjectFilesScreen.tsx.
+
+Keep its unique horizontal ScrollView of category filter tabs.
+
+Replace the FlatList and fetching logic below the tabs with the <ProjectFileBrowser /> component, passing the activeCategory state into the component's category prop so it re-fetches when the user taps a different tab.
+
+Strict Constraints for this Batch:
+
+DO NOT delete PlansScreen.tsx, DocsScreen.tsx, or ProjectFilesScreen.tsx.
+
+DO NOT modify client/navigation/RootStackNavigator.tsx or MainTabNavigator.tsx. We are keeping the routing exactly as it is; we are only changing what the screens render.
+
+DO NOT touch any load-bearing data logic related to the dual-source project truth.
+
+Execution & Verification:
+
+Create the component and refactor the three screens.
+
+Run the Expo/TypeScript check (npx tsc --noEmit) to ensure the props are correctly typed and the navigation object is properly passed or hooked via useNavigation.
+
+Verify that the frontend bundler handles the changes without errors.
+
+Reply with a concise summary of the component creation, the line count reduction in the screen files, and the final TypeScript check results.
