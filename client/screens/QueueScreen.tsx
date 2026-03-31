@@ -24,11 +24,15 @@ import { useTheme } from "@/hooks/useTheme";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useOfflineTasks } from "@/hooks/useOfflineTasks";
 import { useOfflineAnnotations } from "@/hooks/useOfflineAnnotations";
+import { useDQESync } from "@/hooks/useDQESync";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNavigator";
 import type { OfflineObservation, ObservationSyncState } from "@/lib/offline-sync";
 import type { OfflineTask, TaskSyncState } from "@/lib/offline-tasks";
 import type { OfflineAnnotation, AnnotationSyncState } from "@/lib/offline-annotations";
+import type { PendingDQECapture, DQESyncState } from "@/lib/archidoc-types";
+
+const DQE_AMBER = "#D97706";
 
 function SyncProgressBar({ progress, isActive }: { progress: number; isActive: boolean }) {
   const { theme } = useTheme();
@@ -101,7 +105,7 @@ function SyncSuccessBanner({ count, onClear }: { count: number; onClear: () => v
       <View style={styles.successBannerContent}>
         <Feather name="check-circle" size={18} color={BrandColors.success} />
         <ThemedText style={[styles.successBannerText, { color: BrandColors.success }]}>
-          {count} observation{count > 1 ? "s" : ""} synced successfully
+          {count} item{count > 1 ? "s" : ""} synced successfully
         </ThemedText>
       </View>
       <Pressable 
@@ -155,6 +159,16 @@ export default function QueueScreen() {
     clearCompleted: clearCompletedAnnotations,
   } = useOfflineAnnotations();
 
+  const {
+    captures: dqeCaptures,
+    pendingCount: dqePendingCount,
+    isSyncing: isDQESyncing,
+    retryCapture: retryDQECapture,
+    removeCapture: removeDQECapture,
+    clearCompleted: clearCompletedDQE,
+    syncNow: syncAllDQE,
+  } = useDQESync();
+
   const completedObservations = observations.filter((obs) => obs.syncState === "complete");
   const pendingObservations = observations.filter((obs) => obs.syncState !== "complete");
 
@@ -163,6 +177,9 @@ export default function QueueScreen() {
 
   const pendingAnnotations = annotations.filter((a) => a.syncState !== "complete");
   const completedAnnotations = annotations.filter((a) => a.syncState === "complete");
+
+  const pendingDQECaptures = dqeCaptures.filter((c) => c.syncState !== "complete");
+  const completedDQECaptures = dqeCaptures.filter((c) => c.syncState === "complete");
 
   useEffect(() => {
     if (previousSyncingRef.current && !isSyncing && pendingCount === 0 && completedObservations.length > 0) {
@@ -192,8 +209,8 @@ export default function QueueScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    await Promise.all([startSync(), syncAllTasks(), syncAllAnnotations()]);
-  }, [isNetworkAvailable, startSync, syncAllTasks, syncAllAnnotations]);
+    await Promise.all([startSync(), syncAllTasks(), syncAllAnnotations(), syncAllDQE()]);
+  }, [isNetworkAvailable, startSync, syncAllTasks, syncAllAnnotations, syncAllDQE]);
 
   const handleCancelSync = useCallback(() => {
     Alert.alert("Cancel Sync", "Are you sure you want to cancel the current sync?", [
@@ -250,7 +267,7 @@ export default function QueueScreen() {
   }, [retryAnnotation]);
 
   const handleClearCompleted = useCallback(() => {
-    const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length;
+    const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length + completedDQECaptures.length;
     Alert.alert(
       "Clear Synced Items",
       `Remove ${totalCompleted} synced item${totalCompleted > 1 ? "s" : ""} from this list? They are safely stored in ARCHIDOC.`,
@@ -262,6 +279,7 @@ export default function QueueScreen() {
             clearCompleted();
             clearCompletedTasks();
             clearCompletedAnnotations();
+            clearCompletedDQE();
             if (Platform.OS !== "web") {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
@@ -269,7 +287,7 @@ export default function QueueScreen() {
         },
       ]
     );
-  }, [completedObservations.length, completedTasks.length, completedAnnotations.length, clearCompleted, clearCompletedTasks, clearCompletedAnnotations]);
+  }, [completedObservations.length, completedTasks.length, completedAnnotations.length, completedDQECaptures.length, clearCompleted, clearCompletedTasks, clearCompletedAnnotations, clearCompletedDQE]);
 
   const handleDeleteTask = useCallback((localId: string) => {
     Alert.alert(
@@ -587,6 +605,168 @@ export default function QueueScreen() {
     );
   };
 
+  const handleRetryDQECapture = useCallback(async (localId: string) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    await retryDQECapture(localId);
+  }, [retryDQECapture]);
+
+  const handleDeleteDQECapture = useCallback((localId: string) => {
+    Alert.alert(
+      "Delete DQE Capture",
+      "This will permanently delete the DQE video from your device. This cannot be undone.",
+      [
+        { text: "Keep", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            if (Platform.OS !== "web") {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            }
+            removeDQECapture(localId);
+          },
+        },
+      ]
+    );
+  }, [removeDQECapture]);
+
+  const getDQEStateInfo = (state: DQESyncState): { color: string; icon: keyof typeof Feather.glyphMap; label: string } => {
+    switch (state) {
+      case "pending":
+        return { color: BrandColors.warning, icon: "clock", label: "Pending" };
+      case "uploading":
+        return { color: BrandColors.info, icon: "upload-cloud", label: "Uploading..." };
+      case "complete":
+        return { color: BrandColors.success, icon: "check-circle", label: "Synced" };
+      case "failed":
+        return { color: BrandColors.error, icon: "alert-circle", label: "Failed" };
+      default:
+        return { color: theme.textTertiary, icon: "clock", label: "Unknown" };
+    }
+  };
+
+  function formatCaptureDuration(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  }
+
+  const QUALITY_LABELS: Record<string, string> = {
+    efficient: "720p",
+    standard: "1080p",
+    maximum: "4K",
+  };
+
+  const renderDQECapture = ({ item }: { item: PendingDQECapture }) => {
+    const stateInfo = getDQEStateInfo(item.syncState);
+    const isComplete = item.syncState === "complete";
+    const isUploading = item.syncState === "uploading";
+
+    return (
+      <Card style={isComplete ? { ...styles.observationCard, ...styles.completedCard } : styles.observationCard}>
+        <View style={styles.observationHeader}>
+          <View style={[styles.thumbnailPlaceholder, { backgroundColor: `${DQE_AMBER}15` }, isComplete && { backgroundColor: `${BrandColors.success}15` }]}>
+            <Feather
+              name={isComplete ? "check-circle" : "film"}
+              size={24}
+              color={isComplete ? BrandColors.success : DQE_AMBER}
+            />
+          </View>
+          <View style={styles.observationInfo}>
+            <View style={styles.taskBadgeRow}>
+              <View style={[styles.taskTypeBadge, { backgroundColor: `${DQE_AMBER}20` }]}>
+                <ThemedText style={[styles.taskTypeBadgeText, { color: DQE_AMBER }]}>DQE</ThemedText>
+              </View>
+              <ThemedText style={[styles.dqeQualityLabel, { color: theme.textTertiary }]}>
+                {QUALITY_LABELS[item.qualityTier] ?? item.qualityTier} — {formatCaptureDuration(item.videoDuration)}
+              </ThemedText>
+            </View>
+            <ThemedText style={styles.observationTitle} numberOfLines={1}>
+              {item.projectName}
+            </ThemedText>
+            <ThemedText style={[styles.observationDate, { color: theme.textSecondary }]}>
+              {new Date(item.capturedAt).toLocaleString()}
+            </ThemedText>
+            {isComplete && item.syncCompletedAt ? (
+              <ThemedText style={[styles.syncTimestamp, { color: BrandColors.success }]}>
+                Synced {new Date(item.syncCompletedAt).toLocaleString()}
+              </ThemedText>
+            ) : null}
+          </View>
+          <View style={[styles.syncBadge, { backgroundColor: stateInfo.color }]}>
+            {isUploading ? (
+              <ActivityIndicator size={14} color="#FFFFFF" />
+            ) : (
+              <Feather name={stateInfo.icon} size={14} color="#FFFFFF" />
+            )}
+          </View>
+        </View>
+
+        {item.architectNotes ? (
+          <ThemedText style={[styles.description, { color: theme.textSecondary }]} numberOfLines={2}>
+            {item.architectNotes}
+          </ThemedText>
+        ) : null}
+
+        {item.lastSyncError && !isComplete ? (
+          <View style={[styles.errorBanner, { backgroundColor: `${BrandColors.error}20` }]}>
+            <Feather name="alert-circle" size={14} color={BrandColors.error} />
+            <ThemedText style={[styles.errorText, { color: BrandColors.error }]} numberOfLines={2}>
+              {item.lastSyncError}
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {item.retryCount > 0 && !isComplete ? (
+          <ThemedText style={[styles.retryCountText, { color: theme.textTertiary }]}>
+            Retry attempts: {item.retryCount}/20
+          </ThemedText>
+        ) : null}
+
+        <View style={styles.actionButtons}>
+          {!isComplete ? (
+            <>
+              {item.syncState === "failed" ? (
+                <Pressable
+                  style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+                  onPress={() => handleRetryDQECapture(item.localId)}
+                  disabled={!isNetworkAvailable}
+                >
+                  <Feather name="refresh-cw" size={16} color="#FFFFFF" />
+                  <ThemedText style={styles.actionButtonText}>Retry</ThemedText>
+                </Pressable>
+              ) : item.syncState === "pending" ? (
+                <Pressable
+                  style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+                  onPress={() => handleRetryDQECapture(item.localId)}
+                  disabled={!isNetworkAvailable || isDQESyncing}
+                >
+                  <Feather name="upload-cloud" size={16} color="#FFFFFF" />
+                  <ThemedText style={styles.actionButtonText}>Sync</ThemedText>
+                </Pressable>
+              ) : isUploading ? (
+                <View style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}>
+                  <ActivityIndicator size="small" color={BrandColors.primary} />
+                  <ThemedText style={[styles.actionButtonText, { color: BrandColors.primary }]}>
+                    Uploading...
+                  </ThemedText>
+                </View>
+              ) : null}
+              <Pressable
+                style={[styles.actionButtonIcon, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={() => handleDeleteDQECapture(item.localId)}
+              >
+                <Feather name="trash-2" size={18} color={BrandColors.error} />
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+      </Card>
+    );
+  };
+
   const getAnnotationStateInfo = (state: AnnotationSyncState): { color: string; icon: keyof typeof Feather.glyphMap; label: string } => {
     switch (state) {
       case "pending":
@@ -706,10 +886,16 @@ export default function QueueScreen() {
     | { type: "observation"; data: OfflineObservation }
     | { type: "task"; data: OfflineTask }
     | { type: "annotation"; data: OfflineAnnotation }
+    | { type: "dqe"; data: PendingDQECapture }
     | { type: "section"; title: string };
 
   const buildQueueItems = (): QueueItem[] => {
     const items: QueueItem[] = [];
+
+    if (pendingDQECaptures.length > 0) {
+      items.push({ type: "section", title: `Pending DQE Captures (${pendingDQECaptures.length})` });
+      pendingDQECaptures.forEach((c) => items.push({ type: "dqe", data: c }));
+    }
 
     if (pendingAnnotations.length > 0) {
       items.push({ type: "section", title: `Pending Annotations (${pendingAnnotations.length})` });
@@ -726,9 +912,10 @@ export default function QueueScreen() {
       pendingObservations.forEach((o) => items.push({ type: "observation", data: o }));
     }
 
-    const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length;
+    const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length + completedDQECaptures.length;
     if (totalCompleted > 0) {
       items.push({ type: "section", title: `Synced (${totalCompleted})` });
+      completedDQECaptures.forEach((c) => items.push({ type: "dqe", data: c }));
       completedAnnotations.forEach((a) => items.push({ type: "annotation", data: a }));
       completedTasks.forEach((t) => items.push({ type: "task", data: t }));
       completedObservations.forEach((o) => items.push({ type: "observation", data: o }));
@@ -738,8 +925,8 @@ export default function QueueScreen() {
   };
 
   const queueItems = buildQueueItems();
-  const totalPending = pendingCount + taskPendingCount + annotationPendingCount;
-  const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length;
+  const totalPending = pendingCount + taskPendingCount + annotationPendingCount + dqePendingCount;
+  const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length + completedDQECaptures.length;
 
   const renderQueueItem = ({ item }: { item: QueueItem }) => {
     if (item.type === "section") {
@@ -748,6 +935,9 @@ export default function QueueScreen() {
           {item.title}
         </ThemedText>
       );
+    }
+    if (item.type === "dqe") {
+      return renderDQECapture({ item: item.data });
     }
     if (item.type === "task") {
       return renderTask({ item: item.data });
@@ -830,7 +1020,7 @@ export default function QueueScreen() {
               All synced!
             </ThemedText>
             <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
-              No pending observations or tasks
+              No pending observations, tasks, or DQE captures
             </ThemedText>
           </View>
         }
@@ -1087,5 +1277,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: BrandColors.accent,
     letterSpacing: 0.5,
+  },
+  dqeQualityLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+    marginLeft: Spacing.xs,
+    alignSelf: "center",
   },
 });
