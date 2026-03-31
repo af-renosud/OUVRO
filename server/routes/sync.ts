@@ -40,60 +40,6 @@ async function transcribeAudio(audioBase64: string, mimeType = "audio/mp4"): Pro
 
 export const syncRouter = Router();
 
-syncRouter.post("/sync-observation/:id", requireArchidocUrl, async (req: Request, res: Response) => {
-  try {
-    const id = parseInt(req.params.id);
-    const observation = await storage.getObservation(id);
-    if (!observation) {
-      return res.status(404).json({ error: "Observation not found" });
-    }
-
-    const archidocApiUrl = res.locals.archidocApiUrl;
-
-    if (!observation.archidocProjectId) {
-      return res.status(400).json({ error: "No ARCHIDOC project ID associated with this observation" });
-    }
-
-    const archidocPayload = buildArchidocObservationPayload({
-      projectId: observation.archidocProjectId,
-      title: observation.title,
-      description: observation.description,
-      observedAt: observation.createdAt?.toISOString(),
-      transcription: observation.transcription,
-      translatedText: observation.translatedText,
-    });
-
-    console.log("[Sync] Observation from DB:", JSON.stringify({
-      id: observation.id,
-      title: observation.title,
-      transcription: observation.transcription,
-      translatedText: observation.translatedText,
-    }));
-    console.log("[Sync] Payload to ARCHIDOC:", JSON.stringify(archidocPayload));
-
-    const result = await archidocJsonPost(
-      `${archidocApiUrl}/api/field-observations`,
-      archidocPayload,
-      "Sync observation to ARCHIDOC"
-    );
-
-    if ("error" in result) {
-      return res.status(result.status).json({ error: result.error });
-    }
-
-    console.log("Successfully created observation in ARCHIDOC, ID:", result.data.id);
-
-    res.json({
-      localId: id,
-      archidocObservationId: result.data.id,
-      observation,
-    });
-  } catch (error) {
-    const { status, message } = formatServerError(error, "Sync observation");
-    res.status(status).json({ error: message });
-  }
-});
-
 const VALID_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 const VALID_CLASSIFICATIONS = ["defect", "action", "followup", "general"] as const;
 
@@ -179,18 +125,5 @@ syncRouter.post("/tasks/sync", requireArchidocUrl, async (req: Request, res: Res
     const { status, message } = formatServerError(error, "Task Sync");
     const responseStatus = status === 503 || status === 504 ? status : 502;
     return res.status(responseStatus).json({ success: false, error: message, localId } as TaskSyncErrorResponse);
-  }
-});
-
-syncRouter.post("/mark-synced/:id", async (req: Request, res: Response) => {
-  try {
-    const id = parseInt(req.params.id);
-    const updatedObservation = await storage.updateObservation(id, {
-      syncStatus: "synced",
-    });
-    res.json(updatedObservation);
-  } catch (error) {
-    console.error("Error marking observation as synced:", error);
-    res.status(500).json({ error: "Failed to mark observation as synced" });
   }
 });

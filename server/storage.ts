@@ -1,6 +1,4 @@
 import {
-  type User,
-  type InsertUser,
   type Project,
   type InsertProject,
   type Observation,
@@ -9,7 +7,6 @@ import {
   type InsertObservationMedia,
   type ProjectFile,
   type InsertProjectFile,
-  users,
   projects,
   observations,
   observationMedia,
@@ -19,13 +16,8 @@ import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-
   getProjects(): Promise<Project[]>;
   getProject(id: number): Promise<Project | undefined>;
-  createProject(project: InsertProject): Promise<Project>;
   updateProject(id: number, project: Partial<InsertProject>): Promise<Project | undefined>;
   deleteProject(id: number): Promise<void>;
 
@@ -42,27 +34,9 @@ export interface IStorage {
 
   getProjectFiles(projectId: number): Promise<ProjectFile[]>;
   getProjectFile(id: number): Promise<ProjectFile | undefined>;
-  createProjectFile(file: InsertProjectFile): Promise<ProjectFile>;
-  updateProjectFile(id: number, file: Partial<InsertProjectFile>): Promise<ProjectFile | undefined>;
-  deleteProjectFile(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
-  }
-
   async getProjects(): Promise<Project[]> {
     return db.select().from(projects).orderBy(desc(projects.updatedAt));
   }
@@ -70,11 +44,6 @@ export class DatabaseStorage implements IStorage {
   async getProject(id: number): Promise<Project | undefined> {
     const [project] = await db.select().from(projects).where(eq(projects.id, id));
     return project || undefined;
-  }
-
-  async createProject(project: InsertProject): Promise<Project> {
-    const [newProject] = await db.insert(projects).values(project).returning();
-    return newProject;
   }
 
   async updateProject(id: number, project: Partial<InsertProject>): Promise<Project | undefined> {
@@ -136,20 +105,6 @@ export class DatabaseStorage implements IStorage {
   async getProjectFile(id: number): Promise<ProjectFile | undefined> {
     const [file] = await db.select().from(projectFiles).where(eq(projectFiles.id, id));
     return file || undefined;
-  }
-
-  async createProjectFile(file: InsertProjectFile): Promise<ProjectFile> {
-    const [newFile] = await db.insert(projectFiles).values(file).returning();
-    return newFile;
-  }
-
-  async updateProjectFile(id: number, file: Partial<InsertProjectFile>): Promise<ProjectFile | undefined> {
-    const [updated] = await db.update(projectFiles).set(file).where(eq(projectFiles.id, id)).returning();
-    return updated || undefined;
-  }
-
-  async deleteProjectFile(id: number): Promise<void> {
-    await db.delete(projectFiles).where(eq(projectFiles.id, id));
   }
 }
 

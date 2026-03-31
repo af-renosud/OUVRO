@@ -17,6 +17,8 @@ export type {
   DQEQualityTier,
   DQESyncState,
   PendingDQECapture,
+  DQECaptureSubmitParams,
+  DQECaptureSubmitResult,
 } from "./archidoc-types";
 
 export {
@@ -36,6 +38,8 @@ import {
   type FileDownloadResponse,
   type UploadUrlResponse,
   type ArchidocFileResponse,
+  type DQECaptureSubmitParams,
+  type DQECaptureSubmitResult,
 } from "./archidoc-types";
 
 const ARCHIDOC_API_URL = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
@@ -305,27 +309,6 @@ export function getUniqueLotCodes(items: DQEItem[]): string[] {
 export function filterItemsByLot(items: DQEItem[], lotCode: string): DQEItem[] {
   return items.filter((item) => item.lotCode === lotCode);
 }
-
-export type DQECaptureSubmitParams = {
-  localId: string;
-  projectId: string;
-  projectName: string;
-  videoObjectPath: string;
-  videoMimeType?: string;
-  architectNotes?: string;
-  videoDuration: number;
-  qualityTier: import("./archidoc-types").DQEQualityTier;
-  capturedAt: string;
-  capturedBy?: string;
-};
-
-export type DQECaptureSubmitResult = {
-  success: boolean;
-  localId: string;
-  archidocDQEId?: string;
-  transcription?: string;
-  error?: string;
-};
 
 export class DQESubmitError extends Error {
   constructor(

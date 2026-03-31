@@ -97,7 +97,7 @@ export default function FichesScreen() {
     return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
   };
 
-  const getFileIcon = (fileName: string): string => {
+  const getFileIconByExtension = (fileName: string): string => {
     const ext = fileName.toLowerCase().split(".").pop();
     if (ext === "pdf") return "file-text";
     if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext || "")) return "image";
@@ -120,7 +120,7 @@ export default function FichesScreen() {
           {isLoading ? (
             <ActivityIndicator size="small" color={BrandColors.primary} />
           ) : (
-            <Feather name={getFileIcon(item.attachment.fileName) as any} size={20} color={BrandColors.primary} />
+            <Feather name={getFileIconByExtension(item.attachment.fileName) as any} size={20} color={BrandColors.primary} />
           )}
         </View>
         <View style={styles.ficheInfo}>

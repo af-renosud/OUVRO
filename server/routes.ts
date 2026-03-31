@@ -1,7 +1,5 @@
 import type { Express } from "express";
 import { createServer, type Server } from "node:http";
-import { registerChatRoutes } from "./replit_integrations/chat";
-import { registerImageRoutes } from "./replit_integrations/image";
 import { projectsRouter } from "./routes/projects";
 import { observationsRouter } from "./routes/observations";
 import { aiRouter } from "./routes/ai";
@@ -10,9 +8,6 @@ import { syncRouter } from "./routes/sync";
 import { dqeRouter } from "./routes/dqe";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  registerChatRoutes(app);
-  registerImageRoutes(app);
-
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString(), uptime: process.uptime() });
   });

@@ -1,0 +1,50 @@
+Strategic Alignment: Stage Two - Surgical Execution (Part 1)
+
+Excellent work on the Forensic Audit. Your analysis is thorough, and identifying the "Load-Bearing" risk regarding the dual-source project data was exactly the kind of architectural vigilance we need.
+
+We are now moving into Execution. To ensure stability, we will execute these cleanups in strict, isolated batches.
+
+Directives for Batch 1 (Low-Risk Purge & Alignment):
+
+1. Purge Replit Integration Boilerplate:
+
+Delete the entire directory: server/replit_integrations/ (including chat, image, and batch subfolders).
+
+Update server/routes.ts: Remove the imports and route registrations for the chat and image integrations. Do not touch anything else in routes.ts.
+
+2. Prune Dead Server Routes & Storage Methods:
+
+In server/routes/sync.ts: Delete the POST /api/sync-observation/:id and POST /api/mark-synced/:id route handlers.
+
+In server/routes/archidoc.ts: Delete the POST /api/archidoc/proxy-upload route handler.
+
+In server/routes/projects.ts: Delete the POST /api/projects and POST /api/projects/:id/files route handlers. CRITICAL: Ensure GET /api/projects/:id remains perfectly intact.
+
+In server/storage.ts: Delete the getUser, getUserByUsername, and createUser methods and their corresponding interface definitions.
+
+3. Resolve Architecture Violation (Type Definitions):
+
+In client/lib/archidoc-api.ts: Locate DQECaptureSubmitParams and DQECaptureSubmitResult. Remove them from this file.
+
+In client/lib/archidoc-types.ts: Paste these two type definitions here.
+
+Update any imports in archidoc-api.ts or other files to ensure they now import these types from archidoc-types.ts. (Leave DQESubmitError in api.ts as it contains runtime logic).
+
+4. Resolve Naming Collision:
+
+In client/screens/FichesScreen.tsx: Rename the private function getFileIcon to getFileIconByExtension. Update all internal calls within that file to use the new name.
+
+Strict Constraints for this Batch:
+
+DO NOT modify shared/models/chat.ts or attempt any database migrations yet.
+
+DO NOT attempt to consolidate the UI screens (PlansScreen, etc.) yet.
+
+DO NOT modify the AI client instantiations or transcription logic yet.
+
+DO NOT touch any routes or logic related to GET /api/projects or GET /api/observations.
+
+Execution & Verification:
+Execute these four steps carefully. After making the changes, run the build/type-check process to ensure no broken imports or missing types were left behind.
+
+Once complete, reply with a concise list of the exact files modified/deleted and confirm that the server still starts successfully.

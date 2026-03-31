@@ -213,6 +213,27 @@ export const ANNOTATION_COLORS = [
   { key: "black", hex: "#000000", label: "Général" },
 ];
 
+export type DQECaptureSubmitParams = {
+  localId: string;
+  projectId: string;
+  projectName: string;
+  videoObjectPath: string;
+  videoMimeType?: string;
+  architectNotes?: string;
+  videoDuration: number;
+  qualityTier: DQEQualityTier;
+  capturedAt: string;
+  capturedBy?: string;
+};
+
+export type DQECaptureSubmitResult = {
+  success: boolean;
+  localId: string;
+  archidocDQEId?: string;
+  transcription?: string;
+  error?: string;
+};
+
 export type DQEQualityTier = "efficient" | "standard" | "maximum";
 
 export type DQESyncState = "pending" | "uploading" | "complete" | "failed";
