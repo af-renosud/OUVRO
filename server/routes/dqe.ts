@@ -7,6 +7,10 @@ import {
   formatServerError,
 } from "./archidoc-helpers";
 
+if (!process.env.OUVRO_API_KEY) {
+  console.warn("[DQE] WARNING: OUVRO_API_KEY is not set — requests to Archidoc DQE intake will be unauthenticated");
+}
+
 const ai = new GoogleGenAI({
   apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
   httpOptions: {
@@ -115,12 +119,24 @@ async function defaultSubmitToArchidoc(
   archidocApiUrl: string,
   payload: Record<string, unknown>
 ): Promise<{ data: Record<string, unknown> } | { error: string; status?: number }> {
-  return archidocJsonPost(
-    `${archidocApiUrl}/api/ouvro/dqe/capture`,
-    payload,
-    "Submit DQE capture to ArchiDoc",
-    60000
-  );
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const apiKey = process.env.OUVRO_API_KEY;
+  if (apiKey) {
+    headers["x-api-key"] = apiKey;
+  }
+  const response = await archidocFetch(`${archidocApiUrl}/api/ouvro/dqe/capture`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+    timeout: 60000,
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("[Submit DQE capture to ArchiDoc] ARCHIDOC error:", errorText);
+    return { error: "Failed to submit DQE capture to ArchiDoc", status: response.status };
+  }
+  const data = await response.json();
+  return { data };
 }
 
 // DQE submit payload contract:
