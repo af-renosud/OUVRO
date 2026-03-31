@@ -1,0 +1,43 @@
+Strategic Alignment: Stage Two - Surgical Execution (Batch 3)
+
+Flawless execution on Batch 2. Achieving a zero-error TypeScript build while restructuring core server logic is exactly the standard we are aiming for.
+
+We are now moving to Batch 3: Database Schema & Migration Cleanup.
+
+In Batch 1, we successfully purged the Replit AI Chat integration code. Now, we must cleanly remove its database footprint so we don't leave orphaned tables in PostgreSQL.
+
+Directives for Batch 3:
+
+1. Remove Schema Definitions:
+
+Delete the file: shared/models/chat.ts.
+
+Open shared/schema.ts. Remove the export/import line that references ./models/chat (e.g., export * from "./models/chat";). Ensure the rest of shared/schema.ts remains perfectly intact.
+
+2. Database Migration (Drop Unused Tables):
+
+You now need to synchronize the database with our updated schema.
+
+The goal is to drop the conversations and messages tables from the PostgreSQL database.
+
+Execute the standard Drizzle migration command for this project (typically npx drizzle-kit push or npm run db:push, depending on how the package.json is configured).
+
+Note: If push prompts for confirmation regarding data loss because you are dropping tables, safely confirm it. These tables belong to the deleted boilerplate.
+
+Strict Constraints for this Batch:
+
+DO NOT modify any other schema definitions in shared/schema.ts. The users, projects, and observations tables must remain completely untouched.
+
+DO NOT attempt to consolidate the UI file-list screens (PlansScreen, etc.) yet. That is reserved for Batch 4.
+
+DO NOT touch any load-bearing data logic related to dual-source project truth.
+
+Execution & Verification:
+
+Delete the file and update shared/schema.ts.
+
+Run the Drizzle migration/push.
+
+Restart the server and run the TypeScript check (npx tsc --noEmit) to ensure shared/schema.ts isn't causing any downstream type errors in the rest of the application.
+
+Reply with a concise summary confirming the file deletions, the successful execution of the Drizzle migration (including confirmation that the tables were dropped), and the final TypeScript check results.
