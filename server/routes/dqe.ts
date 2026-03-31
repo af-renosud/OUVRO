@@ -108,7 +108,7 @@ async function defaultTranscribeVideo(videoDownloadUrl: string, mimeType: string
   return response.text?.trim() || "";
 }
 
-async function defaultSubmitToArchidoc(
+export async function defaultSubmitToArchidoc(
   archidocApiUrl: string,
   payload: Record<string, unknown>
 ): Promise<{ data: Record<string, unknown> } | { error: string; status?: number }> {

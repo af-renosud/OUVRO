@@ -4,11 +4,11 @@
  * Run: npx tsx --test server/routes/__tests__/dqe.test.ts
  */
 
-import { describe, it, before, beforeEach } from "node:test";
+import { describe, it, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
 import http from "node:http";
-import { createDQERouter } from "../dqe.ts";
+import { createDQERouter, defaultSubmitToArchidoc } from "../dqe.ts";
 import type { DQERouterDeps } from "../dqe.ts";
 import type { Request, Response, NextFunction } from "express";
 
@@ -195,5 +195,57 @@ describe("POST /api/dqe/submit — transient failures → 502", () => {
       assert.equal(status, 502);
       assert.equal(data.success, false);
     });
+  });
+});
+
+describe("defaultSubmitToArchidoc — x-api-key header authentication", () => {
+  let capturedHeaders: Record<string, string | string[] | undefined> = {};
+  let captureServer: http.Server;
+  let capturePort: number;
+
+  before(async () => {
+    captureServer = http.createServer((req, res) => {
+      capturedHeaders = Object.assign({}, req.headers);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ id: "dqe-key-test-001" }));
+    });
+    await new Promise<void>((resolve) => captureServer.listen(0, resolve));
+    capturePort = (captureServer.address() as { port: number }).port;
+  });
+
+  after(async () => {
+    await new Promise<void>((resolve) => captureServer.close(() => resolve()));
+  });
+
+  beforeEach(() => {
+    capturedHeaders = {};
+    delete process.env.OUVRO_API_KEY;
+  });
+
+  it("sends x-api-key header when OUVRO_API_KEY is set", async () => {
+    process.env.OUVRO_API_KEY = "test-secret-key-abc";
+    const result = await defaultSubmitToArchidoc(
+      `http://localhost:${capturePort}`,
+      { localId: "key-test-001", projectId: "proj-1" }
+    );
+    assert.ok(!("error" in result), `Expected success but got error: ${(result as any).error}`);
+    assert.equal(
+      capturedHeaders["x-api-key"],
+      "test-secret-key-abc",
+      "x-api-key header must equal OUVRO_API_KEY"
+    );
+  });
+
+  it("omits x-api-key header when OUVRO_API_KEY is not set", async () => {
+    const result = await defaultSubmitToArchidoc(
+      `http://localhost:${capturePort}`,
+      { localId: "key-test-002", projectId: "proj-2" }
+    );
+    assert.ok(!("error" in result), `Expected success but got error: ${(result as any).error}`);
+    assert.equal(
+      capturedHeaders["x-api-key"],
+      undefined,
+      "x-api-key header must be absent when OUVRO_API_KEY is unset"
+    );
   });
 });
