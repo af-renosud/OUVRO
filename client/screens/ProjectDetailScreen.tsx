@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   FlatList,
@@ -16,9 +16,19 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
-import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
+import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
-import type { Project, Observation, ProjectFile } from "@shared/schema";
+import {
+  fetchProjectById,
+  fetchProjectFiles,
+  type MappedProject,
+  type ProjectFile,
+} from "@/lib/archidoc-api";
+import {
+  offlineSyncService,
+  type OfflineObservation,
+  type ObservationSyncState,
+} from "@/lib/offline-sync";
 
 export default function ProjectDetailScreen() {
   const { theme } = useTheme();
@@ -28,35 +38,66 @@ export default function ProjectDetailScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { projectId } = route.params;
 
-  const { data: project, isLoading: projectLoading } = useQuery<Project>({
+  const { data: project, isLoading: projectLoading } = useQuery<MappedProject | null>({
     queryKey: ["/api/projects", projectId],
-  });
-
-  const { data: observations = [], isLoading: observationsLoading } = useQuery<Observation[]>({
-    queryKey: ["/api/observations", { projectId }],
+    queryFn: () => fetchProjectById(projectId),
+    staleTime: 1000 * 60 * 5,
   });
 
   const { data: files = [], isLoading: filesLoading } = useQuery<ProjectFile[]>({
-    queryKey: ["/api/projects", projectId, "files"],
+    queryKey: ["/api/archive/files", projectId],
+    queryFn: () => fetchProjectFiles(projectId),
+    staleTime: 1000 * 60 * 5,
   });
 
-  const isLoading = projectLoading || observationsLoading || filesLoading;
+  const [observations, setObservations] = useState<OfflineObservation[]>([]);
+  const [observationsReady, setObservationsReady] = useState(false);
+
+  useEffect(() => {
+    offlineSyncService.initialize().then(() => {
+      setObservations(
+        offlineSyncService.getObservations().filter((o) => o.projectId === projectId)
+      );
+      setObservationsReady(true);
+    });
+
+    const unsub = offlineSyncService.subscribe(() => {
+      setObservations(
+        offlineSyncService.getObservations().filter((o) => o.projectId === projectId)
+      );
+    });
+
+    return unsub;
+  }, [projectId]);
+
+  const isLoading = projectLoading || filesLoading || !observationsReady;
 
   const handleStartCapture = () => {
     navigation.navigate("CaptureModal");
   };
 
-  const getSyncStatusColor = (status: string | null) => {
-    switch (status) {
+  const getSyncStatusColor = (state: ObservationSyncState) => {
+    switch (state) {
       case "pending":
         return BrandColors.warning;
-      case "syncing":
+      case "uploading_metadata":
+      case "uploading_media":
         return BrandColors.info;
-      case "synced":
+      case "complete":
         return BrandColors.success;
+      case "partial":
+        return BrandColors.warning;
+      case "failed":
+        return BrandColors.error;
       default:
         return theme.textTertiary;
     }
+  };
+
+  const getSyncIcon = (state: ObservationSyncState) => {
+    if (state === "complete") return "check";
+    if (state === "failed") return "alert-circle";
+    return "clock";
   };
 
   if (isLoading) {
@@ -67,11 +108,13 @@ export default function ProjectDetailScreen() {
     );
   }
 
+  const pendingCount = observations.filter((o) => o.syncState !== "complete").length;
+
   return (
     <ThemedView style={styles.container}>
       <FlatList
         data={observations}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => item.localId}
         contentContainerStyle={[
           styles.listContent,
           { paddingTop: headerHeight + Spacing.md, paddingBottom: insets.bottom + Spacing.xl },
@@ -110,9 +153,7 @@ export default function ProjectDetailScreen() {
                   </ThemedText>
                 </View>
                 <View style={styles.statItem}>
-                  <ThemedText style={styles.statValue}>
-                    {observations.filter((o) => o.syncStatus === "pending").length}
-                  </ThemedText>
+                  <ThemedText style={styles.statValue}>{pendingCount}</ThemedText>
                   <ThemedText style={[styles.statLabel, { color: theme.textSecondary }]}>
                     Pending
                   </ThemedText>
@@ -146,11 +187,11 @@ export default function ProjectDetailScreen() {
               <View
                 style={[
                   styles.syncBadge,
-                  { backgroundColor: getSyncStatusColor(item.syncStatus) },
+                  { backgroundColor: getSyncStatusColor(item.syncState) },
                 ]}
               >
                 <Feather
-                  name={item.syncStatus === "synced" ? "check" : "clock"}
+                  name={getSyncIcon(item.syncState)}
                   size={12}
                   color="#FFFFFF"
                 />

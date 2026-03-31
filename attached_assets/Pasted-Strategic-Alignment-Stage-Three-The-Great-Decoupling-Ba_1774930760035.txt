@@ -1,0 +1,51 @@
+Strategic Alignment: Stage Three - The Great Decoupling (Batch 6)
+
+Brilliant detective work on the Data Flow Report. Your architectural assessment is spot-on. Identifying that the local PostgreSQL database is an abandoned prototype—and catching the critical cache collision bug—is exactly the high-level engineering we need.
+
+We are officially deprecating the local PostgreSQL database for project and observation data. We will execute your exact recommendation to wire the app fully to Archidoc and the DurableQueueStore.
+
+Directives for Batch 6:
+
+Phase 1: Frontend Rewire (Fix the UI & Cache Collision)
+
+Open client/screens/ProjectDetailScreen.tsx.
+
+Fix the Project Fetch: Replace the default BFF useQuery with the explicit fetchProjectById(projectId) from client/lib/archidoc-api.ts. Ensure the queryKey precisely matches DQEBrowserScreen so they safely share the same MappedProject cache. Update the screen's UI code to read from the MappedProject properties rather than the old local Project type.
+
+Fix the Observations Fetch: Remove the useQuery call hitting ["/api/observations"]. Instead, use the appropriate existing offline hook (e.g., useOfflineObservations or direct DurableQueueStore reads) to display the pending/synced observations from the device cache, or the Archidoc API if a remote fetcher exists for it.
+
+Fix the Files Fetch: Ensure the files query uses the same pattern as ProjectFilesScreen (hitting Archidoc, not the local DB).
+
+Phase 2: Backend Purge (Delete Dead Routes)
+
+Delete the file: server/routes/projects.ts.
+
+Delete the file: server/routes/observations.ts.
+
+Open server/routes.ts and remove the imports and router registrations for /api/projects and /api/observations.
+
+Phase 3: Database Schema & Migration
+
+Open shared/schema.ts.
+
+Delete the Drizzle table definitions for projects, observations, observationMedia, and projectFiles. Remove any relations tied to them. (Leave the users table intact for now if it exists, as it doesn't conflict with Archidoc).
+
+Run the database migration command (e.g., npm run db:push or npx drizzle-kit push) to permanently drop these four tables from the PostgreSQL database. Confirm the data loss prompt.
+
+Strict Constraints for this Batch:
+
+DO NOT modify DQEBrowserScreen or the offline sync core (offline-sync.ts, offline-tasks.ts). We are bringing ProjectDetailScreen up to their standard, not changing them.
+
+DO NOT leave any TypeScript errors in ProjectDetailScreen. The shift from Project to MappedProject will likely cause property mismatch errors in the JSX. Fix them meticulously.
+
+Execution & Verification:
+
+Execute the three phases in order.
+
+Run the Drizzle migration and confirm the tables are dropped.
+
+Run a strict TypeScript check (npx tsc --noEmit) to guarantee the frontend type switch was handled flawlessly.
+
+Verify the server boots (GET /api/health).
+
+Reply with a concise summary of the files modified, the tables dropped, and the final TypeScript check results.
