@@ -86,7 +86,7 @@ type SyncEventType =
   | "syncCompleted"
   | "syncError";
 
-type SyncEventListener = (event: SyncEventType, data?: any) => void;
+type SyncEventListener = (event: SyncEventType, data?: unknown) => void;
 
 const DEFAULT_SETTINGS: SyncSettings = {
   wifiOnly: false,
@@ -226,10 +226,10 @@ class OfflineSyncService {
   }
 
   subscribe(listener: SyncEventListener): () => void {
-    return this.store.subscribe(listener as (event: string, data?: any) => void);
+    return this.store.subscribe(listener as (event: string, data?: unknown) => void);
   }
 
-  private emit(event: SyncEventType, data?: any): void {
+  private emit(event: SyncEventType, data?: unknown): void {
     this.store.emit(event, data);
   }
 
@@ -619,7 +619,7 @@ class OfflineSyncService {
         throw new Error("File not found: " + media.localUri);
       }
 
-      const fileSize = (fileInfo as any).size || media.fileSize || 0;
+      const fileSize = ("size" in fileInfo ? fileInfo.size : undefined) ?? media.fileSize ?? 0;
       
       media.uploadProgress = 5;
       this.syncProgress.currentFileProgress = 5;

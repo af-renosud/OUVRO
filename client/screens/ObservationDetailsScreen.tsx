@@ -164,8 +164,9 @@ export default function ObservationDetailsScreen() {
             throw new Error(result.error);
           }
           setTranscription(result.transcription);
-        } catch (error: any) {
-          Alert.alert("Transcription Error", error?.message || "Failed to transcribe audio");
+        } catch (error: unknown) {
+          const errMsg = error instanceof Error ? error.message : "Failed to transcribe audio";
+          Alert.alert("Transcription Error", errMsg);
           console.error("Transcription error:", error);
         } finally {
           setIsTranscribing(false);

@@ -169,8 +169,9 @@ export default function TaskCaptureScreen() {
           setTranscription(result.transcription);
           await updateTask(localId, { transcription: result.transcription, syncState: "review" });
           setStep("review");
-        } catch (error: any) {
-          setTranscribeError(error?.message || "Transcription failed");
+        } catch (error: unknown) {
+          const errMsg = error instanceof Error ? error.message : "Transcription failed";
+          setTranscribeError(errMsg);
           setStep("record");
         } finally {
           setIsTranscribing(false);
@@ -184,8 +185,9 @@ export default function TaskCaptureScreen() {
       };
 
       reader.readAsDataURL(blob);
-    } catch (error: any) {
-      setTranscribeError(error?.message || "Failed to process audio");
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : "Failed to process audio";
+      setTranscribeError(errMsg);
       setIsTranscribing(false);
       setStep("record");
     }

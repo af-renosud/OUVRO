@@ -54,13 +54,17 @@ export function OfflineSyncProvider({ children }: OfflineSyncProviderProps) {
           setObservations(offlineSyncService.getObservations());
           setSettings(offlineSyncService.getSettings());
           break;
-        case "progressUpdated":
-          setSyncProgress(data as SyncProgress);
-          setIsSyncing(data.isActive);
+        case "progressUpdated": {
+          const progress = data as SyncProgress;
+          setSyncProgress(progress);
+          setIsSyncing(progress.isActive);
           break;
-        case "networkChanged":
-          setIsNetworkAvailable(data.isConnected && (!offlineSyncService.getSettings().wifiOnly || data.isWifi));
+        }
+        case "networkChanged": {
+          const net = data as { isConnected: boolean; isWifi: boolean };
+          setIsNetworkAvailable(net.isConnected && (!offlineSyncService.getSettings().wifiOnly || net.isWifi));
           break;
+        }
         case "syncStarted":
           setIsSyncing(true);
           break;

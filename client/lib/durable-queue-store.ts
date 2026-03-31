@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 
-type EventListener = (event: string, data?: any) => void;
+type EventListener = (event: string, data?: unknown) => void;
 
 export class DurableQueueStore<T extends { localId: string }> {
   private listeners: Set<EventListener> = new Set();
@@ -75,7 +75,7 @@ export class DurableQueueStore<T extends { localId: string }> {
     return () => this.listeners.delete(listener);
   }
 
-  emit(event: string, data?: any): void {
+  emit(event: string, data?: unknown): void {
     this.listeners.forEach((listener) => listener(event, data));
   }
 }

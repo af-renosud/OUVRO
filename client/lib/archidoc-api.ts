@@ -1,4 +1,6 @@
 export type {
+  RawExternalLinks,
+  RawProject,
   RawDQEItem,
   DQEAttachment,
   ArchidocProject,
@@ -28,6 +30,8 @@ export {
 
 import {
   FILE_CATEGORIES as FILE_CATEGORIES_DATA,
+  type RawExternalLinks,
+  type RawProject,
   type RawDQEItem,
   type DQEAttachment,
   type MappedProject,
@@ -106,13 +110,14 @@ function mapDQEItem(raw: RawDQEItem): DQEItem {
   };
 }
 
-function resolveExternalLinks(source: any): {
+function resolveExternalLinks(source: RawProject): {
   photosUrl?: string;
   model3dUrl?: string;
   tour3dUrl?: string;
   googleDriveUrl?: string;
 } {
-  const ext = source.externalLinks || source.external_links || source.links || {};
+  const linksObj = !Array.isArray(source.links) ? source.links : undefined;
+  const ext: RawExternalLinks = source.externalLinks ?? source.external_links ?? linksObj ?? {};
 
   return {
     photosUrl: source.photosUrl || source.photos_url ||
@@ -122,9 +127,9 @@ function resolveExternalLinks(source: any): {
 
     model3dUrl: source.model3dUrl || source.model_3d_url ||
       source.modelUrl || source.model_url ||
-      source['3dModelUrl'] || source['3d_model_url'] ||
+      source["3dModelUrl"] || source["3d_model_url"] ||
       ext.model3dUrl || ext.model_3d_url ||
-      ext.model3d || ext['3dModel'],
+      ext.model3d || ext["3dModel"],
 
     tour3dUrl: source.tour3dUrl || source.tour_3d_url ||
       source.tourUrl || source.tour_url ||
@@ -140,17 +145,17 @@ function resolveExternalLinks(source: any): {
   };
 }
 
-function mapRawProject(raw: any): MappedProject {
+function mapRawProject(raw: RawProject): MappedProject {
   const links = resolveExternalLinks(raw);
 
   return {
-    id: raw.project_id || raw.id,
+    id: raw.project_id || raw.id || "",
     name: raw.project_name || raw.projectName || "",
     location: raw.address || "",
     status: raw.status || "",
     clientName: raw.client_name || raw.clientName || "",
-    items: (raw.items || []).map((item: any) => mapDQEItem(item as RawDQEItem)),
-    links: raw.links,
+    items: (raw.items ?? []).map((item) => mapDQEItem(item)),
+    links: Array.isArray(raw.links) ? raw.links : undefined,
     lotContractors: raw.lot_contractors || raw.lotContractors,
     ...links,
   };

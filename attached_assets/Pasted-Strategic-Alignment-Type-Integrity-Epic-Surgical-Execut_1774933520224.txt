@@ -1,0 +1,53 @@
+Strategic Alignment: Type Integrity Epic — Surgical Execution (Batch 1)
+
+Outstanding recon report. Identifying that strict: true is already active confirms that these any casts are explicit blind spots we must fix. Your prioritization of the API boundaries and the Event Emitter contagion is architecturally perfect.
+
+We are now moving into Execution. We will tackle your top 3 recommended targets.
+
+Directives for Batch 1:
+
+1. Target 1: Secure the API Boundary (archidoc-api.ts & archidoc-types.ts)
+
+Open client/lib/archidoc-types.ts. Define the missing raw interfaces reflecting the upstream API shape: RawProject, RawExternalLinks, and RawProjectResponse (or whatever matches the expected incoming JSON structure).
+
+Open client/lib/archidoc-api.ts.
+
+Replace mapRawProject(raw: any) with mapRawProject(raw: RawProject).
+
+Replace resolveExternalLinks(source: any) with resolveExternalLinks(source: RawExternalLinks).
+
+Replace (item: any) in the .map() functions with the appropriate raw type.
+
+2. Target 2: Quarantine the Event Emitter Contagion (durable-queue-store.ts)
+
+Open client/lib/durable-queue-store.ts. Change the EventListener payload from data?: any to data?: unknown.
+
+Cascade this fix to the dependents: Open client/lib/offline-sync.ts, client/lib/offline-tasks.ts, and client/lib/offline-annotations.ts.
+
+Update their specific EventListener type aliases and emit/subscribe signatures to use data?: unknown (or strictly type the payloads if the exact shapes are known, e.g., using a discriminated union for the event types).
+
+3. Target 3: Global Catch Block Sweep
+
+Perform a global search and replace for all instances of catch (e: any), catch (error: any), and catch (transcribeErr: any).
+
+Change them to catch (e: unknown) (or error: unknown).
+
+Inside the catch blocks, implement standard type guarding before accessing properties (e.g., const message = e instanceof Error ? e.message : String(e);).
+
+Strict Constraints for this Batch:
+
+DO NOT modify any UI component props or Feather icon casts (Target 4 / Target 5 from your report) yet.
+
+DO NOT alter any business logic or data flow. This is strictly a type-tightening exercise.
+
+Ensure no any casts remain in the files you modify.
+
+Execution & Verification:
+
+Execute the three targets sequentially.
+
+Run a strict TypeScript check (npx tsc --noEmit).
+
+Resolve any downstream property-access errors caused by changing any to unknown or RawProject.
+
+Reply with a concise summary of the interfaces added and confirm the final TypeScript check results.

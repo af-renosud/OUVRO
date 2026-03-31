@@ -44,7 +44,7 @@ type TaskEventType =
   | "taskSynced"
   | "taskFailed";
 
-type TaskEventListener = (event: TaskEventType, data?: any) => void;
+type TaskEventListener = (event: TaskEventType, data?: unknown) => void;
 
 class OfflineTaskService {
   private tasks: Map<string, OfflineTask> = new Map();
@@ -132,10 +132,10 @@ class OfflineTaskService {
   }
 
   subscribe(listener: TaskEventListener): () => void {
-    return this.store.subscribe(listener as (event: string, data?: any) => void);
+    return this.store.subscribe(listener as (event: string, data?: unknown) => void);
   }
 
-  private emit(event: TaskEventType, data?: any): void {
+  private emit(event: TaskEventType, data?: unknown): void {
     this.store.emit(event, data);
   }
 
@@ -163,7 +163,7 @@ class OfflineTaskService {
     try {
       const fileInfo = await FileSystem.getInfoAsync(durableUri);
       if (fileInfo.exists && "size" in fileInfo) {
-        audioFileSize = (fileInfo as any).size;
+        audioFileSize = fileInfo.size;
       }
     } catch (e) {
       if (__DEV__) console.warn("[OfflineTasks] Could not get file size:", e);
@@ -334,8 +334,9 @@ class OfflineTaskService {
             });
             if (__DEV__) console.log("[OfflineTasks] Read audio base64 for task:", localId, "size:", audioBase64.length);
           }
-        } catch (e: any) {
-          console.warn("[OfflineTasks] Failed to read audio file for base64:", e?.message || e);
+        } catch (e: unknown) {
+          const errMsg = e instanceof Error ? e.message : String(e);
+          console.warn("[OfflineTasks] Failed to read audio file for base64:", errMsg);
         }
       }
 
@@ -393,10 +394,11 @@ class OfflineTaskService {
         this.emit("stateChanged");
         if (__DEV__) console.warn("[OfflineTasks] Task sync retry:", localId, errorMsg);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : "Network error";
       task.syncState = "accepted";
       task.retryCount += 1;
-      task.lastSyncError = error?.message || "Network error";
+      task.lastSyncError = errMsg;
       task.modifiedAt = new Date().toISOString();
       await this.persist();
       this.emit("taskUpdated", { localId });

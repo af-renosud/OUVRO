@@ -145,7 +145,7 @@ export default function DQEBrowserScreen() {
         signedUrl: urlToUse,
         projectId,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (__DEV__) console.error("[DQE] Error opening attachment:", error);
     } finally {
       setLoadingAttachmentId(null);

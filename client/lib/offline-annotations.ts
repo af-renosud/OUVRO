@@ -28,7 +28,7 @@ type AnnotationEventType =
   | "annotationSynced"
   | "annotationFailed";
 
-type AnnotationEventListener = (event: AnnotationEventType, data?: any) => void;
+type AnnotationEventListener = (event: AnnotationEventType, data?: unknown) => void;
 
 const MAX_RETRIES = 10;
 const AUTO_RETRY_INTERVAL = 120_000;
@@ -98,10 +98,10 @@ class OfflineAnnotationService {
   }
 
   subscribe(listener: AnnotationEventListener): () => void {
-    return this.store.subscribe(listener as (event: string, data?: any) => void);
+    return this.store.subscribe(listener as (event: string, data?: unknown) => void);
   }
 
-  private emit(event: AnnotationEventType, data?: any): void {
+  private emit(event: AnnotationEventType, data?: unknown): void {
     this.store.emit(event, data);
   }
 
@@ -118,7 +118,7 @@ class OfflineAnnotationService {
     const localId = `ann-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     const fileInfo = await FileSystem.getInfoAsync(params.capturedUri);
-    const fileSize = (fileInfo as any).size || 0;
+    const fileSize = fileInfo.exists && "size" in fileInfo ? fileInfo.size : 0;
 
     const durableUri = await this.store.copyToDurableStorage(
       params.capturedUri,

@@ -48,8 +48,9 @@ syncRouter.post("/tasks/sync", requireArchidocUrl, async (req: Request, res: Res
       try {
         finalTranscription = await transcribeAudio(audioBase64);
         console.log(`[Task Sync] localId=${localId} — auto-transcription complete (${finalTranscription.length} chars)`);
-      } catch (transcribeErr: any) {
-        console.warn(`[Task Sync] localId=${localId} — auto-transcription failed: ${transcribeErr?.message}. Sending with empty transcription.`);
+      } catch (transcribeErr: unknown) {
+        const errMsg = transcribeErr instanceof Error ? transcribeErr.message : String(transcribeErr);
+        console.warn(`[Task Sync] localId=${localId} — auto-transcription failed: ${errMsg}. Sending with empty transcription.`);
       }
     }
 

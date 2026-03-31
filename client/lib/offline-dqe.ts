@@ -88,7 +88,7 @@ class OfflineDQEService {
   }
 
   subscribe(listener: DQEEventListener): () => void {
-    return this.store.subscribe(listener as (event: string, data?: any) => void);
+    return this.store.subscribe(listener as (event: string, data?: unknown) => void);
   }
 
   private emit(event: DQEEventType, data?: DQEEventPayload): void {
