@@ -1,0 +1,58 @@
+Strategic Alignment: Stage Two - Surgical Execution (Batch 2)
+
+Outstanding work on Batch 1. Your precision is exactly what this project needs, and excellent catch on the pre-existing TypeScript error in offline-annotations.ts.
+
+We are now moving to Batch 2: Logic Consolidation & Standardization.
+
+Directives for Batch 2:
+
+1. Fix Pre-existing TypeScript Bug:
+
+In client/lib/offline-annotations.ts (around line 61): Check the signature of DurableQueueStore.save(). If it expects an array, wrap the single item being passed in an array (e.g., [item]). Fix this so the TypeScript compiler passes cleanly.
+
+2. Consolidate the Gemini AI Client (R2):
+
+Create a new file: server/ai-client.ts.
+
+Instantiate the GoogleGenAI client once in this file using the existing environment variables and export it.
+
+Update server/routes/ai.ts, server/routes/sync.ts, and server/routes/dqe.ts to remove their local instantiations and import the shared client from server/ai-client.ts.
+
+3. Consolidate MIME-Type Inference (R1):
+
+Create a new file: shared/utils.ts (or shared/file-utils.ts).
+
+Move the mimeTypeFromUri function from client/lib/video-utils.ts into this new shared file and export it.
+
+Update client/lib/video-utils.ts to either import it from the shared file, or remove it and update all frontend call sites to import directly from shared/.
+
+In server/routes/dqe.ts, delete the private inferMimeFromPath function and replace its usage by importing the shared utility.
+
+(Note: If React Native/Expo Metro bundler has pathing issues importing from shared/, gracefully fall back: leave the client version alone, but still extract the server version into a reusable server/utils.ts.)
+
+4. Standardize Error Handling (S1 & S2):
+
+Review server/routes/projects.ts, server/routes/observations.ts, and server/routes/sync.ts.
+
+Identify any route handlers using "Pattern B" (bare console.error and res.status(500).json(...)).
+
+Import formatServerError from server/routes/archidoc-helpers.ts.
+
+Refactor these handlers to use formatServerError.
+
+CRITICAL: Enforce strict return discipline. Ensure every error response is prefixed with return (e.g., return res.status(status).json({ error: message });) to prevent execution fall-through.
+
+Strict Constraints for this Batch:
+
+DO NOT modify shared/models/chat.ts or attempt any database migrations.
+
+DO NOT attempt to consolidate the UI file-list screens (PlansScreen, etc.).
+
+DO NOT alter the core transcription logic (R3) yet; we are only replacing the client instantiation.
+
+DO NOT touch any load-bearing data logic related to dual-source project truth.
+
+Execution & Verification:
+Execute these four steps. Once completed, run a full TypeScript check (npx tsc --noEmit or your project's equivalent) to ensure the offline-annotations.ts bug is resolved and no new import errors exist. Verify the server still starts cleanly.
+
+Reply with a concise summary of the files modified and confirm the TypeScript check results.

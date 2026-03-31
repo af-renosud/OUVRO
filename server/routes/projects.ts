@@ -1,15 +1,16 @@
 import { Router, type Request, type Response } from "express";
 import { storage } from "../storage";
+import { formatServerError } from "./archidoc-helpers";
 
 export const projectsRouter = Router();
 
 projectsRouter.get("/projects", async (req: Request, res: Response) => {
   try {
     const projects = await storage.getProjects();
-    res.json(projects);
+    return res.json(projects);
   } catch (error) {
-    console.error("Error fetching projects:", error);
-    res.status(500).json({ error: "Failed to fetch projects" });
+    const { status, message } = formatServerError(error, "Fetch Projects");
+    return res.status(status).json({ error: message });
   }
 });
 
@@ -20,10 +21,10 @@ projectsRouter.get("/projects/:id", async (req: Request, res: Response) => {
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
     }
-    res.json(project);
+    return res.json(project);
   } catch (error) {
-    console.error("Error fetching project:", error);
-    res.status(500).json({ error: "Failed to fetch project" });
+    const { status, message } = formatServerError(error, "Fetch Project");
+    return res.status(status).json({ error: message });
   }
 });
 
@@ -31,9 +32,9 @@ projectsRouter.get("/projects/:id/files", async (req: Request, res: Response) =>
   try {
     const projectId = parseInt(req.params.id);
     const files = await storage.getProjectFiles(projectId);
-    res.json(files);
+    return res.json(files);
   } catch (error) {
-    console.error("Error fetching project files:", error);
-    res.status(500).json({ error: "Failed to fetch project files" });
+    const { status, message } = formatServerError(error, "Fetch Project Files");
+    return res.status(status).json({ error: message });
   }
 });

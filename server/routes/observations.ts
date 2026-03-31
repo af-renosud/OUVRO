@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { storage } from "../storage";
 import { insertObservationSchema, insertObservationMediaSchema } from "@shared/schema";
+import { formatServerError } from "./archidoc-helpers";
 
 export const observationsRouter = Router();
 
@@ -8,10 +9,10 @@ observationsRouter.get("/observations", async (req: Request, res: Response) => {
   try {
     const projectId = req.query.projectId ? parseInt(req.query.projectId as string) : undefined;
     const observations = await storage.getObservations(projectId);
-    res.json(observations);
+    return res.json(observations);
   } catch (error) {
-    console.error("Error fetching observations:", error);
-    res.status(500).json({ error: "Failed to fetch observations" });
+    const { status, message } = formatServerError(error, "Fetch Observations");
+    return res.status(status).json({ error: message });
   }
 });
 
@@ -29,10 +30,10 @@ observationsRouter.get("/observations/pending", async (req: Request, res: Respon
         };
       })
     );
-    res.json(observationsWithMedia);
+    return res.json(observationsWithMedia);
   } catch (error) {
-    console.error("Error fetching pending observations:", error);
-    res.status(500).json({ error: "Failed to fetch pending observations" });
+    const { status, message } = formatServerError(error, "Fetch Pending Observations");
+    return res.status(status).json({ error: message });
   }
 });
 
@@ -44,10 +45,10 @@ observationsRouter.get("/observations/:id", async (req: Request, res: Response) 
       return res.status(404).json({ error: "Observation not found" });
     }
     const media = await storage.getObservationMedia(id);
-    res.json({ ...observation, media });
+    return res.json({ ...observation, media });
   } catch (error) {
-    console.error("Error fetching observation:", error);
-    res.status(500).json({ error: "Failed to fetch observation" });
+    const { status, message } = formatServerError(error, "Fetch Observation");
+    return res.status(status).json({ error: message });
   }
 });
 
@@ -58,10 +59,10 @@ observationsRouter.post("/observations", async (req: Request, res: Response) => 
       return res.status(400).json({ error: parsed.error.message });
     }
     const observation = await storage.createObservation(parsed.data);
-    res.status(201).json(observation);
+    return res.status(201).json(observation);
   } catch (error) {
-    console.error("Error creating observation:", error);
-    res.status(500).json({ error: "Failed to create observation" });
+    const { status, message } = formatServerError(error, "Create Observation");
+    return res.status(status).json({ error: message });
   }
 });
 
@@ -72,10 +73,10 @@ observationsRouter.patch("/observations/:id", async (req: Request, res: Response
     if (!observation) {
       return res.status(404).json({ error: "Observation not found" });
     }
-    res.json(observation);
+    return res.json(observation);
   } catch (error) {
-    console.error("Error updating observation:", error);
-    res.status(500).json({ error: "Failed to update observation" });
+    const { status, message } = formatServerError(error, "Update Observation");
+    return res.status(status).json({ error: message });
   }
 });
 
@@ -87,10 +88,10 @@ observationsRouter.delete("/observations/:id", async (req: Request, res: Respons
       return res.status(204).send();
     }
     await storage.deleteObservation(id);
-    res.status(204).send();
+    return res.status(204).send();
   } catch (error) {
-    console.error("Error deleting observation:", error);
-    res.status(500).json({ error: "Failed to delete observation" });
+    const { status, message } = formatServerError(error, "Delete Observation");
+    return res.status(status).json({ error: message });
   }
 });
 
@@ -102,9 +103,9 @@ observationsRouter.post("/observations/:id/media", async (req: Request, res: Res
       return res.status(400).json({ error: parsed.error.message });
     }
     const media = await storage.createObservationMedia(parsed.data);
-    res.status(201).json(media);
+    return res.status(201).json(media);
   } catch (error) {
-    console.error("Error creating media:", error);
-    res.status(500).json({ error: "Failed to create media" });
+    const { status, message } = formatServerError(error, "Create Observation Media");
+    return res.status(status).json({ error: message });
   }
 });

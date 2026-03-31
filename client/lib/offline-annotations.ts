@@ -58,7 +58,7 @@ class OfflineAnnotationService {
         item.syncState = "pending";
         item.lastSyncError = "Upload interrupted, will retry";
         item.modifiedAt = new Date().toISOString();
-        await this.store.save(item);
+        await this.store.save([item]);
       }
       this.annotations.set(item.localId, item);
     }

@@ -1,0 +1,62 @@
+Strategic Alignment: Stage Two - Surgical Execution (Batch 2)
+
+Outstanding work on Batch 1. Your precision was perfect, and your proactive identification of the pre-existing TypeScript error in offline-annotations.ts is highly commendable. We need a 100% clean build.
+
+We are now moving to Batch 2: Backend Consolidation & Standardization.
+
+Directives for Batch 2:
+
+1. Fix Pre-existing TypeScript Bug:
+
+In client/lib/offline-annotations.ts (around line 61): Check the signature of DurableQueueStore.save(). It expects an array. Wrap the single item being passed in an array (e.g., [item]) so the TypeScript compiler passes cleanly.
+
+2. Consolidate the Gemini AI Client (R2):
+
+Create a new file: server/ai-client.ts.
+
+Instantiate the GoogleGenAI client once in this file using the existing environment variables (AI_INTEGRATIONS_GEMINI_API_KEY, etc.) and export the instance.
+
+Update server/routes/ai.ts, server/routes/sync.ts, and server/routes/dqe.ts to remove their local instantiations and import the shared client from server/ai-client.ts.
+
+3. Consolidate Transcription Logic (R3):
+
+Create a new file: server/routes/ai-helpers.ts (or add to archidoc-helpers.ts if appropriate).
+
+Extract the core generateContent transcription logic (the model selection, the English transcription prompt, and the inlineData structure) into a reusable exported function: async function transcribeAudio(audioBase64: string, mimeType: string): Promise<string>.
+
+Update both server/routes/ai.ts (POST /api/transcribe) and the private sync logic in server/routes/sync.ts to call this shared helper instead of duplicating the Gemini API call.
+
+4. Consolidate MIME-Type Inference (R1):
+
+Move the mimeTypeFromUri function from client/lib/video-utils.ts into a new shared file: shared/utils.ts.
+
+Update client/lib/video-utils.ts to import it from shared/utils.ts.
+
+In server/routes/dqe.ts, delete the private inferMimeFromPath function and import the utility from shared/utils.ts.
+
+(Note: If the Expo Metro bundler restricts imports from shared/ outside the client root, gracefully fall back: leave the client version alone, but create a server/utils.ts for the backend to use so it's at least out of the route file.)
+
+5. Standardize Error Handling (S1 & S2):
+
+Review server/routes/projects.ts, server/routes/observations.ts, and server/routes/sync.ts.
+
+Identify any route handlers using "Pattern B" (bare console.error and res.status(500).json(...)).
+
+Import formatServerError from server/routes/archidoc-helpers.ts.
+
+Refactor these handlers to use formatServerError.
+
+CRITICAL: Enforce strict return discipline. Ensure every error response is prefixed with return (e.g., return res.status(status).json({ error: message });) to prevent execution fall-through.
+
+Strict Constraints for this Batch:
+
+DO NOT modify shared/models/chat.ts or attempt any database migrations.
+
+DO NOT attempt to consolidate the UI file-list screens (PlansScreen, etc.).
+
+DO NOT touch any load-bearing data logic related to dual-source project truth (GET projects/observations).
+
+Execution & Verification:
+Execute these steps carefully. Once completed, run a full TypeScript check (npx tsc --noEmit or equivalent) to ensure the offline-annotations.ts bug is resolved and no new import errors exist. Verify the server still starts cleanly.
+
+Reply with a concise summary of the files modified and confirm the TypeScript check results.

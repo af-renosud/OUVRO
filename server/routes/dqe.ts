@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { GoogleGenAI } from "@google/genai";
+import { ai } from "../ai-client";
+import { mimeTypeFromUri } from "../utils";
 import {
   requireArchidocUrl,
   archidocJsonPost,
@@ -10,14 +11,6 @@ import {
 if (!process.env.OUVRO_API_KEY) {
   console.warn("[DQE] WARNING: OUVRO_API_KEY is not set — requests to Archidoc DQE intake will be unauthenticated");
 }
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-  },
-});
 
 const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024;
 const TRANSCRIPTION_DOWNLOAD_TIMEOUT_MS = 120_000;
@@ -192,7 +185,7 @@ export function createDQERouter(deps: DQERouterDeps = {}): Router {
         return res.status(400).json({ success: false, error: "Missing required field: videoObjectPath", localId });
       }
 
-      const mimeType = videoMimeType || inferMimeFromPath(videoObjectPath);
+      const mimeType = videoMimeType || mimeTypeFromUri(videoObjectPath);
       const archidocApiUrl: string = res.locals.archidocApiUrl;
 
       console.log(`[DQE Submit] localId=${localId} — resolving video download URL from Archidoc`);
@@ -259,13 +252,6 @@ export function createDQERouter(deps: DQERouterDeps = {}): Router {
   });
 
   return router;
-}
-
-function inferMimeFromPath(path: string): string {
-  const ext = path.split("?")[0].split(".").pop()?.toLowerCase() ?? "";
-  if (ext === "mov") return "video/quicktime";
-  if (ext === "m4v") return "video/x-m4v";
-  return "video/mp4";
 }
 
 export const dqeRouter = createDQERouter();

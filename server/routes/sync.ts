@@ -1,42 +1,11 @@
 import { Router, type Request, type Response } from "express";
-import { GoogleGenAI } from "@google/genai";
-import { storage } from "../storage";
+import { transcribeAudio } from "./ai-helpers";
 import {
   requireArchidocUrl,
   archidocJsonPost,
-  buildArchidocObservationPayload,
   formatServerError,
 } from "./archidoc-helpers";
 import type { TaskSyncPayload, TaskSyncSuccessResponse, TaskSyncErrorResponse } from "../../shared/task-sync-types";
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-  },
-});
-
-async function transcribeAudio(audioBase64: string, mimeType = "audio/mp4"): Promise<string> {
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: "Please transcribe the following audio accurately into English text. Only output the transcription, nothing else." },
-          {
-            inlineData: {
-              mimeType,
-              data: audioBase64,
-            },
-          },
-        ],
-      },
-    ],
-  });
-  return response.text || "";
-}
 
 export const syncRouter = Router();
 
