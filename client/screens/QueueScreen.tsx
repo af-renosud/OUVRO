@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -167,7 +167,14 @@ export default function QueueScreen() {
     removeCapture: removeDQECapture,
     clearCompleted: clearCompletedDQE,
     syncNow: syncAllDQE,
+    refresh: refreshDQECaptures,
   } = useDQESync();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshDQECaptures();
+    }, [refreshDQECaptures])
+  );
 
   const completedObservations = observations.filter((obs) => obs.syncState === "complete");
   const pendingObservations = observations.filter((obs) => obs.syncState !== "complete");

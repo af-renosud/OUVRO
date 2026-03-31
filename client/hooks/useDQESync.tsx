@@ -20,6 +20,7 @@ interface DQESyncContextValue {
   retryCapture: (localId: string) => Promise<void>;
   clearCompleted: () => Promise<void>;
   syncNow: () => Promise<void>;
+  refresh: () => void;
 }
 
 const DQESyncContext = createContext<DQESyncContextValue | null>(null);
@@ -83,6 +84,11 @@ export function DQESyncProvider({ children }: { children: ReactNode }) {
     return offlineDQEService.syncAllPending();
   }, []);
 
+  const refresh = useCallback(() => {
+    setCaptures(offlineDQEService.getCaptures());
+    setIsSyncing(offlineDQEService.getIsSyncing());
+  }, []);
+
   const pendingCount = captures.filter((c) => c.syncState !== "complete").length;
 
   return (
@@ -96,6 +102,7 @@ export function DQESyncProvider({ children }: { children: ReactNode }) {
         retryCapture,
         clearCompleted,
         syncNow,
+        refresh,
       }}
     >
       {children}
