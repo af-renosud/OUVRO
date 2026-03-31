@@ -1,0 +1,34 @@
+Strategic Alignment: Global Type Integrity Audit (Reconnaissance Phase)
+
+Excellent work closing out the Good Housekeeping Epic. Because we just completely rewired the app’s data architecture to point directly to the Archidoc API, we must ensure no runtime bugs are hiding behind loose typing.
+
+We are enforcing a strict 'Type Integrity' mandate across this entire application. The use of the any keyword (e.g., as any, : any, <any>, catch (e: any)) is classified as technical debt and must be eradicated.
+
+Crucial Constraint: Because we need to manage context limits safely, YOU MUST NOT MODIFY ANY CODE DURING THIS PHASE. This is strictly a read-only reconnaissance sweep.
+
+Execution Steps:
+
+Check Compiler Settings: Open tsconfig.json (check the root directory, and also check inside client/ and server/ if they have their own). Look for the "strict" and "noImplicitAny" compiler options. Note whether they are set to true, false, or are missing entirely.
+
+Global Scan: Scan the core directories of this project (client/, server/, shared/). Strictly ignore node_modules, .expo, or any build outputs.
+
+Count & Categorize: Search for the any keyword. Group the instances you find by file and by architectural domain. Pay specific attention to:
+
+API Boundaries: Express handlers (req: any, res: any) or untyped API route parameters in the BFF.
+
+Data Hydration/Fetch: Untyped TanStack Query responses, .map() callbacks, or components still expecting the old local DB types but bypassing the compiler with any.
+
+React Navigation: Untyped route.params or navigation objects.
+
+Error Handling: catch (err: any) blocks instead of unknown or Error.
+
+Identify the Missing Contracts: Briefly note what types or interfaces are missing that forced the use of any (e.g., "Missing Express Request interface", "Missing Archidoc payload type").
+
+Deliverable:
+Output a highly structured 'Type Integrity Recon Report'.
+
+First, state the current status of the TypeScript strict mode settings.
+
+Second, list the files with the highest concentration of any casts and categorize the types of bypasses found.
+
+Finally, recommend the top 3 specific files we should target for our very first surgical refactor in Batch 1 of this new epic.
