@@ -52,12 +52,14 @@ export function requireArchidocUrl(req: Request, res: Response, next: NextFuncti
   next();
 }
 
-export async function archidocJsonPost(
+export type ArchidocHttpResult<T> = { data: T } | { error: string; status: number };
+
+export async function archidocJsonPost<T = unknown>(
   url: string,
   body: object,
   context: string,
   timeout?: number
-): Promise<{ data: any } | { error: string; status: number }> {
+): Promise<ArchidocHttpResult<T>> {
   const response = await archidocFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

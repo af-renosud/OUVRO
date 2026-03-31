@@ -1,0 +1,59 @@
+Section 1: Strategy (For Me)
+Batch 1 successfully eradicated the highest-risk any types across the codebase; we are now proceeding to Batch 2 to eliminate the remaining UI and BFF casts to complete the Type Integrity Epic.
+
+Initial logic and parameters are validated. The Agent flawlessly secured the Archidoc API boundary and effectively quarantined the EventListener contagion without breaking the downstream hooks.
+
+We will now jump directly to the final transformations. Batch 2 will target the remaining low-to-medium risk any casts identified in the Recon Report: the Feather icon string casts, the React component props (CrossPlatformImage, Card), the Expo Video callback, and the BFF response envelope. Once these are typed correctly, the application will be 100% free of any bypasses, sealing our TypeScript compiler's blind spots permanently.
+
+Section 2: The Agent Prompt (For the Replit Agent)
+Copy and paste everything below this line to your Replit Agent:
+
+Strategic Alignment: Type Integrity Epic — Surgical Execution (Batch 2)
+
+Outstanding execution on Batch 1. Securing the API boundary and resolving the Event Emitter contagion with zero TypeScript errors is exceptional engineering. You have successfully neutralized the highest-risk technical debt in the application.
+
+We are now moving to Batch 2, which will finalize this epic by eliminating the remaining any casts from the UI layer and the BFF proxy.
+
+Directives for Batch 2:
+
+1. Target 4 & 6: Component Prop Contracts & Expo Video
+
+Open client/components/CrossPlatformImage.tsx. Remove the any casts. Import the correct types from expo-image (e.g., ImageSource for the source prop, and ImageContentFit for the enum cast). Strictly type the onError payload.
+
+Open client/components/Card.tsx. Ensure the theme prop is strictly typed using your app's standard theme interface (likely imported from your theme constants or navigation types) instead of any.
+
+Open client/screens/VideoCaptureScreen.tsx. Fix the (p: any) callback in useVideoPlayer by importing the correct player or status type from the expo-video library.
+
+2. Target 5: Feather Icon Name Casts
+
+The UI currently bypasses icon name validation with as any.
+
+Define a strict type for Feather icons (e.g., type FeatherIconName = keyof typeof Feather.glyphMap; if importing from @expo/vector-icons).
+
+Apply this strict type to the icon variables/props in: ProjectLinksScreen.tsx, AnnotationScreen.tsx, FichesScreen.tsx, ProjectFilesScreen.tsx, and ProjectFileBrowser.tsx. Remove all as any casts.
+
+3. Target 7: BFF Response Envelope
+
+Open server/routes/archidoc-helpers.ts.
+
+Define a generic interface: export type ArchidocHttpResult<T> = { data: T } | { error: string; status: number };
+
+Apply this generic to the return signature that currently uses Promise<{ data: any } | ...> and remove the any.
+
+Strict Constraints for this Batch:
+
+DO NOT modify any business logic, data fetching mechanisms, or UI layouts. This is strictly a type-tightening exercise.
+
+You are authorized to create new shared type aliases (e.g., FeatherIconName) in a client/lib/types.ts or similar shared file if it prevents duplication across the screens.
+
+Ensure absolutely zero any casts remain in the files you modify.
+
+Execution & Verification:
+
+Execute the three targets sequentially.
+
+Run a global search for : any, as any, and <any> to confirm the codebase is completely clean.
+
+Run a strict TypeScript check (npx tsc --noEmit).
+
+Reply with a concise summary of the types applied and confirm the final TypeScript check results. Once complete, you may consider the Type Integrity Epic fully closed.

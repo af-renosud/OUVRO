@@ -31,7 +31,7 @@ export default function ProjectFilesScreen() {
         onPress={() => setSelectedCategory(isActive ? null : category.key)}
       >
         <Feather
-          name={category.icon as any}
+          name={category.icon}
           size={16}
           color={isActive ? "#FFFFFF" : theme.textSecondary}
         />

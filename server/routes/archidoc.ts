@@ -111,8 +111,9 @@ archidocRouter.post("/archidoc/create-observation", async (req: Request, res: Re
       return res.status(500).json({ error: result.error });
     }
 
-    console.log("[CreateObs] Created in ARCHIDOC, ID:", result.data.id);
-    res.json({ archidocObservationId: result.data.id });
+    const obsData = result.data as Record<string, unknown>;
+    console.log("[CreateObs] Created in ARCHIDOC, ID:", obsData.id);
+    res.json({ archidocObservationId: obsData.id });
   } catch (error) {
     const { status, message } = formatServerError(error, "Create observation");
     res.status(status).json({ error: message });

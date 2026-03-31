@@ -86,7 +86,8 @@ syncRouter.post("/tasks/sync", requireArchidocUrl, async (req: Request, res: Res
       return res.status(502).json({ success: false, error: result.error, localId } as TaskSyncErrorResponse);
     }
 
-    const archidocTaskId = result.data?.id || result.data?.taskId || result.data?.task_id || `archidoc_${Date.now()}`;
+    const archidocData = result.data as Record<string, unknown>;
+    const archidocTaskId = archidocData.id || archidocData.taskId || archidocData.task_id || `archidoc_${Date.now()}`;
     console.log(`[Task Sync] localId=${localId} — successfully synced, archidocTaskId=${archidocTaskId}`);
 
     return res.status(200).json({ success: true, localId, archidocTaskId } as TaskSyncSuccessResponse);

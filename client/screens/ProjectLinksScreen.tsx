@@ -8,10 +8,11 @@ import { BackgroundView } from "@/components/BackgroundView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { ProjectLink } from "@/lib/archidoc-api";
+import type { FeatherIconName } from "@/lib/types";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useHeaderHeight } from "@react-navigation/elements";
 
-function getLinkIcon(type?: string): string {
+function getLinkIcon(type?: string): FeatherIconName {
   if (!type) return "link";
   const t = type.toLowerCase();
   if (t.includes("drive") || t.includes("google")) return "hard-drive";
@@ -60,7 +61,7 @@ export default function ProjectLinksScreen() {
         onPress={() => handleOpenLink(item.url, item.title)}
       >
         <View style={[styles.linkIcon, { backgroundColor: theme.backgroundTertiary }]}>
-          <Feather name={iconName as any} size={24} color={BrandColors.primary} />
+          <Feather name={iconName} size={24} color={BrandColors.primary} />
         </View>
         <View style={styles.linkInfo}>
           <ThemedText style={[styles.linkTitle, { color: theme.text }]} numberOfLines={1}>

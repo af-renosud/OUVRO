@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import type { FeatherIconName } from "@/lib/types";
 import { CrossPlatformImage } from "@/components/CrossPlatformImage";
 import Svg, { Path, Circle, Rect, Line, G, Text as SvgText } from "react-native-svg";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
@@ -27,7 +28,7 @@ type DrawingElement = {
   text?: string;
 };
 
-const TOOLS: { type: AnnotationType; icon: string; label: string }[] = [
+const TOOLS: { type: AnnotationType; icon: FeatherIconName; label: string }[] = [
   { type: "freehand", icon: "edit-3", label: "Pen" },
   { type: "arrow", icon: "arrow-up-right", label: "Arrow" },
   { type: "rectangle", icon: "square", label: "Rectangle" },
@@ -589,7 +590,7 @@ export default function AnnotationScreen() {
                 disabled={isZoomMode}
               >
                 <Feather
-                  name={tool.icon as any}
+                  name={tool.icon}
                   size={20}
                   color={selectedTool === tool.type && !isZoomMode ? "#FFFFFF" : "#AAAAAA"}
                 />

@@ -104,7 +104,7 @@ export function ProjectFileBrowser({
         ]}
       >
         <Feather
-          name={getFileIcon(item.contentType) as any}
+          name={getFileIcon(item.contentType)}
           size={20}
           color={BrandColors.primary}
         />
@@ -148,7 +148,7 @@ export function ProjectFileBrowser({
             <ActivityIndicator size="small" color={BrandColors.primary} />
           ) : (
             <Feather
-              name={getFileIcon(item.contentType) as any}
+              name={getFileIcon(item.contentType)}
               size={24}
               color={BrandColors.primary}
             />

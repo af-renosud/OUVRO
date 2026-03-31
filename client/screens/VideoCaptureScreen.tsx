@@ -5,7 +5,7 @@ import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { Feather } from "@expo/vector-icons";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
@@ -36,7 +36,7 @@ export default function VideoCaptureScreen() {
   const buttonSize = isPhone ? 64 : 80;
 
   const videoSource = capturedVideoUri || "";
-  const player = useVideoPlayer(videoSource, (p: any) => {
+  const player = useVideoPlayer(videoSource, (p: VideoPlayer) => {
     if (capturedVideoUri) {
       p.loop = true;
       p.play();

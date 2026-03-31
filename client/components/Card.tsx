@@ -11,6 +11,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 
+type AppTheme = ReturnType<typeof useTheme>["theme"];
+
 interface CardProps {
   elevation?: number;
   title?: string;
@@ -30,7 +32,7 @@ const springConfig: WithSpringConfig = {
 
 const getBackgroundColorForElevation = (
   elevation: number,
-  theme: any,
+  theme: AppTheme,
 ): string => {
   switch (elevation) {
     case 1:

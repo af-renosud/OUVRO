@@ -1,3 +1,5 @@
+import type { FeatherIconName } from "@/lib/types";
+
 export type {
   RawExternalLinks,
   RawProject,
@@ -161,7 +163,7 @@ function mapRawProject(raw: RawProject): MappedProject {
   };
 }
 
-export function getFileIcon(contentType: string): string {
+export function getFileIcon(contentType: string): FeatherIconName {
   if (contentType.includes("pdf")) return "file-text";
   if (contentType.includes("image")) return "image";
   if (contentType.includes("word") || contentType.includes("document")) return "file-text";

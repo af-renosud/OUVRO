@@ -1,14 +1,14 @@
 import React from "react";
-import { Platform, Image as RNImage, ImageStyle, StyleProp, NativeSyntheticEvent, ImageLoadEventData, ImageErrorEventData, View } from "react-native";
+import { Platform, Image as RNImage, ImageStyle, StyleProp, ImageSourcePropType, NativeSyntheticEvent, ImageLoadEventData, ImageErrorEventData, View } from "react-native";
 import { Image as ExpoImage, ImageContentFit } from "expo-image";
 
 type CrossPlatformImageProps = {
-  source: any;
+  source: ImageSourcePropType;
   style?: StyleProp<ImageStyle>;
   contentFit?: ImageContentFit;
   resizeMode?: "cover" | "contain" | "stretch" | "center";
   onLoad?: () => void;
-  onError?: (error?: any) => void;
+  onError?: (error?: unknown) => void;
   pointerEvents?: "auto" | "none" | "box-none" | "box-only";
 };
 
@@ -22,7 +22,7 @@ export function CrossPlatformImage({
   pointerEvents,
 }: CrossPlatformImageProps) {
   if (Platform.OS === "web") {
-    const rnResizeMode = resizeMode || (contentFit as any) || "contain";
+    const rnResizeMode = resizeMode || (contentFit as unknown as "cover" | "contain" | "stretch" | "center") || "contain";
     return (
       <View style={style} pointerEvents={pointerEvents}>
         <RNImage

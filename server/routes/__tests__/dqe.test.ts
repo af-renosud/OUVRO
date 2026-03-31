@@ -269,7 +269,7 @@ describe("defaultSubmitToArchidoc — x-api-key header authentication", () => {
     );
     assert.ok(
       !("error" in result),
-      `Expected success but got error: ${(result as any).error}`,
+      `Expected success but got error: ${"error" in result ? result.error : ""}`,
     );
     assert.equal(
       capturedHeaders["x-api-key"],
@@ -285,7 +285,7 @@ describe("defaultSubmitToArchidoc — x-api-key header authentication", () => {
     );
     assert.ok(
       !("error" in result),
-      `Expected success but got error: ${(result as any).error}`,
+      `Expected success but got error: ${"error" in result ? result.error : ""}`,
     );
     assert.equal(
       capturedHeaders["x-api-key"],

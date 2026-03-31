@@ -1,3 +1,5 @@
+import type { FeatherIconName } from "@/lib/types";
+
 export type RawExternalLinks = {
   photosUrl?: string;
   photos_url?: string;
@@ -260,7 +262,7 @@ export type ArchidocFileResponse = {
   uploaded_at: string;
 };
 
-export const FILE_CATEGORIES: { key: FileCategory; code: string; label: string; icon: string }[] = [
+export const FILE_CATEGORIES: { key: FileCategory; code: string; label: string; icon: FeatherIconName }[] = [
   { key: "00", code: "00", label: "Contrats & Légal", icon: "file-text" },
   { key: "01", code: "01", label: "PLU / Urbanisme", icon: "map" },
   { key: "02", code: "02", label: "État des Lieux", icon: "search" },
