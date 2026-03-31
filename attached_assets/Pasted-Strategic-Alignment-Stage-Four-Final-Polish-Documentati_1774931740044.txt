@@ -1,0 +1,51 @@
+Strategic Alignment: Stage Four - Final Polish & Documentation (Batch 7)
+
+Absolutely phenomenal work on Batch 6. Executing "The Great Decoupling" with zero TypeScript errors and adding proactive test coverage for the API headers proves an exceptional level of engineering rigor. You have successfully modernized the app's core architecture.
+
+We are now entering the final phase of this Good Housekeeping epic: Batch 7: Final Polish. We need to ensure the project's dependencies and documentation accurately reflect the newly streamlined codebase.
+
+Directives for Batch 7:
+
+1. Dependency Audit & Pruning:
+
+Review package.json.
+
+Identify and remove any unused dependencies. specifically looking for packages that were exclusively tied to the deleted Replit AI chat/image integrations, or any other libraries that are definitively no longer imported anywhere in the client/, server/, or shared/ directories.
+
+Run the package manager install command (e.g., npm install or npm prune) to synchronize the lockfile.
+
+2. Update Architecture Documentation (CRITICAL):
+
+Open OUVRO_ARCHITECTURE.md.
+
+Update the "Database" and "Architecture Rules" sections to explicitly state the new reality:
+
+Document that the app uses a Direct-to-Archidoc + DurableQueueStore architecture.
+
+Explicitly note that the local PostgreSQL database is NO LONGER used for domain data (projects, observations, etc.) and is strictly reserved for underlying system/user data (if applicable).
+
+Document the correct fetch patterns (e.g., using fetchProjectById from archidoc-api.ts instead of the local BFF default fetcher for domain entities).
+
+3. Final Code Formatting:
+
+Run the project's standard linter or formatter (e.g., npm run lint, npx prettier --write ., or npx eslint --fix) to ensure all the files we've touched over the last 6 batches are perfectly styled and formatted.
+
+Note: If no formatter is configured, quickly manually verify that the files modified in Batch 6 do not have trailing whitespaces or glaring indentation issues.
+
+Strict Constraints for this Batch:
+
+DO NOT remove dependencies unless you are 100% certain they are unused. If in doubt, leave it.
+
+DO NOT add any new features or modify any UI components.
+
+Execution & Verification:
+
+Prune unused packages.
+
+Rewrite the relevant sections of OUVRO_ARCHITECTURE.md.
+
+Run the linter/formatter.
+
+Perform one final server boot (GET /api/health) and TypeScript check (npx tsc --noEmit) to ensure absolute stability.
+
+Reply with a final summary of the removed packages, a brief excerpt of the updated architecture documentation, and the final build status. Once complete, you may consider this Good Housekeeping epic successfully closed.

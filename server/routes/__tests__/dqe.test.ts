@@ -45,7 +45,7 @@ const mockDeps: DQERouterDeps = {
     if (!state.transcribeOk) {
       if (state.videoSizeBytes > 2 * 1024 * 1024 * 1024) {
         throw new Error(
-          `Video too large for transcription: ${Math.round(state.videoSizeBytes / 1024 / 1024)} MB exceeds 2 GB limit`
+          `Video too large for transcription: ${Math.round(state.videoSizeBytes / 1024 / 1024)} MB exceeds 2 GB limit`,
         );
       }
       throw new Error("Gemini Files API returned no URI for uploaded video");
@@ -53,7 +53,10 @@ const mockDeps: DQERouterDeps = {
     return state.transcribeText;
   },
 
-  submitToArchidoc: async (_apiUrl: string, _payload: Record<string, unknown>) => {
+  submitToArchidoc: async (
+    _apiUrl: string,
+    _payload: Record<string, unknown>,
+  ) => {
     if (!state.dqePostOk) return { error: state.dqePostError, status: 503 };
     return { data: { id: state.dqeRemoteId } };
   },
@@ -83,7 +86,10 @@ async function post(port: number, body: unknown) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  return { status: res.status, data: await res.json() as Record<string, unknown> };
+  return {
+    status: res.status,
+    data: (await res.json()) as Record<string, unknown>,
+  };
 }
 
 const VALID_BODY = {
@@ -102,28 +108,46 @@ describe("POST /api/dqe/submit — permanent failures → 400", () => {
 
   it("returns 400 when localId is absent", async () => {
     await withServer(async (port) => {
-      const { status, data } = await post(port, { projectId: "p1", videoObjectPath: "path" });
+      const { status, data } = await post(port, {
+        projectId: "p1",
+        videoObjectPath: "path",
+      });
       assert.equal(status, 400);
       assert.equal(data.success, false);
-      assert.ok((data.error as string).includes("localId"), `got: ${data.error}`);
+      assert.ok(
+        (data.error as string).includes("localId"),
+        `got: ${data.error}`,
+      );
     });
   });
 
   it("returns 400 when projectId is absent", async () => {
     await withServer(async (port) => {
-      const { status, data } = await post(port, { localId: "local-x", videoObjectPath: "path" });
+      const { status, data } = await post(port, {
+        localId: "local-x",
+        videoObjectPath: "path",
+      });
       assert.equal(status, 400);
       assert.equal(data.success, false);
-      assert.ok((data.error as string).includes("projectId"), `got: ${data.error}`);
+      assert.ok(
+        (data.error as string).includes("projectId"),
+        `got: ${data.error}`,
+      );
     });
   });
 
   it("returns 400 when videoObjectPath is absent", async () => {
     await withServer(async (port) => {
-      const { status, data } = await post(port, { localId: "local-x", projectId: "p1" });
+      const { status, data } = await post(port, {
+        localId: "local-x",
+        projectId: "p1",
+      });
       assert.equal(status, 400);
       assert.equal(data.success, false);
-      assert.ok((data.error as string).includes("videoObjectPath"), `got: ${data.error}`);
+      assert.ok(
+        (data.error as string).includes("videoObjectPath"),
+        `got: ${data.error}`,
+      );
     });
   });
 });
@@ -133,7 +157,10 @@ describe("POST /api/dqe/submit — happy path → 200", () => {
 
   it("returns 200 with archidocDQEId and non-empty transcription", async () => {
     await withServer(async (port) => {
-      const { status, data } = await post(port, { ...VALID_BODY, localId: "local-happy" });
+      const { status, data } = await post(port, {
+        ...VALID_BODY,
+        localId: "local-happy",
+      });
       assert.equal(status, 200, `expected 200, got ${status}: ${data.error}`);
       assert.equal(data.success, true);
       assert.equal(data.localId, "local-happy");
@@ -149,13 +176,16 @@ describe("POST /api/dqe/submit — transient failures → 502", () => {
   it("returns 502 when Archidoc download-url resolution fails", async () => {
     state.downloadUrlOk = false;
     await withServer(async (port) => {
-      const { status, data } = await post(port, { ...VALID_BODY, localId: "local-urlFail" });
+      const { status, data } = await post(port, {
+        ...VALID_BODY,
+        localId: "local-urlFail",
+      });
       assert.equal(status, 502);
       assert.equal(data.success, false);
       assert.ok(
         (data.error as string).toLowerCase().includes("url") ||
-        (data.error as string).toLowerCase().includes("unavailable"),
-        `got: ${data.error}`
+          (data.error as string).toLowerCase().includes("unavailable"),
+        `got: ${data.error}`,
       );
     });
   });
@@ -163,12 +193,15 @@ describe("POST /api/dqe/submit — transient failures → 502", () => {
   it("returns 502 when Gemini transcription fails", async () => {
     state.transcribeOk = false;
     await withServer(async (port) => {
-      const { status, data } = await post(port, { ...VALID_BODY, localId: "local-transcribeFail" });
+      const { status, data } = await post(port, {
+        ...VALID_BODY,
+        localId: "local-transcribeFail",
+      });
       assert.equal(status, 502);
       assert.equal(data.success, false);
       assert.ok(
         (data.error as string).toLowerCase().includes("transcription"),
-        `got: ${data.error}`
+        `got: ${data.error}`,
       );
     });
   });
@@ -177,13 +210,16 @@ describe("POST /api/dqe/submit — transient failures → 502", () => {
     state.transcribeOk = false;
     state.videoSizeBytes = 2.1 * 1024 * 1024 * 1024;
     await withServer(async (port) => {
-      const { status, data } = await post(port, { ...VALID_BODY, localId: "local-tooBig" });
+      const { status, data } = await post(port, {
+        ...VALID_BODY,
+        localId: "local-tooBig",
+      });
       assert.equal(status, 502);
       assert.equal(data.success, false);
       assert.ok(
         (data.error as string).toLowerCase().includes("large") ||
-        (data.error as string).toLowerCase().includes("transcription"),
-        `got: ${data.error}`
+          (data.error as string).toLowerCase().includes("transcription"),
+        `got: ${data.error}`,
       );
     });
   });
@@ -191,7 +227,10 @@ describe("POST /api/dqe/submit — transient failures → 502", () => {
   it("returns 502 when Archidoc DQE intake endpoint fails", async () => {
     state.dqePostOk = false;
     await withServer(async (port) => {
-      const { status, data } = await post(port, { ...VALID_BODY, localId: "local-dqeFail" });
+      const { status, data } = await post(port, {
+        ...VALID_BODY,
+        localId: "local-dqeFail",
+      });
       assert.equal(status, 502);
       assert.equal(data.success, false);
     });
@@ -226,26 +265,32 @@ describe("defaultSubmitToArchidoc — x-api-key header authentication", () => {
     process.env.OUVRO_API_KEY = "test-secret-key-abc";
     const result = await defaultSubmitToArchidoc(
       `http://localhost:${capturePort}`,
-      { localId: "key-test-001", projectId: "proj-1" }
+      { localId: "key-test-001", projectId: "proj-1" },
     );
-    assert.ok(!("error" in result), `Expected success but got error: ${(result as any).error}`);
+    assert.ok(
+      !("error" in result),
+      `Expected success but got error: ${(result as any).error}`,
+    );
     assert.equal(
       capturedHeaders["x-api-key"],
       "test-secret-key-abc",
-      "x-api-key header must equal OUVRO_API_KEY"
+      "x-api-key header must equal OUVRO_API_KEY",
     );
   });
 
   it("omits x-api-key header when OUVRO_API_KEY is not set", async () => {
     const result = await defaultSubmitToArchidoc(
       `http://localhost:${capturePort}`,
-      { localId: "key-test-002", projectId: "proj-2" }
+      { localId: "key-test-002", projectId: "proj-2" },
     );
-    assert.ok(!("error" in result), `Expected success but got error: ${(result as any).error}`);
+    assert.ok(
+      !("error" in result),
+      `Expected success but got error: ${(result as any).error}`,
+    );
     assert.equal(
       capturedHeaders["x-api-key"],
       undefined,
-      "x-api-key header must be absent when OUVRO_API_KEY is unset"
+      "x-api-key header must be absent when OUVRO_API_KEY is unset",
     );
   });
 });

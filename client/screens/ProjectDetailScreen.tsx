@@ -16,7 +16,12 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
+import {
+  Spacing,
+  BorderRadius,
+  Typography,
+  BrandColors,
+} from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import {
   fetchProjectById,
@@ -35,20 +40,24 @@ export default function ProjectDetailScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const route = useRoute<RouteProp<RootStackParamList, "ProjectDetail">>();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { projectId } = route.params;
 
-  const { data: project, isLoading: projectLoading } = useQuery<MappedProject | null>({
-    queryKey: ["/api/projects", projectId],
-    queryFn: () => fetchProjectById(projectId),
-    staleTime: 1000 * 60 * 5,
-  });
+  const { data: project, isLoading: projectLoading } =
+    useQuery<MappedProject | null>({
+      queryKey: ["/api/projects", projectId],
+      queryFn: () => fetchProjectById(projectId),
+      staleTime: 1000 * 60 * 5,
+    });
 
-  const { data: files = [], isLoading: filesLoading } = useQuery<ProjectFile[]>({
-    queryKey: ["/api/archive/files", projectId],
-    queryFn: () => fetchProjectFiles(projectId),
-    staleTime: 1000 * 60 * 5,
-  });
+  const { data: files = [], isLoading: filesLoading } = useQuery<ProjectFile[]>(
+    {
+      queryKey: ["/api/archive/files", projectId],
+      queryFn: () => fetchProjectFiles(projectId),
+      staleTime: 1000 * 60 * 5,
+    },
+  );
 
   const [observations, setObservations] = useState<OfflineObservation[]>([]);
   const [observationsReady, setObservationsReady] = useState(false);
@@ -56,14 +65,18 @@ export default function ProjectDetailScreen() {
   useEffect(() => {
     offlineSyncService.initialize().then(() => {
       setObservations(
-        offlineSyncService.getObservations().filter((o) => o.projectId === projectId)
+        offlineSyncService
+          .getObservations()
+          .filter((o) => o.projectId === projectId),
       );
       setObservationsReady(true);
     });
 
     const unsub = offlineSyncService.subscribe(() => {
       setObservations(
-        offlineSyncService.getObservations().filter((o) => o.projectId === projectId)
+        offlineSyncService
+          .getObservations()
+          .filter((o) => o.projectId === projectId),
       );
     });
 
@@ -108,7 +121,9 @@ export default function ProjectDetailScreen() {
     );
   }
 
-  const pendingCount = observations.filter((o) => o.syncState !== "complete").length;
+  const pendingCount = observations.filter(
+    (o) => o.syncState !== "complete",
+  ).length;
 
   return (
     <ThemedView style={styles.container}>
@@ -117,21 +132,41 @@ export default function ProjectDetailScreen() {
         keyExtractor={(item) => item.localId}
         contentContainerStyle={[
           styles.listContent,
-          { paddingTop: headerHeight + Spacing.md, paddingBottom: insets.bottom + Spacing.xl },
+          {
+            paddingTop: headerHeight + Spacing.md,
+            paddingBottom: insets.bottom + Spacing.xl,
+          },
         ]}
         ListHeaderComponent={
           <>
             <Card style={styles.projectCard}>
               <View style={styles.projectHeader}>
-                <View style={[styles.projectIcon, { backgroundColor: "#EFF6FF" }]}>
-                  <Feather name="briefcase" size={32} color={BrandColors.primary} />
+                <View
+                  style={[styles.projectIcon, { backgroundColor: "#EFF6FF" }]}
+                >
+                  <Feather
+                    name="briefcase"
+                    size={32}
+                    color={BrandColors.primary}
+                  />
                 </View>
                 <View style={styles.projectInfo}>
-                  <ThemedText style={styles.projectName}>{project?.name}</ThemedText>
+                  <ThemedText style={styles.projectName}>
+                    {project?.name}
+                  </ThemedText>
                   {project?.location ? (
                     <View style={styles.locationRow}>
-                      <Feather name="map-pin" size={14} color={theme.textSecondary} />
-                      <ThemedText style={[styles.projectLocation, { color: theme.textSecondary }]}>
+                      <Feather
+                        name="map-pin"
+                        size={14}
+                        color={theme.textSecondary}
+                      />
+                      <ThemedText
+                        style={[
+                          styles.projectLocation,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         {project.location}
                       </ThemedText>
                     </View>
@@ -141,46 +176,81 @@ export default function ProjectDetailScreen() {
 
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
-                  <ThemedText style={styles.statValue}>{observations.length}</ThemedText>
-                  <ThemedText style={[styles.statLabel, { color: theme.textSecondary }]}>
+                  <ThemedText style={styles.statValue}>
+                    {observations.length}
+                  </ThemedText>
+                  <ThemedText
+                    style={[styles.statLabel, { color: theme.textSecondary }]}
+                  >
                     Observations
                   </ThemedText>
                 </View>
                 <View style={styles.statItem}>
-                  <ThemedText style={styles.statValue}>{files.length}</ThemedText>
-                  <ThemedText style={[styles.statLabel, { color: theme.textSecondary }]}>
+                  <ThemedText style={styles.statValue}>
+                    {files.length}
+                  </ThemedText>
+                  <ThemedText
+                    style={[styles.statLabel, { color: theme.textSecondary }]}
+                  >
                     Files
                   </ThemedText>
                 </View>
                 <View style={styles.statItem}>
-                  <ThemedText style={styles.statValue}>{pendingCount}</ThemedText>
-                  <ThemedText style={[styles.statLabel, { color: theme.textSecondary }]}>
+                  <ThemedText style={styles.statValue}>
+                    {pendingCount}
+                  </ThemedText>
+                  <ThemedText
+                    style={[styles.statLabel, { color: theme.textSecondary }]}
+                  >
                     Pending
                   </ThemedText>
                 </View>
               </View>
 
               <Pressable
-                style={[styles.captureButton, { backgroundColor: BrandColors.primary }]}
+                style={[
+                  styles.captureButton,
+                  { backgroundColor: BrandColors.primary },
+                ]}
                 onPress={handleStartCapture}
               >
                 <Feather name="camera" size={20} color="#FFFFFF" />
-                <ThemedText style={styles.captureButtonText}>New Observation</ThemedText>
+                <ThemedText style={styles.captureButtonText}>
+                  New Observation
+                </ThemedText>
               </Pressable>
             </Card>
 
-            <ThemedText style={styles.sectionTitle}>Recent Observations</ThemedText>
+            <ThemedText style={styles.sectionTitle}>
+              Recent Observations
+            </ThemedText>
           </>
         }
         renderItem={({ item }) => (
           <Card style={styles.observationCard}>
             <View style={styles.observationHeader}>
-              <View style={[styles.observationIcon, { backgroundColor: theme.backgroundSecondary }]}>
-                <Feather name="file-text" size={20} color={BrandColors.primary} />
+              <View
+                style={[
+                  styles.observationIcon,
+                  { backgroundColor: theme.backgroundSecondary },
+                ]}
+              >
+                <Feather
+                  name="file-text"
+                  size={20}
+                  color={BrandColors.primary}
+                />
               </View>
               <View style={styles.observationInfo}>
-                <ThemedText style={styles.observationTitle}>{item.title}</ThemedText>
-                <ThemedText style={[styles.observationDate, { color: theme.textSecondary }]}>
+                <ThemedText style={styles.observationTitle}>
+                  {item.title}
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.observationDate,
+                    { color: theme.textSecondary },
+                  ]}
+                >
                   {new Date(item.createdAt).toLocaleDateString()}
                 </ThemedText>
               </View>
@@ -199,7 +269,10 @@ export default function ProjectDetailScreen() {
             </View>
             {item.description ? (
               <ThemedText
-                style={[styles.observationDescription, { color: theme.textSecondary }]}
+                style={[
+                  styles.observationDescription,
+                  { color: theme.textSecondary },
+                ]}
                 numberOfLines={2}
               >
                 {item.description}
@@ -210,10 +283,14 @@ export default function ProjectDetailScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Feather name="inbox" size={48} color={theme.textTertiary} />
-            <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.emptyText, { color: theme.textSecondary }]}
+            >
               No observations yet
             </ThemedText>
-            <ThemedText style={[styles.emptySubtext, { color: theme.textTertiary }]}>
+            <ThemedText
+              style={[styles.emptySubtext, { color: theme.textTertiary }]}
+            >
               Tap "New Observation" to capture site documentation
             </ThemedText>
           </View>

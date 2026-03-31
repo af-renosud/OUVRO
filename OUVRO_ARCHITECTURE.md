@@ -49,10 +49,10 @@ Runtime fetch logic and TypeScript type definitions must never live in the same 
 
 ### Standard: File Organization
 
-| File | Contents |
-|---|---|
-| `client/lib/archidoc-types.ts` | All TypeScript interfaces, type aliases, and runtime constants (`FILE_CATEGORIES`, `ANNOTATION_COLORS`) |
-| `client/lib/archidoc-api.ts` | All fetch functions, mapper functions, and the `archidocApiFetch` base wrapper. Re-exports everything from `archidoc-types.ts` for backward compatibility. |
+| File                           | Contents                                                                                                                                                   |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `client/lib/archidoc-types.ts` | All TypeScript interfaces, type aliases, and runtime constants (`FILE_CATEGORIES`, `ANNOTATION_COLORS`)                                                    |
+| `client/lib/archidoc-api.ts`   | All fetch functions, mapper functions, and the `archidocApiFetch` base wrapper. Re-exports everything from `archidoc-types.ts` for backward compatibility. |
 
 ### Standard: Centralized Fetch Wrapper
 
@@ -66,10 +66,14 @@ All Archidoc API calls must route through the `archidocApiFetch` base function, 
 
 ```typescript
 // CORRECT
-const data = await archidocApiFetch<ProjectResponse>("/projects", { method: "GET" });
+const data = await archidocApiFetch<ProjectResponse>("/projects", {
+  method: "GET",
+});
 
 // WRONG — raw fetch bypasses URL guard and error handling
-const resp = await fetch(`${ARCHIDOC_API_URL}/projects`, { credentials: "include" });
+const resp = await fetch(`${ARCHIDOC_API_URL}/projects`, {
+  credentials: "include",
+});
 ```
 
 **Exception:** `uploadFileToSignedUrl` uses raw `fetch()` because it hits external signed storage URLs, not the Archidoc API.
@@ -113,10 +117,10 @@ All local data persistence and offline queue management must delegate to the gen
 
 **Established consumers:**
 
-| Module | Store Key | Purpose |
-|---|---|---|
-| `client/lib/offline-sync.ts` | `PENDING_OBSERVATIONS` | Observation capture queue with states: `pending → uploading_metadata → uploading_media → partial → complete / failed` |
-| `client/lib/offline-tasks.ts` | `PENDING_TASKS` | Voice-to-task queue with states: `pending → transcribing → review → accepted → uploading → complete / failed` |
+| Module                        | Store Key              | Purpose                                                                                                               |
+| ----------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `client/lib/offline-sync.ts`  | `PENDING_OBSERVATIONS` | Observation capture queue with states: `pending → uploading_metadata → uploading_media → partial → complete / failed` |
+| `client/lib/offline-tasks.ts` | `PENDING_TASKS`        | Voice-to-task queue with states: `pending → transcribing → review → accepted → uploading → complete / failed`         |
 
 ```typescript
 // CORRECT — Compose DurableQueueStore
@@ -132,7 +136,57 @@ await FileSystem.copyAsync({ from: uri, to: localPath });
 
 ---
 
-## 4. The BFF Proxy Layer (Backend `server/routes/`)
+## 4. Data Architecture: Direct-to-Archidoc + DurableQueueStore
+
+### Rule
+
+The local PostgreSQL database is **NOT** used for domain data (projects, observations, DQE items, files). It is strictly reserved for infrastructure/system tables (`users`).
+
+### Standard: Direct Archidoc Fetching (Frontend)
+
+All domain entities must be fetched directly from the Archidoc API using the established functions in `client/lib/archidoc-api.ts`. **Do not** route domain queries through a local BFF default fetcher.
+
+| Entity            | Correct fetch function         | Query key shape                         |
+| ----------------- | ------------------------------ | --------------------------------------- |
+| Single project    | `fetchProjectById(projectId)`  | `["/api/projects", projectId]`          |
+| Project file list | `fetchProjectFiles(projectId)` | `["/api/projects", projectId, "files"]` |
+| DQE items         | `fetchDQEItems(projectId)`     | `["/api/dqe", projectId]`               |
+
+```typescript
+// CORRECT — Archidoc API directly, typed via archidoc-types.ts
+const { data: project } = useQuery<MappedProject>({
+  queryKey: ["/api/projects", projectId],
+  queryFn: () => fetchProjectById(projectId),
+});
+
+// WRONG — BFF default fetcher hitting local PostgreSQL (these routes no longer exist)
+const { data } = useQuery({ queryKey: ["/api/projects", projectId] });
+```
+
+### Standard: Offline Queue (All Platforms)
+
+Observations, tasks, and any other field-captured data that must survive network outages are persisted exclusively via `DurableQueueStore<T>`. See Section 3 for the full offline persistence standard.
+
+```typescript
+// CORRECT — read observations from DurableQueueStore, not local DB
+const all = await offlineSyncService.getObservations();
+const forProject = all.filter((o) => o.projectId === projectId);
+
+// WRONG — query a local /api/observations endpoint (this route has been deleted)
+const { data } = useQuery({ queryKey: ["/api/observations"] });
+```
+
+### Standard: Local PostgreSQL Scope
+
+| Table   | Owner              | Purpose                                               |
+| ------- | ------------------ | ----------------------------------------------------- |
+| `users` | `shared/schema.ts` | Infrastructure — reserved for future auth integration |
+
+**All other formerly local tables (`projects`, `observations`, `observation_media`, `project_files`) have been permanently dropped.** Do not re-create them.
+
+---
+
+## 5. The BFF Proxy Layer (Backend `server/routes/`)
 
 ### Rule
 
@@ -143,25 +197,25 @@ Never add new API routes to a monolithic `server/routes.ts` file.
 The main `server/routes.ts` file must remain a thin orchestrator (~30 lines) that mounts domain routers. It must not contain any route handler logic.
 
 ```typescript
-// server/routes.ts — orchestrator pattern
-app.use("/api/projects", projectsRouter);
-app.use("/api/observations", observationsRouter);
+// server/routes.ts — orchestrator pattern (current active routers)
 app.use("/api/ai", aiRouter);
 app.use("/api/archidoc", archidocRouter);
 app.use("/api", syncRouter);
+app.use("/api/dqe", dqeRouter);
 ```
 
 ### Standard: Domain Routers
 
 All new endpoints must be placed in their respective domain router under `server/routes/`:
 
-| Router File | Prefix | Responsibility |
-|---|---|---|
-| `projects.ts` | `/api/projects` | Project CRUD, DQE, contractors |
-| `observations.ts` | `/api/observations` | Observation CRUD |
-| `ai.ts` | `/api/ai` | Gemini transcription & translation |
-| `archidoc.ts` | `/api/archidoc` | Archidoc file proxy (upload URLs, archive, download) |
-| `sync.ts` | `/api` | Sync endpoints (observation sync, task sync) |
+| Router File   | Prefix          | Responsibility                                                                         |
+| ------------- | --------------- | -------------------------------------------------------------------------------------- |
+| `ai.ts`       | `/api/ai`       | Gemini transcription & translation                                                     |
+| `archidoc.ts` | `/api/archidoc` | Archidoc file proxy (upload URLs, archive, download)                                   |
+| `sync.ts`     | `/api`          | Sync endpoints (observation sync, task sync)                                           |
+| `dqe.ts`      | `/api/dqe`      | DQE video intake: download URL resolution → Gemini transcription → Archidoc submission |
+
+> **Deleted routers (do not recreate):** `projects.ts` and `observations.ts` have been permanently removed. Those concerns are now handled directly by the frontend via `archidoc-api.ts` and `DurableQueueStore`.
 
 ### Standard: Archidoc Proxy Helpers
 
@@ -186,7 +240,7 @@ router.post("/upload", async (req, res) => {
 
 ---
 
-## 5. Screen Component Standards
+## 6. Screen Component Standards
 
 ### Header Components
 
@@ -200,7 +254,7 @@ router.post("/upload", async (req, res) => {
 
 ---
 
-## 6. AI Agent Instructions
+## 7. AI Agent Instructions
 
 > **Mandatory reading.** Before proposing any code changes, new screens, or new API routes, you **MUST** read this file in its entirety.
 
@@ -218,6 +272,8 @@ router.post("/upload", async (req, res) => {
 
 6. **Mixing types and runtime code** — Never add TypeScript interfaces to `archidoc-api.ts`. Types belong in `archidoc-types.ts`.
 
+7. **Querying local PostgreSQL for domain data** — Never add `useQuery` calls that fetch projects, observations, files, or DQE items from a local BFF route. Those routes have been permanently deleted. Use `fetchProjectById()`, `fetchProjectFiles()`, `fetchDQEItems()` from `archidoc-api.ts` (frontend) or `offlineSyncService` for queue data. The only active local DB table is `users`.
+
 ### Before writing code, verify:
 
 - [ ] Does a hook already exist for this hardware interaction?
@@ -225,6 +281,7 @@ router.post("/upload", async (req, res) => {
 - [ ] Does a domain router already exist for this endpoint category?
 - [ ] Am I using `DurableQueueStore` for any offline persistence?
 - [ ] Am I using `archidocApiFetch` (frontend) or `archidocJsonPost` (backend) for API calls?
+- [ ] Am I fetching domain entities (`projects`, `files`, `dqe`) via the correct `archidoc-api.ts` functions and **not** from a local BFF route?
 
 ### When adding new features:
 

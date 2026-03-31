@@ -15,7 +15,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
+import {
+  Spacing,
+  BorderRadius,
+  Typography,
+  BrandColors,
+} from "@/constants/theme";
 import {
   fetchProjectFiles,
   getFileDownloadUrl,
@@ -52,10 +57,16 @@ export function ProjectFileBrowser({
 }: ProjectFileBrowserProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [loadingFileId, setLoadingFileId] = useState<string | null>(null);
 
-  const { data: files = [], isLoading, error, refetch } = useQuery({
+  const {
+    data: files = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["/api/archive/files", projectId, category ?? null],
     queryFn: () => fetchProjectFiles(projectId, category ?? undefined),
     staleTime: 1000 * 60 * 5,
@@ -86,14 +97,28 @@ export function ProjectFileBrowser({
       style={[styles.fileItem, { backgroundColor: theme.backgroundSecondary }]}
       onPress={() => handleFilePress(item)}
     >
-      <View style={[styles.simpleFileIcon, { backgroundColor: theme.backgroundTertiary }]}>
-        <Feather name={getFileIcon(item.contentType) as any} size={20} color={BrandColors.primary} />
+      <View
+        style={[
+          styles.simpleFileIcon,
+          { backgroundColor: theme.backgroundTertiary },
+        ]}
+      >
+        <Feather
+          name={getFileIcon(item.contentType) as any}
+          size={20}
+          color={BrandColors.primary}
+        />
       </View>
       <View style={styles.fileInfo}>
-        <ThemedText style={[styles.fileName, { color: theme.text }]} numberOfLines={1}>
+        <ThemedText
+          style={[styles.fileName, { color: theme.text }]}
+          numberOfLines={1}
+        >
           {item.originalName}
         </ThemedText>
-        <ThemedText style={[styles.fileSubtext, { color: theme.textSecondary }]}>
+        <ThemedText
+          style={[styles.fileSubtext, { color: theme.textSecondary }]}
+        >
           {formatFileSize(item.size)}
         </ThemedText>
       </View>
@@ -106,27 +131,51 @@ export function ProjectFileBrowser({
     const dateStr = new Date(item.createdAt).toLocaleDateString();
     return (
       <Pressable
-        style={[styles.fileItem, { backgroundColor: theme.backgroundSecondary }]}
+        style={[
+          styles.fileItem,
+          { backgroundColor: theme.backgroundSecondary },
+        ]}
         onPress={() => handleFilePress(item)}
         disabled={isLoadingThis}
       >
-        <View style={[styles.detailedFileIcon, { backgroundColor: theme.backgroundTertiary }]}>
+        <View
+          style={[
+            styles.detailedFileIcon,
+            { backgroundColor: theme.backgroundTertiary },
+          ]}
+        >
           {isLoadingThis ? (
             <ActivityIndicator size="small" color={BrandColors.primary} />
           ) : (
-            <Feather name={getFileIcon(item.contentType) as any} size={24} color={BrandColors.primary} />
+            <Feather
+              name={getFileIcon(item.contentType) as any}
+              size={24}
+              color={BrandColors.primary}
+            />
           )}
         </View>
         <View style={styles.fileInfo}>
-          <ThemedText style={[styles.fileNameBold, { color: theme.text }]} numberOfLines={1}>
+          <ThemedText
+            style={[styles.fileNameBold, { color: theme.text }]}
+            numberOfLines={1}
+          >
             {item.originalName}
           </ThemedText>
-          <ThemedText style={[styles.fileSubtext, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[styles.fileSubtext, { color: theme.textSecondary }]}
+          >
             {formatFileSize(item.size)} • {dateStr}
           </ThemedText>
         </View>
-        <View style={[styles.categoryBadge, { backgroundColor: theme.backgroundTertiary }]}>
-          <ThemedText style={[styles.categoryBadgeText, { color: theme.textSecondary }]}>
+        <View
+          style={[
+            styles.categoryBadge,
+            { backgroundColor: theme.backgroundTertiary },
+          ]}
+        >
+          <ThemedText
+            style={[styles.categoryBadgeText, { color: theme.textSecondary }]}
+          >
             {getCategoryLabel(item.category)}
           </ThemedText>
         </View>
@@ -138,8 +187,12 @@ export function ProjectFileBrowser({
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <Feather name={emptyIcon} size={48} color={theme.textTertiary} />
-      <ThemedText style={[styles.emptyTitle, { color: theme.text }]}>{emptyTitle}</ThemedText>
-      <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>{emptyText}</ThemedText>
+      <ThemedText style={[styles.emptyTitle, { color: theme.text }]}>
+        {emptyTitle}
+      </ThemedText>
+      <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
+        {emptyText}
+      </ThemedText>
     </View>
   );
 
@@ -164,7 +217,9 @@ export function ProjectFileBrowser({
     return (
       <View style={[styles.loadingContainer, style]}>
         <ActivityIndicator size="large" color={BrandColors.primary} />
-        <ThemedText style={[styles.loadingText, { color: theme.textSecondary }]}>
+        <ThemedText
+          style={[styles.loadingText, { color: theme.textSecondary }]}
+        >
           {loadingText}
         </ThemedText>
       </View>
@@ -176,7 +231,9 @@ export function ProjectFileBrowser({
       style={style}
       data={files}
       keyExtractor={(item) => item.objectId}
-      renderItem={variant === "detailed" ? renderDetailedItem : renderSimpleItem}
+      renderItem={
+        variant === "detailed" ? renderDetailedItem : renderSimpleItem
+      }
       contentContainerStyle={[
         styles.listContent,
         { paddingBottom: insets.bottom + Spacing.xl },
