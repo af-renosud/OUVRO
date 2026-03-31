@@ -291,3 +291,139 @@ router.post("/upload", async (req, res) => {
 4. Use `DurableQueueStore<T>` for any offline queue
 5. Create a custom hook for any new hardware interaction
 6. Update `replit.md` with architectural changes
+
+---
+
+## 8. Strict Type Integrity & Anti-Slop Mandate
+
+> **Visibility:** This rule applies to every file, every session, every agent. It is not optional.
+> Violations here are treated identically to runtime bugs — they must be corrected before any PR or commit is considered complete.
+
+### Rule
+
+The TypeScript compiler is a correctness gate, not a linter suggestion. `tsconfig.json` has `"strict": true` permanently enabled. No future change may weaken or circumvent this setting.
+
+---
+
+### The `any` Keyword is Strictly Banned
+
+You are **strictly prohibited** from introducing `: any`, `as any`, or `<any>` anywhere in this codebase — in production code, test files, or type declarations.
+
+**Banned:**
+```typescript
+// ALL of these are forbidden
+function foo(x: any) { ... }
+const result = response as any;
+const items = data as Array<any>;
+catch (e: any) { ... }
+```
+
+**Required alternatives:**
+```typescript
+// Use unknown at boundaries, then narrow
+function foo(x: unknown) { ... }
+const result = response as SpecificType;       // only when the shape is known
+const items = data as Array<SpecificItem>;     // only when the shape is known
+catch (e: unknown) { const msg = e instanceof Error ? e.message : String(e); }
+```
+
+---
+
+### Strict API Boundaries
+
+All data arriving from the Archidoc API or the BFF proxy **must** be immediately assigned to a typed interface before use.
+
+- Raw API response shapes → `client/lib/archidoc-types.ts` (e.g., `RawProject`, `RawDQEItem`, `RawExternalLinks`)
+- Mapped/domain shapes → `client/lib/archidoc-types.ts` or `client/lib/archidoc-api.ts`
+- BFF envelope → `ArchidocHttpResult<T>` from `server/routes/archidoc-helpers.ts`
+
+**Banned:**
+```typescript
+async function mapRawProject(raw: any) { ... }   // raw JSON as any
+const data: any = await response.json();          // untyped JSON
+```
+
+**Required:**
+```typescript
+async function mapRawProject(raw: RawProject) { ... }
+const data: SpecificResponseType = await response.json();
+```
+
+---
+
+### Safe Error Handling
+
+Every `catch` block in the codebase uses `unknown`. This is non-negotiable.
+
+**Banned:**
+```typescript
+catch (e: any) {
+  doSomething(e.message);    // compiler blind spot
+}
+```
+
+**Required:**
+```typescript
+catch (e: unknown) {
+  const message = e instanceof Error ? e.message : String(e);
+  doSomething(message);
+}
+```
+
+---
+
+### Strict Component & Event Contracts
+
+**React component props** must be fully typed. No prop may be typed as `any`.
+
+```typescript
+// Banned
+type Props = { source: any; onError?: (error?: any) => void };
+
+// Required
+type Props = { source: ImageSourcePropType; onError?: (error?: unknown) => void };
+```
+
+**Event emitter payloads** in `DurableQueueStore` and all derived services (`offline-sync`, `offline-tasks`, `offline-annotations`, `offline-dqe`) must use `unknown` or a discriminated union — never `data?: any`.
+
+```typescript
+// Banned
+type EventListener = (event: string, data?: any) => void;
+
+// Required
+type EventListener = (event: string, data?: unknown) => void;
+```
+
+When accessing a known payload after emission, narrow with a typed const:
+```typescript
+case "progressUpdated": {
+  const progress = data as SyncProgress;   // explicit, auditable cast
+  setSyncProgress(progress);
+  break;
+}
+```
+
+---
+
+### Shared UI Types
+
+Icon name types and other UI-specific string unions that must be passed as component props must be defined in `client/lib/types.ts` and imported where needed. Do not use `as any` to satisfy icon or enum prop types.
+
+```typescript
+// client/lib/types.ts
+export type FeatherIconName = ComponentProps<typeof Feather>["name"];
+
+// Usage
+function getFileIcon(contentType: string): FeatherIconName { ... }
+<Feather name={getFileIcon(item.contentType)} />   // no cast needed
+```
+
+---
+
+### Compliance Checklist (run before every commit)
+
+- [ ] `npx tsc --noEmit` exits with code 0 and zero errors
+- [ ] `grep -rn ": any\b\|as any\b\|<any>" client/ server/` returns **zero matches**
+- [ ] Every `catch` block uses `catch (e: unknown)` with an explicit type-guard before `.message` access
+- [ ] Every new API mapper function declares a typed `Raw*` interface in `archidoc-types.ts`
+- [ ] No new component prop is typed as `any`
