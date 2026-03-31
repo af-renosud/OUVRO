@@ -695,12 +695,17 @@ export default function QueueScreen() {
               </ThemedText>
             ) : null}
           </View>
-          <View style={[styles.syncBadge, { backgroundColor: stateInfo.color }]}>
-            {isUploading ? (
-              <ActivityIndicator size={14} color="#FFFFFF" />
-            ) : (
-              <Feather name={stateInfo.icon} size={14} color="#FFFFFF" />
-            )}
+          <View style={styles.dqeStateBadgeColumn}>
+            <View style={[styles.syncBadge, { backgroundColor: stateInfo.color }]}>
+              {isUploading ? (
+                <ActivityIndicator size={14} color="#FFFFFF" />
+              ) : (
+                <Feather name={stateInfo.icon} size={14} color="#FFFFFF" />
+              )}
+            </View>
+            <ThemedText style={[styles.dqeStateLabel, { color: stateInfo.color }]}>
+              {stateInfo.label}
+            </ThemedText>
           </View>
         </View>
 
@@ -732,19 +737,22 @@ export default function QueueScreen() {
                 <Pressable
                   style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
                   onPress={() => handleRetryDQECapture(item.localId)}
-                  disabled={!isNetworkAvailable}
                 >
                   <Feather name="refresh-cw" size={16} color="#FFFFFF" />
-                  <ThemedText style={styles.actionButtonText}>Retry</ThemedText>
+                  <ThemedText style={styles.actionButtonText}>
+                    {isNetworkAvailable ? "Retry" : "Re-queue"}
+                  </ThemedText>
                 </Pressable>
               ) : item.syncState === "pending" ? (
                 <Pressable
                   style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
                   onPress={() => handleRetryDQECapture(item.localId)}
-                  disabled={!isNetworkAvailable || isDQESyncing}
+                  disabled={isDQESyncing}
                 >
                   <Feather name="upload-cloud" size={16} color="#FFFFFF" />
-                  <ThemedText style={styles.actionButtonText}>Sync</ThemedText>
+                  <ThemedText style={styles.actionButtonText}>
+                    {isNetworkAvailable ? "Sync" : "Queued"}
+                  </ThemedText>
                 </Pressable>
               ) : isUploading ? (
                 <View style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}>
@@ -1283,5 +1291,15 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginLeft: Spacing.xs,
     alignSelf: "center",
+  },
+  dqeStateBadgeColumn: {
+    alignItems: "center",
+    gap: 4,
+  },
+  dqeStateLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
   },
 });
