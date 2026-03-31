@@ -51,7 +51,9 @@
           "microphonePermission": "OUVRO needs microphone access to record audio observations on site"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-video",
+      "expo-asset"
     ],
     "experiments": {
       "reactCompiler": true
