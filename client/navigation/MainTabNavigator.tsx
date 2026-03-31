@@ -11,6 +11,10 @@ import SettingsScreen from "@/screens/SettingsScreen";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Shadows, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "./RootStackNavigator";
+import { useDQESync } from "@/hooks/useDQESync";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useOfflineTasks } from "@/hooks/useOfflineTasks";
+import { useOfflineAnnotations } from "@/hooks/useOfflineAnnotations";
 
 export type MainTabParamList = {
   ProjectsTab: undefined;
@@ -55,6 +59,11 @@ function CaptureButton() {
 
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
+  const { pendingCount: dqePending } = useDQESync();
+  const { pendingCount: obsPending } = useOfflineSync();
+  const { pendingCount: tasksPending } = useOfflineTasks();
+  const { pendingCount: annotPending } = useOfflineAnnotations();
+  const totalPending = dqePending + obsPending + tasksPending + annotPending;
 
   return (
     <View style={{ flex: 1 }}>
@@ -108,6 +117,7 @@ export default function MainTabNavigator() {
           component={QueueScreen}
           options={{
             title: "Queue",
+            tabBarBadge: totalPending > 0 ? totalPending : undefined,
             tabBarIcon: () => (
               <Feather name="cloud" size={28} color="#F59E0B" />
             ),

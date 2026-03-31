@@ -11,7 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { CommonActions, useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
@@ -79,15 +79,22 @@ export default function DQECaptureReviewScreen() {
         architectNotes: notes.trim() || undefined,
       });
 
-      Alert.alert(
-        "DQE Enregistré",
-        "La capture vidéo DQE a été mise en file d'attente. Elle sera transmise à Archidoc dès que la connexion sera disponible.",
-        [
-          {
-            text: "OK",
-            onPress: () => navigation.popToTop(),
-          },
-        ]
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [
+            {
+              name: "Main",
+              state: {
+                index: 1,
+                routes: [
+                  { name: "ProjectsTab" },
+                  { name: "QueueTab" },
+                ],
+              },
+            },
+          ],
+        })
       );
     } catch (error: unknown) {
       if (__DEV__) console.error("[DQEReview] Submit error:", error);
