@@ -79,22 +79,32 @@ export default function DQECaptureReviewScreen() {
         architectNotes: notes.trim() || undefined,
       });
 
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [
-            {
-              name: "Main",
-              state: {
-                index: 1,
-                routes: [
-                  { name: "ProjectsTab" },
-                  { name: "QueueTab" },
-                ],
-              },
-            },
-          ],
-        })
+      Alert.alert(
+        "DQE Enregistré",
+        "La capture vidéo DQE a été mise en file d'attente. Elle sera transmise à Archidoc dès que la connexion sera disponible.",
+        [
+          {
+            text: "OK",
+            onPress: () =>
+              navigation.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [
+                    {
+                      name: "Main",
+                      state: {
+                        index: 1,
+                        routes: [
+                          { name: "ProjectsTab" },
+                          { name: "QueueTab" },
+                        ],
+                      },
+                    },
+                  ],
+                })
+              ),
+          },
+        ]
       );
     } catch (error: unknown) {
       if (__DEV__) console.error("[DQEReview] Submit error:", error);
