@@ -1,0 +1,38 @@
+Strategic Alignment: Stage Three - Architectural Deep Dive (Batch 5)
+
+Outstanding work on Batch 4. Extracting the ProjectFileBrowser component and reducing the UI footprint by nearly 300 lines while maintaining a zero-error build is top-tier engineering. The codebase is now vastly cleaner, standardized, and free of dead weight.
+
+We have now resolved all minor and moderate technical debt. We are left with the final, high-risk item from your initial audit: The Load-Bearing Dual-Source Data Architecture.
+
+Before we make any decisions about refactoring the data layer, we need to completely understand it.
+
+Directives for Batch 5 (Read-Only Analysis):
+
+Your objective is to trace the exact lifecycle of projects and observations to determine why we have both a local PostgreSQL database and an upstream Archidoc API, and how they interact.
+
+1. Analyze the Read Path (UI to Data):
+
+Trace ProjectDetailScreen and DQEBrowserScreen. Which source are they actually querying? Local DB (GET /api/projects/:id) or Archidoc (/api/archidoc/*)?
+
+Do they conditionally switch based on network availability?
+
+2. Analyze the Write/Sync Path (Data to Archidoc):
+
+Look at client/lib/offline-sync.ts and client/lib/offline-tasks.ts.
+
+When a new observation is created offline, does it write to the local PostgreSQL DB, or only to the local device's DurableQueueStore?
+
+Is the local PostgreSQL database actually acting as the offline cache for the mobile app, or is the mobile app caching locally on the device (SQLite/AsyncStorage) and ignoring the server's DB entirely?
+
+3. Identify the Seeding Mechanism:
+
+How does data get into the local PostgreSQL projects and observations tables? Is there a cron job, a webhook from Archidoc, or a specific user action that triggers a pull from Archidoc to seed the local backend DB?
+
+Strict Constraints for this Batch:
+
+DO NOT modify, delete, or refactor a single line of code. This is a strictly read-only reconnaissance mission.
+
+Focus entirely on the data flow between the Mobile Client, the BFF (Backend-for-Frontend) Server, the local PostgreSQL Database, and the Archidoc API.
+
+Execution & Required Output:
+Provide a detailed Data Flow Report answering the specific questions above. Conclude your report with an architectural assessment: Is the local PostgreSQL database actually required for the app to function, or is it legacy code that was superseded by DurableQueueStore on the device?
