@@ -206,9 +206,12 @@ function isAllowedVideoUrl(url: string): boolean {
     if (/^fe[89ab]/i.test(host)) return false;
     // Unique local (fc00::/7 — covers fc and fd prefixes)
     if (/^f[cd]/i.test(host)) return false;
-    // IPv4-mapped IPv6 (::ffff:0:0/96) — recurse with the embedded IPv4 address
-    const v4mapped = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-    if (v4mapped) return isAllowedVideoUrl(`https://${v4mapped[1]}/`);
+    // IPv4-mapped IPv6 (::ffff:0:0/96).
+    // Node.js WHATWG URL normalises ::ffff:10.0.0.1 → ::ffff:a00:1 (hex groups),
+    // so matching on decimal dotted notation alone misses the normalised form.
+    // Block the entire ::ffff: prefix — no legitimate external storage URL
+    // should ever be expressed as an IPv4-mapped IPv6 address.
+    if (/^::ffff:/i.test(host)) return false;
 
     // ── Common internal hostnames ──────────────────────────────────────────
     if (host === "localhost") return false;
