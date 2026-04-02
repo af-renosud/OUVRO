@@ -60,6 +60,7 @@ function makeDeps(overrides: Partial<TranscribeVideoDepsInternal> = {}): Transcr
     fileExists: (_path: string) => tempCreated,
     fileUnlink: (_path: string) => { tempCreated = false; },
     pollIntervalMs: 0,
+    maxPollAttempts: 10,
   };
 
   return { ...defaults, ...overrides };
@@ -230,6 +231,24 @@ describe("defaultTranscribeVideo", () => {
     await assert.rejects(
       () => defaultTranscribeVideo("https://cdn.test/video.mp4", "video/mp4", deps),
       /403/,
+    );
+  });
+
+  it("throws when polling exceeds maxPollAttempts (stuck PROCESSING)", async () => {
+    const deps = makeDeps({
+      filesGet: async () => ({ state: "PROCESSING", uri: undefined, mimeType: undefined }),
+      maxPollAttempts: 3,
+    });
+
+    await assert.rejects(
+      () => defaultTranscribeVideo("https://cdn.test/video.mp4", "video/mp4", deps),
+      (err: Error) => {
+        assert.ok(
+          err.message.includes("timed out") || err.message.includes("attempts"),
+          `expected timeout message, got: ${err.message}`,
+        );
+        return true;
+      },
     );
   });
 });

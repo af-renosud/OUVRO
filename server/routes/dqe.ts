@@ -26,6 +26,8 @@ const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024;
 const TRANSCRIPTION_DOWNLOAD_TIMEOUT_MS = 120_000;
 // How long to wait between Files API state polls (PROCESSING → ACTIVE).
 const GEMINI_POLL_INTERVAL_MS = 5_000;
+// Max poll attempts before giving up (5 s × 60 = 5 min total).
+const GEMINI_MAX_POLL_ATTEMPTS = 60;
 
 export type DQERouterDeps = {
   fetchVideoDownloadUrl?: (
@@ -140,6 +142,7 @@ export type TranscribeVideoDepsInternal = {
   fileExists: (path: string) => boolean;
   fileUnlink: (path: string) => void;
   pollIntervalMs: number;
+  maxPollAttempts: number;
 };
 
 function makeRealTranscribeVideoDeps(): TranscribeVideoDepsInternal {
@@ -159,6 +162,8 @@ function makeRealTranscribeVideoDeps(): TranscribeVideoDepsInternal {
       const r = await directAi.files.get({ name });
       return { state: r.state, uri: r.uri, mimeType: r.mimeType };
     },
+    pollIntervalMs: GEMINI_POLL_INTERVAL_MS,
+    maxPollAttempts: GEMINI_MAX_POLL_ATTEMPTS,
     doGenerate: async (fileUri, fileMimeType) => {
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
@@ -184,7 +189,6 @@ function makeRealTranscribeVideoDeps(): TranscribeVideoDepsInternal {
     ) => Promise<void>,
     fileExists: fs.existsSync,
     fileUnlink: fs.unlinkSync,
-    pollIntervalMs: GEMINI_POLL_INTERVAL_MS,
   };
 }
 
@@ -242,11 +246,18 @@ export async function defaultTranscribeVideo(
 
     // ── 3. Poll until ACTIVE (Gemini extracts frames asynchronously) ───────
     let fileInfo = await deps.filesGet(uploadedFileName);
+    let pollAttempts = 0;
     while (fileInfo.state === "PROCESSING") {
+      if (pollAttempts >= deps.maxPollAttempts) {
+        throw new Error(
+          `Gemini video processing timed out after ${deps.maxPollAttempts} attempts`,
+        );
+      }
       await new Promise<void>((resolve) =>
         setTimeout(resolve, deps.pollIntervalMs),
       );
       fileInfo = await deps.filesGet(uploadedFileName);
+      pollAttempts++;
     }
     if (fileInfo.state === "FAILED") {
       throw new Error("Gemini failed to process the uploaded video");
