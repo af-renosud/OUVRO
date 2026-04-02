@@ -3,7 +3,7 @@ import { pipeline } from "stream/promises";
 import {
   Router,
   type Request,
-  type Response,
+  type Response as ExpressResponse,
   type NextFunction,
 } from "express";
 import { ai, directAi } from "../ai-client";
@@ -44,7 +44,7 @@ export type DQERouterDeps = {
   >;
   validateArchidocUrl?: (
     req: Request,
-    res: Response,
+    res: ExpressResponse,
     next: NextFunction,
   ) => void;
 };
@@ -110,14 +110,19 @@ export function normalizeVideoMimeType(rawMimeType: string): string {
   return "video/mp4";
 }
 
+// Minimal fetch-response shapes used in the deps type below.
+// Defined explicitly to avoid collision with Express's `Response` type.
+type FetchHeadResult = { ok: boolean; headers: { get(name: string): string | null } };
+type FetchGetResult = {
+  ok: boolean;
+  status: number;
+  body: NodeJS.ReadableStream | ReadableStream<Uint8Array> | null;
+};
+
 // ── Injectable deps (real implementations used by default, mocked in tests) ──
 export type TranscribeVideoDepsInternal = {
-  doHead: (
-    url: string,
-  ) => Promise<Pick<Response, "ok" | "headers"> | null>;
-  doGet: (
-    url: string,
-  ) => Promise<Pick<Response, "ok" | "status" | "body">>;
+  doHead: (url: string) => Promise<FetchHeadResult | null>;
+  doGet: (url: string) => Promise<FetchGetResult>;
   filesUpload: (
     path: string,
     mimeType: string,
@@ -213,7 +218,7 @@ export async function defaultTranscribeVideo(
     const videoResponse = await deps.doGet(videoDownloadUrl);
     if (!videoResponse.ok) {
       throw new Error(
-        `Video download failed with status ${(videoResponse as Response).status}`,
+        `Video download failed with status ${videoResponse.status}`,
       );
     }
     if (!videoResponse.body) {
@@ -387,7 +392,7 @@ export function createDQERouter(deps: DQERouterDeps = {}): Router {
   router.post(
     "/dqe/submit",
     effectiveValidate,
-    async (req: Request, res: Response) => {
+    async (req: Request, res: ExpressResponse) => {
       const localId: string = req.body.localId || "unknown";
 
       try {
