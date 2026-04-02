@@ -241,6 +241,54 @@ describe("POST /api/dqe/submit — videoUrl fast path", () => {
       assert.equal(fetchUrlCallCount, 1, "fetchVideoDownloadUrl must be called as fallback when videoUrl is not HTTPS");
     });
   });
+
+  it("falls back when videoUrl targets IPv6 loopback [::1]", async () => {
+    await withTrackingServer(async (port) => {
+      const { status, data } = await post(port, {
+        ...VALID_BODY,
+        localId: "local-ipv6-loopback",
+        videoUrl: "https://[::1]/video.mp4",
+      });
+      assert.equal(status, 200, `expected 200, got ${status}: ${data.error}`);
+      assert.equal(fetchUrlCallCount, 1, "fetchVideoDownloadUrl must be called as fallback for IPv6 loopback");
+    });
+  });
+
+  it("falls back when videoUrl targets IPv6 link-local [fe80::1]", async () => {
+    await withTrackingServer(async (port) => {
+      const { status, data } = await post(port, {
+        ...VALID_BODY,
+        localId: "local-ipv6-linklocal",
+        videoUrl: "https://[fe80::1]/video.mp4",
+      });
+      assert.equal(status, 200, `expected 200, got ${status}: ${data.error}`);
+      assert.equal(fetchUrlCallCount, 1, "fetchVideoDownloadUrl must be called as fallback for IPv6 link-local");
+    });
+  });
+
+  it("falls back when videoUrl targets IPv4-mapped IPv6 [::ffff:10.0.0.1]", async () => {
+    await withTrackingServer(async (port) => {
+      const { status, data } = await post(port, {
+        ...VALID_BODY,
+        localId: "local-ipv4mapped",
+        videoUrl: "https://[::ffff:10.0.0.1]/video.mp4",
+      });
+      assert.equal(status, 200, `expected 200, got ${status}: ${data.error}`);
+      assert.equal(fetchUrlCallCount, 1, "fetchVideoDownloadUrl must be called as fallback for IPv4-mapped IPv6");
+    });
+  });
+
+  it("falls back when videoUrl targets IPv6 unique-local [fd00::1]", async () => {
+    await withTrackingServer(async (port) => {
+      const { status, data } = await post(port, {
+        ...VALID_BODY,
+        localId: "local-ipv6-ula",
+        videoUrl: "https://[fd00::1]/video.mp4",
+      });
+      assert.equal(status, 200, `expected 200, got ${status}: ${data.error}`);
+      assert.equal(fetchUrlCallCount, 1, "fetchVideoDownloadUrl must be called as fallback for IPv6 unique-local");
+    });
+  });
 });
 
 describe("POST /api/dqe/submit — transient failures → 502", () => {

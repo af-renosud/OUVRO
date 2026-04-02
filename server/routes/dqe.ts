@@ -172,19 +172,48 @@ export async function defaultSubmitToArchidoc(
 }
 
 // SSRF-safe check for a client-supplied video URL.
-// Blocks private/internal networks and requires HTTPS so no arbitrary
-// internal endpoint can be reached via a crafted videoUrl value.
+// Requires HTTPS and blocks the full set of private/reserved address ranges
+// for both IPv4 and IPv6 so no crafted videoUrl value can reach an internal
+// endpoint. DNS-rebinding attacks (a hostname that publicly resolves to a
+// private IP) are a residual risk not addressed here — that requires async
+// resolver checks and is mitigated at the infrastructure level (VPC firewall).
 function isAllowedVideoUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:") return false;
-    const host = parsed.hostname.toLowerCase();
-    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return false;
+
+    // Strip IPv6 brackets: "[::1]" → "::1"
+    const host = parsed.hostname.replace(/^\[(.+)]$/, "$1").toLowerCase();
+
+    // ── IPv4 private / reserved ────────────────────────────────────────────
+    // Loopback (127.0.0.0/8)
+    if (/^127\.\d+\.\d+\.\d+$/.test(host)) return false;
+    // Private class A (10.0.0.0/8)
     if (/^10\.\d+\.\d+\.\d+$/.test(host)) return false;
+    // Private class B (172.16.0.0/12)
     if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(host)) return false;
+    // Private class C (192.168.0.0/16)
     if (/^192\.168\.\d+\.\d+$/.test(host)) return false;
-    if (host === "169.254.169.254") return false;
+    // Link-local / cloud metadata (169.254.0.0/16)
+    if (/^169\.254\.\d+\.\d+$/.test(host)) return false;
+    // Shared address space (100.64.0.0/10)
+    if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/.test(host)) return false;
+
+    // ── IPv6 private / reserved ────────────────────────────────────────────
+    // Loopback (::1)
+    if (host === "::1") return false;
+    // Link-local (fe80::/10)
+    if (/^fe[89ab]/i.test(host)) return false;
+    // Unique local (fc00::/7 — covers fc and fd prefixes)
+    if (/^f[cd]/i.test(host)) return false;
+    // IPv4-mapped IPv6 (::ffff:0:0/96) — recurse with the embedded IPv4 address
+    const v4mapped = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+    if (v4mapped) return isAllowedVideoUrl(`https://${v4mapped[1]}/`);
+
+    // ── Common internal hostnames ──────────────────────────────────────────
+    if (host === "localhost") return false;
     if (host.endsWith(".internal") || host.endsWith(".local")) return false;
+
     return true;
   } catch {
     return false;
