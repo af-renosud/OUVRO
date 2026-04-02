@@ -170,6 +170,79 @@ describe("POST /api/dqe/submit — happy path → 200", () => {
   });
 });
 
+describe("POST /api/dqe/submit — videoUrl fast path", () => {
+  let fetchUrlCallCount: number;
+
+  const trackingDeps: DQERouterDeps = {
+    ...mockDeps,
+    fetchVideoDownloadUrl: async (_apiUrl: string, _objectPath: string) => {
+      fetchUrlCallCount += 1;
+      if (!state.downloadUrlOk) throw new Error(state.downloadUrlError);
+      return "https://cdn.test/fallback.mp4";
+    },
+  };
+
+  function buildTrackingApp() {
+    const app = express();
+    app.use(express.json());
+    app.use("/api", createDQERouter(trackingDeps));
+    return app;
+  }
+
+  async function withTrackingServer(fn: (port: number) => Promise<void>) {
+    const server = http.createServer(buildTrackingApp());
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const port = (server.address() as { port: number }).port;
+    try {
+      await fn(port);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }
+
+  beforeEach(() => {
+    resetState();
+    fetchUrlCallCount = 0;
+  });
+
+  it("skips fetchVideoDownloadUrl when a valid HTTPS external videoUrl is supplied", async () => {
+    await withTrackingServer(async (port) => {
+      const { status, data } = await post(port, {
+        ...VALID_BODY,
+        localId: "local-fastpath",
+        videoUrl: "https://storage.googleapis.com/bucket/dqe/video.mp4",
+      });
+      assert.equal(status, 200, `expected 200, got ${status}: ${data.error}`);
+      assert.equal(data.success, true);
+      assert.equal(fetchUrlCallCount, 0, "fetchVideoDownloadUrl must not be called when videoUrl is provided");
+    });
+  });
+
+  it("falls back to fetchVideoDownloadUrl when videoUrl targets a private IP (SSRF block)", async () => {
+    await withTrackingServer(async (port) => {
+      const { status, data } = await post(port, {
+        ...VALID_BODY,
+        localId: "local-ssrf",
+        videoUrl: "https://169.254.169.254/latest/meta-data",
+      });
+      assert.equal(status, 200, `expected 200, got ${status}: ${data.error}`);
+      assert.equal(fetchUrlCallCount, 1, "fetchVideoDownloadUrl must be called as fallback after SSRF rejection");
+    });
+  });
+
+  it("falls back to fetchVideoDownloadUrl when videoUrl uses http (not https)", async () => {
+    await withTrackingServer(async (port) => {
+      const { status, data } = await post(port, {
+        ...VALID_BODY,
+        localId: "local-http",
+        videoUrl: "http://storage.googleapis.com/bucket/dqe/video.mp4",
+      });
+      assert.equal(status, 200, `expected 200, got ${status}: ${data.error}`);
+      assert.equal(fetchUrlCallCount, 1, "fetchVideoDownloadUrl must be called as fallback when videoUrl is not HTTPS");
+    });
+  });
+});
+
 describe("POST /api/dqe/submit — transient failures → 502", () => {
   beforeEach(() => resetState());
 

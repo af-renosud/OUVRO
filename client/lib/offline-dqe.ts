@@ -254,7 +254,7 @@ class OfflineDQEService {
         throw new Error(`Failed to get upload URL (${urlRes.status}): ${errText}`);
       }
 
-      const { uploadURL, objectPath } = await urlRes.json();
+      const { uploadURL, objectPath, publicUrl } = await urlRes.json();
 
       if (__DEV__) console.log("[OfflineDQE] Uploading video to storage, objectPath:", objectPath);
 
@@ -282,6 +282,7 @@ class OfflineDQEService {
           projectId: capture.projectId,
           projectName: capture.projectName,
           videoObjectPath: objectPath,
+          ...(typeof publicUrl === "string" && publicUrl ? { videoUrl: publicUrl } : {}),
           videoMimeType,
           architectNotes: capture.architectNotes,
           videoDuration: capture.videoDuration,

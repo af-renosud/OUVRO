@@ -290,6 +290,7 @@ export type DQECaptureSubmitParams = {
   projectId: string;
   projectName: string;
   videoObjectPath: string;
+  videoUrl?: string;
   videoMimeType?: string;
   architectNotes?: string;
   videoDuration: number;

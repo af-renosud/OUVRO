@@ -171,15 +171,40 @@ export async function defaultSubmitToArchidoc(
   return { data };
 }
 
+// SSRF-safe check for a client-supplied video URL.
+// Blocks private/internal networks and requires HTTPS so no arbitrary
+// internal endpoint can be reached via a crafted videoUrl value.
+function isAllowedVideoUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return false;
+    const host = parsed.hostname.toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return false;
+    if (/^10\.\d+\.\d+\.\d+$/.test(host)) return false;
+    if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(host)) return false;
+    if (/^192\.168\.\d+\.\d+$/.test(host)) return false;
+    if (host === "169.254.169.254") return false;
+    if (host.endsWith(".internal") || host.endsWith(".local")) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // DQE submit payload contract:
-// Client sends `videoObjectPath` (object store key); server resolves the presigned
-// download URL internally via Archidoc's /api/field-observations/download-url
-// endpoint so that no arbitrary URL is accepted from untrusted input (SSRF prevention).
+// Primary path: client passes videoUrl (the publicUrl from Archidoc's upload-url
+//   response) so the server can skip the separate download-url resolution call.
+//   The URL is validated server-side against an SSRF allowlist before use.
+// Fallback path: if videoUrl is absent, server calls Archidoc's
+//   /api/field-observations/download-url with videoObjectPath — the original
+//   server-side-only resolution pattern (SSRF-safe because no client input
+//   reaches the fetch target).
 type DQESubmitBody = {
   localId: string;
   projectId: string;
   projectName: string;
   videoObjectPath: string;
+  videoUrl?: string;
   videoMimeType?: string;
   architectNotes?: string;
   videoDuration: number;
@@ -208,6 +233,7 @@ export function createDQERouter(deps: DQERouterDeps = {}): Router {
           projectId,
           projectName,
           videoObjectPath,
+          videoUrl: clientVideoUrl,
           videoMimeType,
           architectNotes,
           videoDuration,
@@ -251,27 +277,45 @@ export function createDQERouter(deps: DQERouterDeps = {}): Router {
         const mimeType = videoMimeType || mimeTypeFromUri(videoObjectPath);
         const archidocApiUrl: string = res.locals.archidocApiUrl;
 
-        console.log(
-          `[DQE Submit] localId=${localId} — resolving video download URL from Archidoc`,
-        );
         let videoUrl: string;
-        try {
-          videoUrl = await effectiveFetchUrl(archidocApiUrl, videoObjectPath);
-        } catch (urlErr: unknown) {
-          const msg =
-            urlErr instanceof Error
-              ? urlErr.message
-              : "Failed to resolve video URL";
-          console.warn(
-            `[DQE Submit] localId=${localId} — download URL resolution failed: ${msg}`,
+
+        if (clientVideoUrl && isAllowedVideoUrl(clientVideoUrl)) {
+          // Fast path: client supplied the publicUrl from the upload-url response.
+          // Validated against SSRF blocklist above — safe to use directly.
+          console.log(
+            `[DQE Submit] localId=${localId} — using pre-resolved video URL from client`,
           );
-          return res
-            .status(502)
-            .json({
-              success: false,
-              error: `Video URL unavailable: ${msg}`,
-              localId,
-            });
+          videoUrl = clientVideoUrl;
+        } else {
+          if (clientVideoUrl) {
+            // URL was provided but failed the SSRF check — log and fall through
+            // to the server-side resolution so the request still succeeds.
+            console.warn(
+              `[DQE Submit] localId=${localId} — client-supplied videoUrl rejected by SSRF check, falling back to server-side resolution`,
+            );
+          } else {
+            console.log(
+              `[DQE Submit] localId=${localId} — resolving video download URL from Archidoc`,
+            );
+          }
+          try {
+            videoUrl = await effectiveFetchUrl(archidocApiUrl, videoObjectPath);
+          } catch (urlErr: unknown) {
+            const msg =
+              urlErr instanceof Error
+                ? urlErr.message
+                : "Failed to resolve video URL";
+            console.warn(
+              `[DQE Submit] localId=${localId} — download URL resolution failed: ${msg}`,
+            );
+            return res
+              .status(502)
+              .json({
+                success: false,
+                error: `Video URL unavailable: ${msg}`,
+                localId,
+              });
+          }
         }
 
         console.log(
