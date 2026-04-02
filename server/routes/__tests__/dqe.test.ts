@@ -43,12 +43,12 @@ const mockDeps: DQERouterDeps = {
 
   transcribeVideo: async (_videoUrl: string, _mimeType: string) => {
     if (!state.transcribeOk) {
-      if (state.videoSizeBytes > 15 * 1024 * 1024) {
+      if (state.videoSizeBytes > 2 * 1024 * 1024 * 1024) {
         throw new Error(
-          `Video too large for transcription: ${Math.round(state.videoSizeBytes / 1024 / 1024)} MB exceeds 15 MB inline limit`,
+          `Video too large for transcription: ${(state.videoSizeBytes / (1024 * 1024 * 1024)).toFixed(1)} GB exceeds 2 GB limit`,
         );
       }
-      throw new Error("Gemini transcription failed");
+      throw new Error("Gemini failed to process the uploaded video");
     }
     return state.transcribeText;
   },
@@ -327,9 +327,9 @@ describe("POST /api/dqe/submit — transient failures → 502", () => {
     });
   });
 
-  it("returns 502 when video exceeds the 15 MB inline size guardrail", async () => {
+  it("returns 502 when video exceeds the 2 GB Files API size guardrail", async () => {
     state.transcribeOk = false;
-    state.videoSizeBytes = 20 * 1024 * 1024;
+    state.videoSizeBytes = 2.1 * 1024 * 1024 * 1024;
     await withServer(async (port) => {
       const { status, data } = await post(port, {
         ...VALID_BODY,

@@ -1,10 +1,12 @@
+import fs from "node:fs";
+import { pipeline } from "stream/promises";
 import {
   Router,
   type Request,
   type Response,
   type NextFunction,
 } from "express";
-import { ai } from "../ai-client";
+import { ai, directAi } from "../ai-client";
 import { mimeTypeFromUri } from "../utils";
 import {
   requireArchidocUrl,
@@ -19,10 +21,11 @@ if (!process.env.OUVRO_API_KEY) {
   );
 }
 
-// Gemini inline data has a ~20 MB request size cap after base64 encoding;
-// 15 MB of raw bytes → ~20 MB base64, keeping us safely within the limit.
-const MAX_INLINE_VIDEO_BYTES = 15 * 1024 * 1024;
+// Gemini Files API supports up to 2 GB per file.
+const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024;
 const TRANSCRIPTION_DOWNLOAD_TIMEOUT_MS = 120_000;
+// How long to wait between Files API state polls (PROCESSING → ACTIVE).
+const GEMINI_POLL_INTERVAL_MS = 5_000;
 
 export type DQERouterDeps = {
   fetchVideoDownloadUrl?: (
@@ -75,56 +78,107 @@ async function defaultTranscribeVideo(
   videoDownloadUrl: string,
   mimeType: string,
 ): Promise<string> {
-  const videoResponse = await archidocFetch(videoDownloadUrl, {
-    timeout: TRANSCRIPTION_DOWNLOAD_TIMEOUT_MS,
-  });
-  if (!videoResponse.ok) {
-    throw new Error(
-      `Video download failed with status ${videoResponse.status}`,
-    );
-  }
-
-  // Early size check from Content-Length header to avoid downloading oversized videos
-  const contentLength = videoResponse.headers.get("content-length");
-  if (contentLength !== null) {
-    const byteSize = parseInt(contentLength, 10);
-    if (!isNaN(byteSize) && byteSize > MAX_INLINE_VIDEO_BYTES) {
-      throw new Error(
-        `Video too large for transcription: ${(byteSize / (1024 * 1024)).toFixed(0)} MB exceeds ${(MAX_INLINE_VIDEO_BYTES / (1024 * 1024)).toFixed(0)} MB inline limit`,
-      );
+  // Fast-fail on obviously oversized files before starting the download.
+  // We only check Content-Length here; the actual byte count is verified by
+  // Gemini's Files API (2 GB limit).
+  const headResponse = await archidocFetch(videoDownloadUrl, {
+    method: "HEAD",
+    timeout: 15_000,
+  }).catch(() => null);
+  if (headResponse) {
+    const cl = headResponse.headers.get("content-length");
+    if (cl !== null) {
+      const byteSize = parseInt(cl, 10);
+      if (!isNaN(byteSize) && byteSize > MAX_VIDEO_BYTES) {
+        throw new Error(
+          `Video too large for transcription: ${(byteSize / (1024 * 1024 * 1024)).toFixed(1)} GB exceeds 2 GB limit`,
+        );
+      }
     }
   }
 
-  const videoBuffer = await videoResponse.arrayBuffer();
-  if (videoBuffer.byteLength > MAX_INLINE_VIDEO_BYTES) {
-    throw new Error(
-      `Video too large for transcription: ${(videoBuffer.byteLength / (1024 * 1024)).toFixed(0)} MB exceeds ${(MAX_INLINE_VIDEO_BYTES / (1024 * 1024)).toFixed(0)} MB inline limit`,
+  // Stream the video to a temp file on disk so we never buffer the full
+  // payload in memory, then upload to Gemini's Files API using the direct
+  // (non-proxied) client — the proxy only supports generateContent.
+  const tempPath = `/tmp/dqe_video_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`;
+  let uploadedFileName: string | undefined;
+
+  try {
+    // ── 1. Download to /tmp ────────────────────────────────────────────────
+    const videoResponse = await archidocFetch(videoDownloadUrl, {
+      timeout: TRANSCRIPTION_DOWNLOAD_TIMEOUT_MS,
+    });
+    if (!videoResponse.ok) {
+      throw new Error(
+        `Video download failed with status ${videoResponse.status}`,
+      );
+    }
+    if (!videoResponse.body) {
+      throw new Error("Video response body is empty");
+    }
+    await pipeline(
+      videoResponse.body as unknown as NodeJS.ReadableStream,
+      fs.createWriteStream(tempPath),
     );
-  }
 
-  // Send video bytes inline as base64 — this uses generateContent (supported by
-  // Replit's Gemini proxy) rather than the Files API upload endpoint which is not
-  // available through the integration proxy.
-  const base64Data = Buffer.from(videoBuffer).toString("base64");
-
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            text: "Transcris la narration de cet architecte sur le chantier. Concentre-toi sur les observations de construction, défauts, numéros de lot, références aux entreprises. Reproduis le texte tel quel, sans reformulation ni résumé.",
-          },
-          {
-            inlineData: { mimeType, data: base64Data },
-          },
-        ],
+    // ── 2. Upload to Gemini Files API (direct, bypasses proxy) ────────────
+    const uploadResult = await directAi.files.upload({
+      file: tempPath,
+      config: {
+        mimeType,
+        displayName: `dqe_narration_${Date.now()}`,
       },
-    ],
-  });
+    });
 
-  return response.text?.trim() || "";
+    uploadedFileName = uploadResult.name;
+    if (!uploadedFileName) {
+      throw new Error("Gemini Files API returned no file name after upload");
+    }
+
+    // ── 3. Poll until ACTIVE (Gemini extracts frames asynchronously) ───────
+    let fileInfo = await directAi.files.get({ name: uploadedFileName });
+    while (fileInfo.state === "PROCESSING") {
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, GEMINI_POLL_INTERVAL_MS),
+      );
+      fileInfo = await directAi.files.get({ name: uploadedFileName! });
+    }
+    if (fileInfo.state === "FAILED") {
+      throw new Error("Gemini failed to process the uploaded video");
+    }
+
+    const fileUri = fileInfo.uri;
+    if (!fileUri) {
+      throw new Error("Gemini Files API returned no URI after processing");
+    }
+
+    // ── 4. Analyse via the proxied client (generateContent is supported) ──
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: "Transcris la narration de cet architecte sur le chantier. Concentre-toi sur les observations de construction, défauts, numéros de lot, références aux entreprises. Reproduis le texte tel quel, sans reformulation ni résumé.",
+            },
+            {
+              fileData: { mimeType: fileInfo.mimeType ?? mimeType, fileUri },
+            },
+          ],
+        },
+      ],
+    });
+
+    return response.text?.trim() || "";
+  } finally {
+    // ── 5. Always clean up the temp file ──────────────────────────────────
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {
+      // Non-fatal — log but do not mask the original error.
+    }
+  }
 }
 
 export async function defaultSubmitToArchidoc(
