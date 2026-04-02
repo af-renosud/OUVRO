@@ -74,17 +74,125 @@ async function defaultFetchVideoDownloadUrl(
   return url;
 }
 
-async function defaultTranscribeVideo(
+// ── MIME normalisation ────────────────────────────────────────────────────────
+// Gemini Files API rejects codec-qualified or platform-specific MIME types.
+// iOS records HEVC as hvc1 and H.264 as avc1 inside an MP4/MOV container;
+// normalise all such variants to the plain `video/mp4` Gemini accepts.
+export function normalizeVideoMimeType(rawMimeType: string): string {
+  const lower = rawMimeType.toLowerCase();
+  if (
+    lower.includes("hvc1") ||
+    lower.includes("hevc") ||
+    lower.includes("h265") ||
+    lower.includes("h.265")
+  ) {
+    return "video/mp4";
+  }
+  if (
+    lower.includes("avc1") ||
+    lower.includes("h264") ||
+    lower.includes("h.264")
+  ) {
+    return "video/mp4";
+  }
+  // Apple QuickTime container (common for HEVC captures on iPhone/iPad)
+  if (lower.includes("quicktime")) {
+    return "video/mp4";
+  }
+  // Strip any codec parameters from video/mp4 (e.g. 'video/mp4; codecs="avc1"')
+  if (lower.startsWith("video/mp4")) {
+    return "video/mp4";
+  }
+  // Other recognised video/* types — strip codec params but keep the subtype
+  if (lower.startsWith("video/")) {
+    return rawMimeType.split(";")[0].trim();
+  }
+  return "video/mp4";
+}
+
+// ── Injectable deps (real implementations used by default, mocked in tests) ──
+export type TranscribeVideoDepsInternal = {
+  doHead: (
+    url: string,
+  ) => Promise<Pick<Response, "ok" | "headers"> | null>;
+  doGet: (
+    url: string,
+  ) => Promise<Pick<Response, "ok" | "status" | "body">>;
+  filesUpload: (
+    path: string,
+    mimeType: string,
+    displayName: string,
+  ) => Promise<{ name?: string }>;
+  filesGet: (
+    name: string,
+  ) => Promise<{ state?: string; uri?: string; mimeType?: string }>;
+  doGenerate: (fileUri: string, fileMimeType: string) => Promise<string>;
+  mkWriteStream: (path: string) => NodeJS.WritableStream;
+  runPipeline: (
+    src: NodeJS.ReadableStream,
+    dst: NodeJS.WritableStream,
+  ) => Promise<void>;
+  fileExists: (path: string) => boolean;
+  fileUnlink: (path: string) => void;
+  pollIntervalMs: number;
+};
+
+function makeRealTranscribeVideoDeps(): TranscribeVideoDepsInternal {
+  return {
+    doHead: (url) =>
+      archidocFetch(url, { method: "HEAD", timeout: 15_000 }).catch(() => null),
+    doGet: (url) =>
+      archidocFetch(url, { timeout: TRANSCRIPTION_DOWNLOAD_TIMEOUT_MS }),
+    filesUpload: async (path, mimeType, displayName) => {
+      const r = await directAi.files.upload({
+        file: path,
+        config: { mimeType, displayName },
+      });
+      return { name: r.name };
+    },
+    filesGet: async (name) => {
+      const r = await directAi.files.get({ name });
+      return { state: r.state, uri: r.uri, mimeType: r.mimeType };
+    },
+    doGenerate: async (fileUri, fileMimeType) => {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: "Transcris la narration de cet architecte sur le chantier. Concentre-toi sur les observations de construction, défauts, numéros de lot, références aux entreprises. Reproduis le texte tel quel, sans reformulation ni résumé.",
+              },
+              { fileData: { mimeType: fileMimeType, fileUri } },
+            ],
+          },
+        ],
+      });
+      return response.text?.trim() || "";
+    },
+    mkWriteStream: (path) =>
+      fs.createWriteStream(path) as unknown as NodeJS.WritableStream,
+    runPipeline: pipeline as unknown as (
+      src: NodeJS.ReadableStream,
+      dst: NodeJS.WritableStream,
+    ) => Promise<void>,
+    fileExists: fs.existsSync,
+    fileUnlink: fs.unlinkSync,
+    pollIntervalMs: GEMINI_POLL_INTERVAL_MS,
+  };
+}
+
+// Exported so unit tests can inject mocks directly.
+export async function defaultTranscribeVideo(
   videoDownloadUrl: string,
-  mimeType: string,
+  rawMimeType: string,
+  deps: TranscribeVideoDepsInternal = makeRealTranscribeVideoDeps(),
 ): Promise<string> {
+  const mimeType = normalizeVideoMimeType(rawMimeType);
+
   // Fast-fail on obviously oversized files before starting the download.
-  // We only check Content-Length here; the actual byte count is verified by
-  // Gemini's Files API (2 GB limit).
-  const headResponse = await archidocFetch(videoDownloadUrl, {
-    method: "HEAD",
-    timeout: 15_000,
-  }).catch(() => null);
+  const headResponse = await deps.doHead(videoDownloadUrl);
   if (headResponse) {
     const cl = headResponse.headers.get("content-length");
     if (cl !== null) {
@@ -97,51 +205,43 @@ async function defaultTranscribeVideo(
     }
   }
 
-  // Stream the video to a temp file on disk so we never buffer the full
-  // payload in memory, then upload to Gemini's Files API using the direct
-  // (non-proxied) client — the proxy only supports generateContent.
+  // Stream video to /tmp — never buffers the full payload in memory.
   const tempPath = `/tmp/dqe_video_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`;
-  let uploadedFileName: string | undefined;
 
   try {
     // ── 1. Download to /tmp ────────────────────────────────────────────────
-    const videoResponse = await archidocFetch(videoDownloadUrl, {
-      timeout: TRANSCRIPTION_DOWNLOAD_TIMEOUT_MS,
-    });
+    const videoResponse = await deps.doGet(videoDownloadUrl);
     if (!videoResponse.ok) {
       throw new Error(
-        `Video download failed with status ${videoResponse.status}`,
+        `Video download failed with status ${(videoResponse as Response).status}`,
       );
     }
     if (!videoResponse.body) {
       throw new Error("Video response body is empty");
     }
-    await pipeline(
+    await deps.runPipeline(
       videoResponse.body as unknown as NodeJS.ReadableStream,
-      fs.createWriteStream(tempPath),
+      deps.mkWriteStream(tempPath),
     );
 
-    // ── 2. Upload to Gemini Files API (direct, bypasses proxy) ────────────
-    const uploadResult = await directAi.files.upload({
-      file: tempPath,
-      config: {
-        mimeType,
-        displayName: `dqe_narration_${Date.now()}`,
-      },
-    });
-
-    uploadedFileName = uploadResult.name;
+    // ── 2. Upload to Gemini Files API via direct (non-proxied) client ──────
+    const uploadResult = await deps.filesUpload(
+      tempPath,
+      mimeType,
+      `dqe_narration_${Date.now()}`,
+    );
+    const uploadedFileName = uploadResult.name;
     if (!uploadedFileName) {
       throw new Error("Gemini Files API returned no file name after upload");
     }
 
     // ── 3. Poll until ACTIVE (Gemini extracts frames asynchronously) ───────
-    let fileInfo = await directAi.files.get({ name: uploadedFileName });
+    let fileInfo = await deps.filesGet(uploadedFileName);
     while (fileInfo.state === "PROCESSING") {
       await new Promise<void>((resolve) =>
-        setTimeout(resolve, GEMINI_POLL_INTERVAL_MS),
+        setTimeout(resolve, deps.pollIntervalMs),
       );
-      fileInfo = await directAi.files.get({ name: uploadedFileName! });
+      fileInfo = await deps.filesGet(uploadedFileName);
     }
     if (fileInfo.state === "FAILED") {
       throw new Error("Gemini failed to process the uploaded video");
@@ -152,31 +252,14 @@ async function defaultTranscribeVideo(
       throw new Error("Gemini Files API returned no URI after processing");
     }
 
-    // ── 4. Analyse via the proxied client (generateContent is supported) ──
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: "Transcris la narration de cet architecte sur le chantier. Concentre-toi sur les observations de construction, défauts, numéros de lot, références aux entreprises. Reproduis le texte tel quel, sans reformulation ni résumé.",
-            },
-            {
-              fileData: { mimeType: fileInfo.mimeType ?? mimeType, fileUri },
-            },
-          ],
-        },
-      ],
-    });
-
-    return response.text?.trim() || "";
+    // ── 4. Analyse via proxied client (generateContent is supported) ───────
+    return await deps.doGenerate(fileUri, fileInfo.mimeType ?? mimeType);
   } finally {
     // ── 5. Always clean up the temp file ──────────────────────────────────
     try {
-      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+      if (deps.fileExists(tempPath)) deps.fileUnlink(tempPath);
     } catch {
-      // Non-fatal — log but do not mask the original error.
+      // Non-fatal — do not mask the original error.
     }
   }
 }
