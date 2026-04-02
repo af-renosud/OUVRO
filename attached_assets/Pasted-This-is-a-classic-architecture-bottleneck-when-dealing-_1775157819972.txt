@@ -1,0 +1,78 @@
+This is a classic architecture bottleneck when dealing with high-fidelity video analysis and proxy layers. It is incredibly frustrating when an API proxy meant to simplify deployment ends up walling off the exact endpoint (the Files API) you need to make your application viable.Since defect analysis on construction sites requires preserving visual fidelity (identifying a hairline crack vs. a shadow requires high bitrate and resolution), compressing these videos down to fit a 20 MB Base64 payload is an absolute non-starter.Here is the exact technical scope and recommended approach to solve this within your current stack.1. Can generateContent accept a public HTTPS signed GCS URL directly?No. The Google GenAI developer API (AI Studio) does not natively ingest arbitrary HTTPS URLs via the fileData.fileUri parameter.The fileUri field is strictly reserved for URIs generated internally by Google's Files API (which look like https://generativelanguage.googleapis.com/v1beta/files/...). Even if your URL is public or signed, Gemini will not stream the video directly from an external HTTPS endpoint during the generateContent call.2. Are there Gemini 2.5 Flash / Pro features for HTTPS URL ingestion?No. There are no features in the 2.5 models that alter this behavior for media extraction. "Grounding" tools are for factual web search, not for media ingestion. To analyze a video natively, the file must be uploaded into Google's generative AI storage layer first.3. Recommended Pattern: The "Two-Client Bypass"Since you cannot use the proxy for the Files API (INVALID_ENDPOINT), but you do have the raw AI_INTEGRATIONS_GEMINI_API_KEY, you must bypass the proxy exclusively for the file upload step.You will instantiate two separate Gemini clients in your Node.js server:The Direct Client: Omits the Replit baseUrl. Uses the raw API key to hit Google's actual API (generativelanguage.googleapis.com) to upload the video and poll for its processing state.The Proxied Client: Uses the Replit proxy for the actual generateContent inference, preserving whatever billing or routing rules Replit requires.4. Tradeoffs of Video Ingestion StrategiesApproachProsConsVerdict(a) Direct URL ReferenceZero server-side bandwidth.Impossible via the GenAI SDK/AI Studio API.N/A(b) Files API Bypass (Two-Client)Maintains 100% video quality; uses Gemini's native multimodal video/audio parsing.Server must download video from GCS to local disk first, then upload. Adds latency.Recommended. Best balance of quality and feasibility.(c) Server-Side CompressionKeeps payloads within the proxy's 20 MB inline limit.Destroys visual fidelity; massive CPU/RAM spike on your Replit container; highly likely to crash or OOM.Do not use.(d) Extract Keyframes + AudioSmaller payload; bypasses Gemini's asynchronous video processing wait times.Loses temporal visual context (e.g., panning across a room); requires heavy FFmpeg processing on Replit.Fallback only if disk space is completely exhausted.5. Recommended Production Architecture & CodeFor a production system where precision is critical, you must route the full original file to Gemini via the Files API.Here is the exact implementation using @google/genai (v0.x).Step 1: Initialize the Two ClientsTypeScriptimport { GoogleGenAI } from '@google/genai';
+import fs from 'fs';
+import { pipeline } from 'stream/promises';
+
+// 1. Used strictly for uploading files directly to Google
+const directGenAI = new GoogleGenAI({
+  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+  // Do NOT pass the Replit base URL here
+});
+
+// 2. Used for generating content via Replit's infrastructure
+const proxiedGenAI = new GoogleGenAI({
+  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+  baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+});
+Step 2: Download, Upload, and Poll (The Ingestion Flow)Gemini extracts frames from videos asynchronously. You must poll the File API until the state transitions from PROCESSING to ACTIVE before calling generateContent.TypeScriptasync function processDQEVideo(signedGcsUrl: string, prompt: string) {
+  const tempFilePath = `/tmp/dqe_video_${Date.now()}.mp4`; // Note: Replit /tmp storage limits
+
+  try {
+    // 1. Download from GCS Signed URL to local Replit disk
+    const response = await fetch(signedGcsUrl);
+    if (!response.ok) throw new Error(`Failed to fetch GCS video: ${response.statusText}`);
+    await pipeline(response.body, fs.createWriteStream(tempFilePath));
+
+    // 2. Upload to Gemini using the DIRECT client
+    console.log("Uploading to Gemini Files API...");
+    const uploadResult = await directGenAI.files.upload({
+      file: tempFilePath,
+      mimeType: 'video/mp4', // Ensure you map this correctly based on your HEVC/H.264 tiers
+    });
+
+    let fileName = uploadResult.name;
+    console.log(`Upload complete. URI: ${uploadResult.uri}`);
+
+    // 3. Poll for processing completion using the DIRECT client
+    let fileInfo = await directGenAI.files.get({ name: fileName });
+    while (fileInfo.state === 'PROCESSING') {
+      console.log('Video is processing, waiting 5 seconds...');
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      fileInfo = await directGenAI.files.get({ name: fileName });
+    }
+
+    if (fileInfo.state === 'FAILED') {
+      throw new Error('Gemini failed to process the video.');
+    }
+
+    // 4. Generate Content using the PROXIED client
+    console.log("Video active. Generating analysis...");
+    const aiResponse = await proxiedGenAI.models.generateContent({
+      model: 'gemini-2.5-flash', // or gemini-2.5-pro for higher reasoning
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              fileData: {
+                fileUri: fileInfo.uri,
+                mimeType: fileInfo.mimeType,
+              },
+            },
+            { text: prompt },
+          ],
+        },
+      ],
+    });
+
+    return aiResponse.text;
+
+  } finally {
+    // 5. CRITICAL: Clean up the Replit disk immediately
+    if (fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+    // Optional: Delete the file from Gemini if you don't need it cached
+    // await directGenAI.files.delete({ name: uploadResult.name }); 
+  }
+}
+Caveats and Production WarningsReplit Ephemeral Disk Space: Replit environments have limited storage. Downloading a 360 MB 4K HEVC file into /tmp will quickly consume disk space if you have concurrent requests. You must wrap the file handling in a try/finally block to ensure fs.unlinkSync fires even if the AI request fails.Latency: This process takes time. Fetching a 300 MB file (~2–4 seconds), uploading to Gemini (~3–5 seconds), Gemini video processing (10–30 seconds depending on duration), and inference (~5–10 seconds) means your Archidoc backend or the mobile app needs to treat this as an asynchronous webhooks/polling job, not a synchronous REST request.The Enterprise Alternative (Vertex AI): Since your files are already in Google Cloud Storage, if you eventually move off Replit's managed AI integration and switch to Google Cloud Vertex AI (using a Service Account), Vertex AI natively accepts gs:// URIs in the generateContent call without needing the Files API. You could pass the raw GCS bucket path directly, eliminating the entire download/upload bottleneck entirely.
