@@ -19,7 +19,9 @@ if (!process.env.OUVRO_API_KEY) {
   );
 }
 
-const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024;
+// Gemini inline data has a ~20 MB request size cap after base64 encoding;
+// 15 MB of raw bytes → ~20 MB base64, keeping us safely within the limit.
+const MAX_INLINE_VIDEO_BYTES = 15 * 1024 * 1024;
 const TRANSCRIPTION_DOWNLOAD_TIMEOUT_MS = 120_000;
 
 export type DQERouterDeps = {
@@ -82,37 +84,28 @@ async function defaultTranscribeVideo(
     );
   }
 
+  // Early size check from Content-Length header to avoid downloading oversized videos
   const contentLength = videoResponse.headers.get("content-length");
   if (contentLength !== null) {
     const byteSize = parseInt(contentLength, 10);
-    if (!isNaN(byteSize) && byteSize > MAX_VIDEO_BYTES) {
+    if (!isNaN(byteSize) && byteSize > MAX_INLINE_VIDEO_BYTES) {
       throw new Error(
-        `Video too large for transcription: ${(byteSize / (1024 * 1024)).toFixed(0)} MB exceeds ${(MAX_VIDEO_BYTES / (1024 * 1024 * 1024)).toFixed(0)} GB limit`,
+        `Video too large for transcription: ${(byteSize / (1024 * 1024)).toFixed(0)} MB exceeds ${(MAX_INLINE_VIDEO_BYTES / (1024 * 1024)).toFixed(0)} MB inline limit`,
       );
     }
   }
 
   const videoBuffer = await videoResponse.arrayBuffer();
-  if (videoBuffer.byteLength > MAX_VIDEO_BYTES) {
+  if (videoBuffer.byteLength > MAX_INLINE_VIDEO_BYTES) {
     throw new Error(
-      `Video too large for transcription: ${(videoBuffer.byteLength / (1024 * 1024)).toFixed(0)} MB exceeds ${(MAX_VIDEO_BYTES / (1024 * 1024 * 1024)).toFixed(0)} GB limit`,
+      `Video too large for transcription: ${(videoBuffer.byteLength / (1024 * 1024)).toFixed(0)} MB exceeds ${(MAX_INLINE_VIDEO_BYTES / (1024 * 1024)).toFixed(0)} MB inline limit`,
     );
   }
 
-  const videoBlob = new Blob([videoBuffer], { type: mimeType });
-
-  const uploadedFile = await ai.files.upload({
-    file: videoBlob,
-    config: {
-      mimeType,
-      displayName: `dqe_narration_${Date.now()}`,
-    },
-  });
-
-  const fileUri = uploadedFile.uri;
-  if (!fileUri) {
-    throw new Error("Gemini Files API returned no URI for uploaded video");
-  }
+  // Send video bytes inline as base64 — this uses generateContent (supported by
+  // Replit's Gemini proxy) rather than the Files API upload endpoint which is not
+  // available through the integration proxy.
+  const base64Data = Buffer.from(videoBuffer).toString("base64");
 
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
@@ -124,7 +117,7 @@ async function defaultTranscribeVideo(
             text: "Transcris la narration de cet architecte sur le chantier. Concentre-toi sur les observations de construction, défauts, numéros de lot, références aux entreprises. Reproduis le texte tel quel, sans reformulation ni résumé.",
           },
           {
-            fileData: { mimeType, fileUri },
+            inlineData: { mimeType, data: base64Data },
           },
         ],
       },
