@@ -18,8 +18,10 @@ export const ai = new GoogleGenAI({
 });
 
 // Direct client — bypasses the Replit proxy and talks straight to Google.
-// Used exclusively for Files API operations (upload + poll) which the proxy
-// does not forward. generateContent calls must still use the proxied `ai`.
+// Used for the full DQE transcription pipeline: Files API upload, poll, AND
+// generateContent. All three steps must use the same Google project so that
+// generateContent can access the file uploaded by files.upload() — cross-project
+// file access is denied (403). The proxied `ai` client is kept for other uses.
 export const directAi = new GoogleGenAI({
   apiKey: process.env.GEMINI_DIRECT_API_KEY,
 });

@@ -165,7 +165,7 @@ function makeRealTranscribeVideoDeps(): TranscribeVideoDepsInternal {
     pollIntervalMs: GEMINI_POLL_INTERVAL_MS,
     maxPollAttempts: GEMINI_MAX_POLL_ATTEMPTS,
     doGenerate: async (fileUri, fileMimeType) => {
-      const response = await ai.models.generateContent({
+      const response = await directAi.models.generateContent({
         model: "gemini-2.5-flash",
         contents: [
           {
