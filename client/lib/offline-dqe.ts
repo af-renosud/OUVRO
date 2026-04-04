@@ -270,17 +270,25 @@ class OfflineDQEService {
         }
       );
 
-      const uploadTimeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(
+      let uploadTimeoutId: ReturnType<typeof setTimeout> | undefined;
+      const uploadTimeoutPromise = new Promise<never>((_, reject) => {
+        uploadTimeoutId = setTimeout(
           () => reject(new Error(`GCS upload timed out after ${GCS_UPLOAD_TIMEOUT_MS / 60000} min`)),
           GCS_UPLOAD_TIMEOUT_MS
-        )
-      );
+        );
+      });
 
-      const uploadResult = await Promise.race([
-        uploadTask.uploadAsync(),
-        uploadTimeoutPromise,
-      ]);
+      let uploadResult: Awaited<ReturnType<typeof uploadTask.uploadAsync>>;
+      try {
+        uploadResult = await Promise.race([
+          uploadTask.uploadAsync(),
+          uploadTimeoutPromise,
+        ]);
+      } finally {
+        clearTimeout(uploadTimeoutId);
+      }
+
+      if (__DEV__) console.log("[OfflineDQE] GCS upload status:", uploadResult?.status ?? "no-response");
 
       if (!uploadResult || uploadResult.status < 200 || uploadResult.status >= 300) {
         console.warn(
