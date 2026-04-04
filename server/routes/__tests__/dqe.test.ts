@@ -358,7 +358,7 @@ describe("POST /api/dqe/submit — transient failures → 502", () => {
   });
 });
 
-describe("defaultSubmitToArchidoc — x-api-key header authentication", () => {
+describe("defaultSubmitToArchidoc — Authorization: Bearer header authentication", () => {
   let capturedHeaders: Record<string, string | string[] | undefined> = {};
   let captureServer: http.Server;
   let capturePort: number;
@@ -382,7 +382,7 @@ describe("defaultSubmitToArchidoc — x-api-key header authentication", () => {
     delete process.env.OUVRO_API_KEY;
   });
 
-  it("sends x-api-key header when OUVRO_API_KEY is set", async () => {
+  it("sends Authorization: Bearer header when OUVRO_API_KEY is set", async () => {
     process.env.OUVRO_API_KEY = "test-secret-key-abc";
     const result = await defaultSubmitToArchidoc(
       `http://localhost:${capturePort}`,
@@ -393,13 +393,13 @@ describe("defaultSubmitToArchidoc — x-api-key header authentication", () => {
       `Expected success but got error: ${"error" in result ? result.error : ""}`,
     );
     assert.equal(
-      capturedHeaders["x-api-key"],
-      "test-secret-key-abc",
-      "x-api-key header must equal OUVRO_API_KEY",
+      capturedHeaders["authorization"],
+      "Bearer test-secret-key-abc",
+      "Authorization header must be 'Bearer {OUVRO_API_KEY}'",
     );
   });
 
-  it("omits x-api-key header when OUVRO_API_KEY is not set", async () => {
+  it("omits Authorization header when OUVRO_API_KEY is not set", async () => {
     const result = await defaultSubmitToArchidoc(
       `http://localhost:${capturePort}`,
       { localId: "key-test-002", projectId: "proj-2" },
@@ -409,9 +409,9 @@ describe("defaultSubmitToArchidoc — x-api-key header authentication", () => {
       `Expected success but got error: ${"error" in result ? result.error : ""}`,
     );
     assert.equal(
-      capturedHeaders["x-api-key"],
+      capturedHeaders["authorization"],
       undefined,
-      "x-api-key header must be absent when OUVRO_API_KEY is unset",
+      "Authorization header must be absent when OUVRO_API_KEY is unset",
     );
   });
 });

@@ -291,7 +291,7 @@ export async function defaultSubmitToArchidoc(
   };
   const apiKey = process.env.OUVRO_API_KEY;
   if (apiKey) {
-    headers["x-api-key"] = apiKey;
+    headers["Authorization"] = `Bearer ${apiKey}`;
   }
   const response = await archidocFetch(
     `${archidocApiUrl}/api/ouvro/dqe/capture`,
