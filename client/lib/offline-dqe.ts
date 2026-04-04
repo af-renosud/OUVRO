@@ -6,6 +6,8 @@ import { submitDQECapture, DQESubmitError } from "./archidoc-api";
 import { mimeTypeFromUri } from "./video-utils";
 import type { PendingDQECapture, DQEQualityTier } from "./archidoc-types";
 
+const GCS_UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
+
 type DQEEventType =
   | "stateChanged"
   | "captureAdded"
@@ -268,9 +270,24 @@ class OfflineDQEService {
         }
       );
 
-      const uploadResult = await uploadTask.uploadAsync();
+      const uploadTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`GCS upload timed out after ${GCS_UPLOAD_TIMEOUT_MS / 60000} min`)),
+          GCS_UPLOAD_TIMEOUT_MS
+        )
+      );
+
+      const uploadResult = await Promise.race([
+        uploadTask.uploadAsync(),
+        uploadTimeoutPromise,
+      ]);
 
       if (!uploadResult || uploadResult.status < 200 || uploadResult.status >= 300) {
+        console.warn(
+          "[OfflineDQE] GCS upload failed — status:",
+          uploadResult?.status ?? "no-response",
+          "body:", uploadResult?.body ? uploadResult.body.slice(0, 300) : "(empty)"
+        );
         throw new Error(`Storage upload failed with status ${uploadResult?.status ?? "unknown"}`);
       }
 
