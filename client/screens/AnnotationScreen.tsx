@@ -28,6 +28,31 @@ type DrawingElement = {
   text?: string;
 };
 
+/**
+ * Builds a smooth SVG path string from an array of sampled points using
+ * quadratic Bézier curves. Each sampled point becomes a control point; the
+ * anchor points are the midpoints between consecutive samples. This fills
+ * visual gaps between 60-120 Hz touch samples and produces smooth curves
+ * even during fast drawing.
+ */
+function buildSmoothFreehandPath(points: number[][]): string {
+  if (points.length < 2) return "";
+  if (points.length === 2) {
+    return `M ${points[0][0]} ${points[0][1]} L ${points[1][0]} ${points[1][1]}`;
+  }
+  let d = `M ${points[0][0]} ${points[0][1]}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const [x0, y0] = points[i];
+    const [x1, y1] = points[i + 1];
+    const midX = (x0 + x1) / 2;
+    const midY = (y0 + y1) / 2;
+    d += ` Q ${x0} ${y0} ${midX} ${midY}`;
+  }
+  const last = points[points.length - 1];
+  d += ` L ${last[0]} ${last[1]}`;
+  return d;
+}
+
 const TOOLS: { type: AnnotationType; icon: FeatherIconName; label: string }[] = [
   { type: "freehand", icon: "edit-3", label: "Pen" },
   { type: "arrow", icon: "arrow-up-right", label: "Arrow" },
@@ -75,6 +100,8 @@ export default function AnnotationScreen() {
   const currentPointsRef = useRef<number[][]>([]);
   const isDrawingRef = useRef(false);
   const drawingUpdateCounter = useSharedValue(0);
+  // Batching counter: only trigger a React re-render every N freehand points
+  const renderBatchCountRef = useRef(0);
 
   const handleImageError = useCallback(() => {
     setImageError("Unable to load image. The URL may have expired.");
@@ -103,6 +130,7 @@ export default function AnnotationScreen() {
   const handlePanStart = useCallback((x: number, y: number, tool: AnnotationType) => {
     if (tool === "text") return;
     isDrawingRef.current = true;
+    renderBatchCountRef.current = 0;
     currentPointsRef.current = [[x, y]];
     const newElement: DrawingElement = {
       id: generateId(),
@@ -120,6 +148,13 @@ export default function AnnotationScreen() {
     // Add point to ref immediately (no React state delay)
     if (tool === "freehand") {
       currentPointsRef.current.push([x, y]);
+      renderBatchCountRef.current += 1;
+      // Batch SVG re-renders: only update React state every 4 points for freehand.
+      // The first 4 points always render so the stroke appears immediately.
+      // All points are still captured in currentPointsRef — none are lost.
+      if (renderBatchCountRef.current % 4 !== 0 && currentPointsRef.current.length > 4) {
+        return;
+      }
     } else {
       // For shapes, just update the end point
       currentPointsRef.current = [currentPointsRef.current[0], [x, y]];
@@ -336,9 +371,7 @@ export default function AnnotationScreen() {
     const { id, type, color, strokeWidth: sw, points, text } = element;
 
     if (type === "freehand" && points.length > 1) {
-      const pathData = points.reduce((acc, [x, y], i) => {
-        return acc + (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
-      }, "");
+      const pathData = buildSmoothFreehandPath(points);
       return (
         <Path
           key={id}
