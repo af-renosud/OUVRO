@@ -46,7 +46,7 @@ function CaptureButton() {
       <Pressable
         style={({ pressed }) => [
           styles.fab,
-          { backgroundColor: BrandColors.coralRed },
+          { backgroundColor: BrandColors.primary },
           pressed && styles.fabPressed,
         ]}
         onPress={() => navigation.navigate("CaptureModal")}
