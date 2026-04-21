@@ -1,0 +1,73 @@
+Re: Need staging access to validate the new Ouvro mobile snag flow end-to-end
+Hi OUVRO team,
+
+Thanks for the crisp checklist — easy to action. Splitting the response into "what we'll send out-of-band today" (§1, §5, plus one ops note in §3) and "what we can already confirm in writing" (§2, §3 wire shape, §4 logging, plus one fix we shipped after re-reading your email).
+
+⚠️ One tiny wire-contract addendum we shipped this morning — your email refers to media[i].objectPath while our prior reply documented media[i].remoteKey. To make sure neither side has to refactor, the snag intake now accepts both names as aliases (you can send either; we map them to the same stored field). The "no key at all" case still returns 400 VALIDATION_FAILED with media.0: media[].remoteKey or media[].objectPath is required. Fully verified end-to-end.
+
+§1 — Credentials & URLs
+These will come from our ops team out-of-band (1Password share — you'll get a link on the Slack channel by EOD). Quick previews so you can pre-flight your config:
+
+Item	Status	Notes
+ARCHIDOC_API_URL (staging)	Sent via 1Password	Preview-style URL on the Replit-hosted staging app. Plain HTTPS, valid cert.
+OUVRO_API_KEY (staging)	Sent via 1Password	Opaque 64-char string, same shape as the DQE key you already use. Rotate-ready — give us 24h notice if you need a new one.
+Known-good projectId (staging)	Sent via 1Password	A pre-seeded project named MASSEY (RUSSAN) 1339 with lotContractors populated for 4 lots so you can exercise the contractor mapping.
+Known-bad projectId	Use any unused UUID, e.g. 00000000-0000-0000-0000-000000000000 — guaranteed to return 400 PROJECT_NOT_FOUND.	No coordination needed.
+OUVRO_SNAGS_ENABLED on staging	true (default) — confirmed live.	Default behaviour: when the env var is unset/empty/true/1, the endpoint is enabled. Only false/0 disable it. So you can never accidentally start your run against a 503.
+We'll also send (in the same 1Password item) a 5-line curl warm-up script keyed against the staging URL/token so you can verify connectivity before kicking off the suite.
+
+§2 — Smoke scenarios — pre-confirmed against staging
+We ran your eight scenarios end-to-end this morning. All pass. Expected responses for your test harness:
+
+#	Scenario	Status	Body (verbatim shape)
+1	New snag, type:"defaut", 1 media	201	{ "archidocSnagId": "<n>", "deepLink": "<base>/projects/<id>/pv-reception?tab=defauts&item=<n>" }
+2	Replay same localId	200	{ "archidocSnagId": "<same n>", "deepLink": "...", "duplicate": true }
+3	type:"reserve"	201	deepLink contains tab=reserves
+4	media: []	201	Allowed. photos[] will be empty server-side.
+5	Bad projectId	400	{ "error": "PROJECT_NOT_FOUND", "message": "Project not found: <id>" }
+6	Missing/blank title	400	{ "error": "VALIDATION_FAILED", "message": "title: ..." }. Note: a non-empty whitespace-only string also returns 400; only an entirely-omitted title triggers our "Sans titre" default. If you'd rather we treat " " as missing too, easy change — just say.
+7	Bad bearer key	401	{ "error": "Unauthorized" }
+8	Toggle OUVRO_SNAGS_ENABLED=false	503	{ "error": "FEATURE_DISABLED", "message": "Snag intake is not enabled for this tenant." }
+For scenario 8: rather than us flipping the env var live (which would briefly affect any other partner running a probe), we'll spin up a dedicated 5-minute disabled-mode window inside your booked slot. We'll DM "snags disabled, go" → wait for your confirmation that you saw the 503 and your queue stayed populated → DM "re-enabling" → flip back. Two operations, deterministic timing.
+
+Idempotency is guaranteed at the database layer (unique index on (project_id, source, source_id) where source='mobile' and source_id=localId), so even concurrent retries from your DurableQueueStore cannot create duplicates — try it under load if you'd like.
+
+§3 — Media upload — confirmation + one honest gap
+Wire shape — confirmed:
+
+Endpoint: POST /api/uploads/request-url ✓
+Request body: { name, size, contentType } ✓
+Response: { "uploadURL": "https://storage.googleapis.com/...", "objectPath": "/objects/uploads/<uuid>", "metadata": { name, size, contentType } }
+Matches what you have, except we currently do not return publicUrl — uploaded objects are private by default. If/when you need a public-readable variant for a "preview from Ouvro" flow, we'll add it as an opt-in ?public=true query param. Today, the snag detail view in Archidoc fetches the object via signed reads on demand, so you don't need it for the smoke run.
+The returned objectPath is exactly what you should pass into media[i].objectPath (or media[i].remoteKey) on the snag intake. Round-trip verified.
+Honest gap — please flag it on your side too: the upload-URL endpoint on staging is not Bearer-protected today (it predates the OUVRO partnership; it's behind the broader Replit deployment auth, but not behind the OUVRO key specifically). For the smoke run this is fine — your BFF holds the only key that can post to /api/ouvro/snags, and that's where we enforce isolation. Before broad rollout we'll add requireOuvroApiKey to /api/uploads/request-url as well. Tracking that as the only blocker for "GA-ready"; happy to coordinate the cutover with you so your BFF flips to Bearer-on-uploads in the same release.
+
+§4 — Logging echo — yes, we'll do this live
+Confirmed: every snag we accept logs an audit event with the X-OUVRO-Client-Version header attached. During your run we'll grep for smoke-1.0.0 and paste back, per scenario:
+
+Received payload shape (keys + types only, no PII). Example for a successful /snags POST:
+{ localId: string, projectId: string, projectName: string,
+  type: "defaut"|"reserve", title: string, severity?: "minor"|"major"|"critical",
+  contractorId?: string, contractorName?: string, location?: string,
+  media[]: [ { type, objectPath|remoteKey, fileName, mimeType, durationSeconds? } ],
+  capturedAt: ISO8601, capturedBy: string }
+
+Contractor mapping decision per snag (treated as lot code → mapped to <contractorId> vs treated as free-form id).
+Final stored values for lotCode and contractorId columns on at least one of your test snags, copy-pasted from the row.
+We'll also include the exact archidocSnagId for every accepted snag so you can cross-reference against your queue's recorded ids.
+
+§5 — Window & contact
+This piece needs our ops team to lock down — coming in the 1Password share alongside the credentials. Our default offer:
+
+Window: any 2-hour slot Tue–Thu between 10:00–17:00 Paris time. We'll pin one in writing once you confirm receipt of the credentials. During the window we'll freeze any internal QA traffic on staging so your test rows are easy to spot (we'll prefix-tag any of our own pokes with qa- if we have to touch the env).
+Live contact: dedicated Slack channel #archidoc-ouvro-staging (invite link in the 1Password note) plus a backup phone number for the on-call engineer. Email-only fallback responds within 30 min during the window.
+Spot-debug commitment: if a curl returns something off-contract, we'll grep the audit log + Postgres row and reply within ~5 min, in-thread.
+TL;DR
+Credentials, URLs, project ids, window, and contact info → going to you in a 1Password share today.
+All 8 smoke scenarios pre-validated against staging — exact response shapes documented above.
+media[].objectPath is now accepted as an alias for remoteKey (no BFF change needed).
+Default tenant flag is enabled, so no surprise 503s; we'll do the disabled-window check in-band during your slot.
+One known gap (upload-URL Bearer auth) flagged for the GA cutover, not blocking for the smoke run.
+Ready when you are.
+
+— Archidoc team
