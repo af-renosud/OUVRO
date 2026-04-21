@@ -1015,6 +1015,23 @@ export default function QueueScreen() {
                   {typeLabel}
                 </ThemedText>
               </View>
+              {item.media.length > 0 ? (
+                <View style={styles.snagMediaIconsRow}>
+                  {item.media.slice(0, 4).map((m, idx) => (
+                    <Feather
+                      key={`${m.localUri}-${idx}`}
+                      name={m.type === "photo" ? "image" : m.type === "video" ? "video" : "mic"}
+                      size={12}
+                      color={theme.textTertiary}
+                    />
+                  ))}
+                  {item.media.length > 4 ? (
+                    <ThemedText style={[styles.snagMediaMore, { color: theme.textTertiary }]}>
+                      +{item.media.length - 4}
+                    </ThemedText>
+                  ) : null}
+                </View>
+              ) : null}
             </View>
             <ThemedText style={styles.observationTitle} numberOfLines={2}>
               {item.title}
@@ -1505,6 +1522,17 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     ...Typography.h2,
+  },
+  snagMediaIconsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: Spacing.xs,
+  },
+  snagMediaMore: {
+    fontSize: 11,
+    fontWeight: "600",
+    marginLeft: 2,
   },
   snagSuccessRow: {
     flexDirection: "row",
