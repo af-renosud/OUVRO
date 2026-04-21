@@ -63,7 +63,7 @@ export type SnagsRouterDeps = {
   ) => void;
 };
 
-async function defaultForwardToArchidoc(
+export async function defaultForwardToArchidoc(
   archidocApiUrl: string,
   payload: Record<string, unknown>,
   clientVersion: string,
