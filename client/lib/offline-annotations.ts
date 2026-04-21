@@ -220,6 +220,16 @@ class OfflineAnnotationService {
         throw new Error(`Upload failed with status ${uploadResult.status}`);
       }
 
+      if (
+        !uploadInfo.objectId ||
+        !uploadInfo.bucketName ||
+        !uploadInfo.objectName
+      ) {
+        throw new Error(
+          "Upload response missing objectId/bucketName/objectName — cannot archive annotation",
+        );
+      }
+
       await this.withTimeout(
         archiveUploadedFile({
           objectId: uploadInfo.objectId,

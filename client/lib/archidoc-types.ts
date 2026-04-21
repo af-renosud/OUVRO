@@ -217,11 +217,11 @@ export type FileDownloadResponse = {
 
 export type UploadUrlResponse = {
   uploadURL: string;
-  publicUrl: string;
-  objectId: string;
-  bucketName: string;
-  objectName: string;
   objectPath: string;
+  publicUrl?: string;
+  objectId?: string;
+  bucketName?: string;
+  objectName?: string;
   metadata: {
     name: string;
     size: number;
