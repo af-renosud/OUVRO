@@ -60,3 +60,7 @@ ensurePreviewReachable = "/status"
 
 [userenv.shared]
 EXPO_PUBLIC_ARCHIDOC_API_URL = "https://archidoc-app-archidoc.replit.app"
+
+[postMerge]
+path = "post-merge.sh"
+timeoutMs = 180000
