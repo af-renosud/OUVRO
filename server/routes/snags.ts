@@ -171,6 +171,7 @@ export function createSnagsRouter(deps: SnagsRouterDeps = {}): Router {
           return res.status(400).json({
             success: false,
             error: "Missing required field: localId",
+            code: "VALIDATION_FAILED",
             localId,
           });
         }
@@ -178,6 +179,7 @@ export function createSnagsRouter(deps: SnagsRouterDeps = {}): Router {
           return res.status(400).json({
             success: false,
             error: "Missing required field: projectId",
+            code: "VALIDATION_FAILED",
             localId,
           });
         }
@@ -185,13 +187,19 @@ export function createSnagsRouter(deps: SnagsRouterDeps = {}): Router {
           return res.status(400).json({
             success: false,
             error: `Invalid type — must be one of ${Array.from(ALLOWED_TYPES).join(", ")}`,
+            code: "VALIDATION_FAILED",
             localId,
           });
         }
-        if (!body.title || typeof body.title !== "string") {
+        if (
+          !body.title ||
+          typeof body.title !== "string" ||
+          body.title.trim().length === 0
+        ) {
           return res.status(400).json({
             success: false,
             error: "Missing required field: title",
+            code: "VALIDATION_FAILED",
             localId,
           });
         }
@@ -199,6 +207,7 @@ export function createSnagsRouter(deps: SnagsRouterDeps = {}): Router {
           return res.status(400).json({
             success: false,
             error: "Missing required field: capturedAt",
+            code: "VALIDATION_FAILED",
             localId,
           });
         }
@@ -206,6 +215,7 @@ export function createSnagsRouter(deps: SnagsRouterDeps = {}): Router {
           return res.status(400).json({
             success: false,
             error: "Missing required field: capturedBy",
+            code: "VALIDATION_FAILED",
             localId,
           });
         }
@@ -213,19 +223,23 @@ export function createSnagsRouter(deps: SnagsRouterDeps = {}): Router {
           return res.status(400).json({
             success: false,
             error: "media must be an array",
+            code: "VALIDATION_FAILED",
             localId,
           });
         }
         for (const m of body.media) {
           const err = validateMediaItem(m);
           if (err) {
-            return res.status(400).json({ success: false, error: err, localId });
+            return res
+              .status(400)
+              .json({ success: false, error: err, code: "VALIDATION_FAILED", localId });
           }
         }
         if (body.severity && !ALLOWED_SEVERITIES.has(body.severity)) {
           return res.status(400).json({
             success: false,
             error: `Invalid severity — must be one of ${Array.from(ALLOWED_SEVERITIES).join(", ")}`,
+            code: "VALIDATION_FAILED",
             localId,
           });
         }

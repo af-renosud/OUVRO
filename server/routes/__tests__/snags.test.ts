@@ -30,6 +30,7 @@ const VALID_BODY = {
       objectPath: "ouvro/snags/snag-001.jpg",
       fileName: "snag-001.jpg",
       mimeType: "image/jpeg",
+      fileName: "snag-001.jpg",
     },
   ],
 };
@@ -163,6 +164,48 @@ describe("POST /api/snags/submit — happy path forwards correctly", () => {
       const { status, data } = await postSnag(port, { ...VALID_BODY, media: [] });
       assert.equal(status, 200, `expected 200, got ${status}: ${data.error}`);
       assert.equal(data.archidocSnagId, "snag-empty-media");
+    });
+  });
+
+  it("rejects media items missing fileName with 400 VALIDATION_FAILED", async () => {
+    let forwarded = false;
+    const deps: SnagsRouterDeps = {
+      validateArchidocUrl: okValidate,
+      forwardToArchidoc: async () => {
+        forwarded = true;
+        return { data: { id: "should-not-happen" } };
+      },
+    };
+    await withServer(deps, async (port) => {
+      const body = {
+        ...VALID_BODY,
+        media: [
+          { type: "photo", objectPath: "ouvro/snags/x.jpg", mimeType: "image/jpeg" },
+        ],
+      };
+      const { status, data } = await postSnag(port, body);
+      assert.equal(status, 400);
+      assert.equal(data.code, "VALIDATION_FAILED");
+      assert.match(String(data.error), /fileName/);
+      assert.equal(forwarded, false, "must not forward when validation fails");
+    });
+  });
+
+  it("rejects whitespace-only title with 400 VALIDATION_FAILED", async () => {
+    let forwarded = false;
+    const deps: SnagsRouterDeps = {
+      validateArchidocUrl: okValidate,
+      forwardToArchidoc: async () => {
+        forwarded = true;
+        return { data: { id: "should-not-happen" } };
+      },
+    };
+    await withServer(deps, async (port) => {
+      const { status, data } = await postSnag(port, { ...VALID_BODY, title: "   " });
+      assert.equal(status, 400);
+      assert.equal(data.code, "VALIDATION_FAILED");
+      assert.match(String(data.error), /title/);
+      assert.equal(forwarded, false, "must not forward when validation fails");
     });
   });
 });

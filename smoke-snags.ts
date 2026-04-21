@@ -113,7 +113,7 @@ async function postStagingDirect(
   return { status: res.status, bodyText: text, json };
 }
 
-async function requestUploadUrl(): Promise<UploadUrlResponse> {
+async function requestUploadUrl(): Promise<UploadUrlResponse & { fileName: string }> {
   const fileName = `smoke-${Date.now()}.jpg`;
   const res = await fetch(`${STAGING_URL}/api/uploads/request-url`, {
     method: "POST",
@@ -128,7 +128,8 @@ async function requestUploadUrl(): Promise<UploadUrlResponse> {
     const t = await res.text().catch(() => "");
     throw new Error(`upload-url failed (${res.status}): ${t}`);
   }
-  return (await res.json()) as UploadUrlResponse;
+  const json = (await res.json()) as UploadUrlResponse;
+  return { ...json, fileName };
 }
 
 async function warmUp(): Promise<void> {
@@ -169,8 +170,8 @@ async function scenario1NewDefautWithMedia(): Promise<string> {
       {
         type: "photo",
         objectPath: upload.objectPath,
-        fileName: `smoke-${Date.now()}.jpg`,
         mimeType: "image/jpeg",
+        fileName: upload.fileName,
       },
     ],
   });
@@ -225,8 +226,8 @@ async function scenario2ReplaySameLocalId(localId: string): Promise<void> {
       {
         type: "photo",
         objectPath: upload.objectPath,
-        fileName: `smoke-replay-${Date.now()}.jpg`,
         mimeType: "image/jpeg",
+        fileName: upload.fileName,
       },
     ],
   });
@@ -268,8 +269,8 @@ async function scenario3Reserve(): Promise<void> {
       {
         type: "photo",
         objectPath: upload.objectPath,
-        fileName: `smoke-reserve-${Date.now()}.jpg`,
         mimeType: "image/jpeg",
+        fileName: upload.fileName,
       },
     ],
   });
@@ -375,6 +376,8 @@ async function scenario6UpstreamValidationPassthrough(): Promise<void> {
   // them. To still exercise our BFF's pass-through of upstream Zod errors, we
   // submit `description` as an object: our BFF treats it as truthy and forwards
   // it untouched, and Archidoc's schema rejects with VALIDATION_FAILED.
+  // (Our BFF additionally trims whitespace titles defensively — that path is
+  // covered in server/routes/__tests__/snags.test.ts.)
   const base = buildBaseSnagBody({
     localId: newLocalId("smoke-6-baddesc"),
     media: [],
