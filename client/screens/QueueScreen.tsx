@@ -25,12 +25,18 @@ import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useOfflineTasks } from "@/hooks/useOfflineTasks";
 import { useOfflineAnnotations } from "@/hooks/useOfflineAnnotations";
 import { useDQESync } from "@/hooks/useDQESync";
+import { useSnagSync } from "@/hooks/useSnagSync";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNavigator";
 import type { OfflineObservation, ObservationSyncState } from "@/lib/offline-sync";
 import type { OfflineTask, TaskSyncState } from "@/lib/offline-tasks";
 import type { OfflineAnnotation, AnnotationSyncState } from "@/lib/offline-annotations";
-import type { PendingDQECapture, DQESyncState } from "@/lib/archidoc-types";
+import type {
+  PendingDQECapture,
+  DQESyncState,
+  PendingSnagCapture,
+  SnagSyncState,
+} from "@/lib/archidoc-types";
 
 const DQE_AMBER = "#D97706";
 
@@ -170,6 +176,23 @@ export default function QueueScreen() {
     refresh: refreshDQECaptures,
   } = useDQESync();
 
+  const {
+    captures: snagCaptures,
+    pendingCount: snagPendingCount,
+    isSyncing: isSnagSyncing,
+    retryCapture: retrySnagCapture,
+    removeCapture: removeSnagCapture,
+    clearCompleted: clearCompletedSnags,
+    syncNow: syncAllSnags,
+    refresh: refreshSnagCaptures,
+  } = useSnagSync();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshSnagCaptures();
+    }, [refreshSnagCaptures])
+  );
+
   useFocusEffect(
     useCallback(() => {
       refreshDQECaptures();
@@ -187,6 +210,9 @@ export default function QueueScreen() {
 
   const pendingDQECaptures = dqeCaptures.filter((c) => c.syncState !== "complete");
   const completedDQECaptures = dqeCaptures.filter((c) => c.syncState === "complete");
+
+  const pendingSnagCaptures = snagCaptures.filter((c) => c.syncState !== "complete");
+  const completedSnagCaptures = snagCaptures.filter((c) => c.syncState === "complete");
 
   useEffect(() => {
     if (previousSyncingRef.current && !isSyncing && pendingCount === 0 && completedObservations.length > 0) {
@@ -216,8 +242,14 @@ export default function QueueScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    await Promise.all([startSync(), syncAllTasks(), syncAllAnnotations(), syncAllDQE()]);
-  }, [isNetworkAvailable, startSync, syncAllTasks, syncAllAnnotations, syncAllDQE]);
+    await Promise.all([
+      startSync(),
+      syncAllTasks(),
+      syncAllAnnotations(),
+      syncAllDQE(),
+      syncAllSnags(),
+    ]);
+  }, [isNetworkAvailable, startSync, syncAllTasks, syncAllAnnotations, syncAllDQE, syncAllSnags]);
 
   const handleCancelSync = useCallback(() => {
     Alert.alert("Cancel Sync", "Are you sure you want to cancel the current sync?", [
@@ -274,7 +306,7 @@ export default function QueueScreen() {
   }, [retryAnnotation]);
 
   const handleClearCompleted = useCallback(() => {
-    const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length + completedDQECaptures.length;
+    const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length + completedDQECaptures.length + completedSnagCaptures.length;
     Alert.alert(
       "Clear Synced Items",
       `Remove ${totalCompleted} synced item${totalCompleted > 1 ? "s" : ""} from this list? They are safely stored in ARCHIDOC.`,
@@ -287,6 +319,7 @@ export default function QueueScreen() {
             clearCompletedTasks();
             clearCompletedAnnotations();
             clearCompletedDQE();
+            clearCompletedSnags();
             if (Platform.OS !== "web") {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
@@ -294,7 +327,7 @@ export default function QueueScreen() {
         },
       ]
     );
-  }, [completedObservations.length, completedTasks.length, completedAnnotations.length, completedDQECaptures.length, clearCompleted, clearCompletedTasks, clearCompletedAnnotations, clearCompletedDQE]);
+  }, [completedObservations.length, completedTasks.length, completedAnnotations.length, completedDQECaptures.length, completedSnagCaptures.length, clearCompleted, clearCompletedTasks, clearCompletedAnnotations, clearCompletedDQE, clearCompletedSnags]);
 
   const handleDeleteTask = useCallback((localId: string) => {
     Alert.alert(
@@ -897,11 +930,182 @@ export default function QueueScreen() {
     );
   };
 
+  const handleRetrySnagCapture = async (localId: string) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    await retrySnagCapture(localId);
+  };
+
+  const handleDeleteSnagCapture = (localId: string) => {
+    Alert.alert(
+      "Delete Snag",
+      "Permanently delete this snag and its media from your device?",
+      [
+        { text: "Keep", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            if (Platform.OS !== "web") {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            }
+            removeSnagCapture(localId);
+          },
+        },
+      ]
+    );
+  };
+
+  const getSnagStateInfo = (
+    state: SnagSyncState
+  ): { color: string; icon: keyof typeof Feather.glyphMap; label: string } => {
+    switch (state) {
+      case "pending":
+        return { color: BrandColors.warning, icon: "clock", label: "Pending" };
+      case "uploading_media":
+        return { color: BrandColors.info, icon: "upload-cloud", label: "Uploading media…" };
+      case "uploading_metadata":
+        return { color: BrandColors.info, icon: "upload-cloud", label: "Submitting…" };
+      case "complete":
+        return { color: BrandColors.success, icon: "check-circle", label: "Synced" };
+      case "failed":
+        return { color: BrandColors.error, icon: "alert-circle", label: "Failed" };
+      default:
+        return { color: theme.textTertiary, icon: "clock", label: "Unknown" };
+    }
+  };
+
+  const renderSnagCapture = ({ item }: { item: PendingSnagCapture }) => {
+    const stateInfo = getSnagStateInfo(item.syncState);
+    const isComplete = item.syncState === "complete";
+    const isUploading =
+      item.syncState === "uploading_media" || item.syncState === "uploading_metadata";
+    const accent = item.type === "defaut" ? "#B91C1C" : "#92400E";
+    const accentBg = item.type === "defaut" ? "#FEE2E2" : "#FEF3C7";
+    const typeLabel = item.type === "defaut" ? "DÉFAUT" : "RÉSERVE";
+
+    return (
+      <Card
+        style={
+          isComplete
+            ? { ...styles.observationCard, ...styles.completedCard }
+            : styles.observationCard
+        }
+      >
+        <View style={styles.observationHeader}>
+          <View
+            style={[
+              styles.thumbnailPlaceholder,
+              { backgroundColor: accentBg },
+              isComplete && { backgroundColor: `${BrandColors.success}15` },
+            ]}
+          >
+            <Feather
+              name={isComplete ? "check-circle" : item.type === "defaut" ? "alert-triangle" : "flag"}
+              size={24}
+              color={isComplete ? BrandColors.success : accent}
+            />
+          </View>
+          <View style={styles.observationInfo}>
+            <View style={styles.taskBadgeRow}>
+              <View style={[styles.taskTypeBadge, { backgroundColor: `${accent}20` }]}>
+                <ThemedText style={[styles.taskTypeBadgeText, { color: accent }]}>
+                  {typeLabel}
+                </ThemedText>
+              </View>
+            </View>
+            <ThemedText style={styles.observationTitle} numberOfLines={2}>
+              {item.title}
+            </ThemedText>
+            <ThemedText style={[styles.observationDate, { color: theme.textSecondary }]}>
+              {item.projectName} - {new Date(item.createdAt).toLocaleDateString()}
+            </ThemedText>
+            {item.contractorName ? (
+              <ThemedText style={[styles.mediaCount, { color: theme.textTertiary }]}>
+                {item.contractorName}
+              </ThemedText>
+            ) : null}
+            {isComplete && item.syncCompletedAt ? (
+              <ThemedText style={[styles.syncTimestamp, { color: BrandColors.success }]}>
+                Synced {new Date(item.syncCompletedAt).toLocaleString()}
+              </ThemedText>
+            ) : null}
+          </View>
+          <View style={[styles.syncBadge, { backgroundColor: stateInfo.color }]}>
+            {isUploading ? (
+              <ActivityIndicator size={14} color="#FFFFFF" />
+            ) : (
+              <Feather name={stateInfo.icon} size={14} color="#FFFFFF" />
+            )}
+          </View>
+        </View>
+
+        {item.lastSyncError && !isComplete ? (
+          <View style={[styles.errorBanner, { backgroundColor: `${BrandColors.error}20` }]}>
+            <Feather name="alert-circle" size={14} color={BrandColors.error} />
+            <ThemedText
+              style={[styles.errorText, { color: BrandColors.error }]}
+              numberOfLines={2}
+            >
+              {item.lastSyncError}
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {item.retryCount > 0 && !isComplete ? (
+          <ThemedText style={[styles.retryCountText, { color: theme.textTertiary }]}>
+            Retry attempts: {item.retryCount}/20
+          </ThemedText>
+        ) : null}
+
+        <View style={styles.actionButtons}>
+          {!isComplete ? (
+            <>
+              {item.syncState === "failed" || item.syncState === "pending" ? (
+                <Pressable
+                  style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+                  onPress={() => handleRetrySnagCapture(item.localId)}
+                  disabled={isSnagSyncing}
+                >
+                  <Feather
+                    name={item.syncState === "failed" ? "refresh-cw" : "upload-cloud"}
+                    size={16}
+                    color="#FFFFFF"
+                  />
+                  <ThemedText style={styles.actionButtonText}>
+                    {item.syncState === "failed" ? "Retry" : isNetworkAvailable ? "Sync" : "Queued"}
+                  </ThemedText>
+                </Pressable>
+              ) : isUploading ? (
+                <View style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}>
+                  <ActivityIndicator size="small" color={BrandColors.primary} />
+                  <ThemedText
+                    style={[styles.actionButtonText, { color: BrandColors.primary }]}
+                  >
+                    Syncing…
+                  </ThemedText>
+                </View>
+              ) : null}
+              <Pressable
+                style={[styles.actionButtonIcon, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={() => handleDeleteSnagCapture(item.localId)}
+              >
+                <Feather name="trash-2" size={18} color={BrandColors.error} />
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+      </Card>
+    );
+  };
+
   type QueueItem = 
     | { type: "observation"; data: OfflineObservation }
     | { type: "task"; data: OfflineTask }
     | { type: "annotation"; data: OfflineAnnotation }
     | { type: "dqe"; data: PendingDQECapture }
+    | { type: "snag"; data: PendingSnagCapture }
     | { type: "section"; title: string };
 
   const buildQueueItems = (): QueueItem[] => {
@@ -910,6 +1114,11 @@ export default function QueueScreen() {
     if (pendingDQECaptures.length > 0) {
       items.push({ type: "section", title: `Pending DQE Captures (${pendingDQECaptures.length})` });
       pendingDQECaptures.forEach((c) => items.push({ type: "dqe", data: c }));
+    }
+
+    if (pendingSnagCaptures.length > 0) {
+      items.push({ type: "section", title: `Pending Snags (${pendingSnagCaptures.length})` });
+      pendingSnagCaptures.forEach((s) => items.push({ type: "snag", data: s }));
     }
 
     if (pendingAnnotations.length > 0) {
@@ -927,10 +1136,11 @@ export default function QueueScreen() {
       pendingObservations.forEach((o) => items.push({ type: "observation", data: o }));
     }
 
-    const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length + completedDQECaptures.length;
+    const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length + completedDQECaptures.length + completedSnagCaptures.length;
     if (totalCompleted > 0) {
       items.push({ type: "section", title: `Synced (${totalCompleted})` });
       completedDQECaptures.forEach((c) => items.push({ type: "dqe", data: c }));
+      completedSnagCaptures.forEach((s) => items.push({ type: "snag", data: s }));
       completedAnnotations.forEach((a) => items.push({ type: "annotation", data: a }));
       completedTasks.forEach((t) => items.push({ type: "task", data: t }));
       completedObservations.forEach((o) => items.push({ type: "observation", data: o }));
@@ -940,8 +1150,8 @@ export default function QueueScreen() {
   };
 
   const queueItems = buildQueueItems();
-  const totalPending = pendingCount + taskPendingCount + annotationPendingCount + dqePendingCount;
-  const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length + completedDQECaptures.length;
+  const totalPending = pendingCount + taskPendingCount + annotationPendingCount + dqePendingCount + snagPendingCount;
+  const totalCompleted = completedObservations.length + completedTasks.length + completedAnnotations.length + completedDQECaptures.length + completedSnagCaptures.length;
 
   const renderQueueItem = ({ item }: { item: QueueItem }) => {
     if (item.type === "section") {
@@ -953,6 +1163,9 @@ export default function QueueScreen() {
     }
     if (item.type === "dqe") {
       return renderDQECapture({ item: item.data });
+    }
+    if (item.type === "snag") {
+      return renderSnagCapture({ item: item.data });
     }
     if (item.type === "task") {
       return renderTask({ item: item.data });

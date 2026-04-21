@@ -11,12 +11,15 @@ import { ThemedText } from "@/components/ThemedText";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
 import { useProjectLock } from "@/hooks/useProjectLock";
+import { useCaptureModeLock } from "@/hooks/useCaptureModeLock";
+import type { SnagType } from "@/lib/archidoc-types";
 
 export default function CaptureModalScreen() {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { lockedProject, isLocked } = useProjectLock();
+  const { mode: captureMode, lockMode, unlockMode } = useCaptureModeLock();
   const [selectedProject, setSelectedProject] = useState<MappedProject | null>(null);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
 
@@ -80,6 +83,14 @@ export default function CaptureModalScreen() {
 
   const buttonSize = Math.min((height - 200) / 5, 100);
 
+  const handleModePill = async (next: SnagType) => {
+    if (captureMode === next) {
+      await unlockMode();
+    } else {
+      await lockMode(next);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={[styles.headerBackground, { paddingTop: insets.top + Spacing.lg }]}>
@@ -132,6 +143,52 @@ export default function CaptureModalScreen() {
             )}
           </Pressable>
         )}
+
+        <View style={styles.modePillsRow}>
+          <Pressable
+            onPress={() => handleModePill("defaut")}
+            style={[
+              styles.modePill,
+              captureMode === "defaut" && { borderColor: "#FCA5A5", backgroundColor: "#FEE2E2" },
+            ]}
+          >
+            <Feather
+              name="alert-triangle"
+              size={14}
+              color={captureMode === "defaut" ? "#B91C1C" : "#FFFFFF"}
+            />
+            <ThemedText
+              style={[
+                styles.modePillText,
+                { color: captureMode === "defaut" ? "#B91C1C" : "#FFFFFF" },
+              ]}
+            >
+              Défaut
+            </ThemedText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => handleModePill("reserve")}
+            style={[
+              styles.modePill,
+              captureMode === "reserve" && { borderColor: "#FCD34D", backgroundColor: "#FEF3C7" },
+            ]}
+          >
+            <Feather
+              name="flag"
+              size={14}
+              color={captureMode === "reserve" ? "#92400E" : "#FFFFFF"}
+            />
+            <ThemedText
+              style={[
+                styles.modePillText,
+                { color: captureMode === "reserve" ? "#92400E" : "#FFFFFF" },
+              ]}
+            >
+              Réserve
+            </ThemedText>
+          </Pressable>
+        </View>
 
         <View style={styles.captureArea}>
           <View style={styles.captureGrid}>
@@ -351,6 +408,27 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.9,
     transform: [{ scale: 0.98 }],
+  },
+  modePillsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  modePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.45)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  modePillText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
   projectSelector: {
     flexDirection: "row",

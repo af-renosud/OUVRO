@@ -11,6 +11,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { useCaptureModeLock } from "@/hooks/useCaptureModeLock";
 
 export default function PhotoCaptureScreen() {
   const { theme } = useTheme();
@@ -20,6 +21,7 @@ export default function PhotoCaptureScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "PhotoCapture">>();
   const { projectId, projectName } = route.params;
 
+  const { isSnagMode } = useCaptureModeLock();
   const [permission, requestPermission] = useCameraPermissions();
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [facing, setFacing] = useState<"front" | "back">("back");
@@ -51,11 +53,12 @@ export default function PhotoCaptureScreen() {
 
   const handleDone = () => {
     if (capturedPhoto) {
-      navigation.navigate("ObservationDetails", {
-        projectId,
-        projectName,
-        mediaItems: [{ type: "photo", uri: capturedPhoto }],
-      });
+      const mediaItems = [{ type: "photo" as const, uri: capturedPhoto }];
+      if (isSnagMode) {
+        navigation.navigate("SnagDetails", { projectId, projectName, mediaItems });
+      } else {
+        navigation.navigate("ObservationDetails", { projectId, projectName, mediaItems });
+      }
     }
   };
 

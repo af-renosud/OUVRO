@@ -311,6 +311,89 @@ export type DQEQualityTier = "efficient" | "standard" | "maximum";
 
 export type DQESyncState = "pending" | "uploading" | "complete" | "failed";
 
+// ── Snags (Défauts & Réserves) ────────────────────────────────────────────────
+
+export type SnagType = "defaut" | "reserve";
+
+export type SnagSeverity = "minor" | "major" | "critical";
+
+export type SnagSyncState =
+  | "pending"
+  | "uploading_media"
+  | "uploading_metadata"
+  | "complete"
+  | "failed";
+
+export type SnagMediaItem = {
+  type: "photo" | "video" | "audio";
+  objectPath: string;
+  publicUrl?: string;
+  mimeType: string;
+  durationSeconds?: number;
+};
+
+export type SnagSubmitParams = {
+  localId: string;
+  projectId: string;
+  projectName: string;
+  type: SnagType;
+  title: string;
+  description?: string;
+  severity?: SnagSeverity;
+  contractorId?: string;
+  contractorName?: string;
+  location?: string;
+  media: SnagMediaItem[];
+  capturedAt: string;
+  capturedBy: string;
+};
+
+export type SnagSubmitResponse = {
+  success: boolean;
+  localId: string;
+  archidocSnagId?: string;
+  deepLink?: string;
+  error?: string;
+  code?: string;
+};
+
+export type PendingSnagMedia = {
+  type: "photo" | "video" | "audio";
+  localUri: string;
+  fileName: string;
+  mimeType: string;
+  durationSeconds?: number;
+  fileSize?: number;
+  objectPath?: string;
+  publicUrl?: string;
+  uploaded: boolean;
+};
+
+export interface PendingSnagCapture {
+  localId: string;
+  projectId: string;
+  projectName: string;
+  type: SnagType;
+  title: string;
+  description?: string;
+  severity?: SnagSeverity;
+  contractorId?: string;
+  contractorName?: string;
+  location?: string;
+  media: PendingSnagMedia[];
+  capturedAt: string;
+  capturedBy: string;
+  syncState: SnagSyncState;
+  remoteId?: string;
+  deepLink?: string;
+  createdAt: string;
+  modifiedAt: string;
+  lastSyncAttempt?: string;
+  lastSyncError?: string;
+  syncCompletedAt?: string;
+  retryCount: number;
+}
+
 export interface PendingDQECapture {
   localId: string;
   projectId: string;

@@ -15,7 +15,9 @@ import { OfflineSyncProvider } from "@/hooks/useOfflineSync";
 import { OfflineTasksProvider } from "@/hooks/useOfflineTasks";
 import { OfflineAnnotationsProvider } from "@/hooks/useOfflineAnnotations";
 import { ProjectLockProvider } from "@/hooks/useProjectLock";
+import { CaptureModeLockProvider } from "@/hooks/useCaptureModeLock";
 import { DQESyncProvider } from "@/hooks/useDQESync";
+import { SnagSyncProvider } from "@/hooks/useSnagSync";
 
 const defaultHandler = (ErrorUtils as any).getGlobalHandler?.();
 (ErrorUtils as any).setGlobalHandler?.((error: Error, isFatal?: boolean) => {
@@ -30,10 +32,12 @@ export default function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ProjectLockProvider>
+        <CaptureModeLockProvider>
         <OfflineSyncProvider>
           <OfflineTasksProvider>
           <OfflineAnnotationsProvider>
           <DQESyncProvider>
+          <SnagSyncProvider>
           <SafeAreaProvider>
             <GestureHandlerRootView style={styles.root}>
               <KeyboardProvider>
@@ -44,10 +48,12 @@ export default function App() {
               </KeyboardProvider>
             </GestureHandlerRootView>
           </SafeAreaProvider>
+          </SnagSyncProvider>
           </DQESyncProvider>
           </OfflineAnnotationsProvider>
           </OfflineTasksProvider>
         </OfflineSyncProvider>
+        </CaptureModeLockProvider>
         </ProjectLockProvider>
       </QueryClientProvider>
     </ErrorBoundary>

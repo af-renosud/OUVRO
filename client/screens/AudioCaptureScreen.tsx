@@ -11,6 +11,7 @@ import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { useCaptureModeLock } from "@/hooks/useCaptureModeLock";
 
 export default function AudioCaptureScreen() {
   const { theme } = useTheme();
@@ -34,6 +35,7 @@ export default function AudioCaptureScreen() {
 
   const { isPlaying, togglePlayback } = useAudioPlayer();
 
+  const { isSnagMode } = useCaptureModeLock();
   const isPhone = width < 500;
   const waveformSize = isPhone ? 120 : 160;
   const buttonSize = isPhone ? 96 : 120;
@@ -46,11 +48,14 @@ export default function AudioCaptureScreen() {
 
   const handleDone = () => {
     if (recordingUri) {
-      navigation.navigate("ObservationDetails", {
-        projectId,
-        projectName,
-        mediaItems: [{ type: "audio", uri: recordingUri, duration: recordingDuration }],
-      });
+      const mediaItems = [
+        { type: "audio" as const, uri: recordingUri, duration: recordingDuration },
+      ];
+      if (isSnagMode) {
+        navigation.navigate("SnagDetails", { projectId, projectName, mediaItems });
+      } else {
+        navigation.navigate("ObservationDetails", { projectId, projectName, mediaItems });
+      }
     }
   };
 

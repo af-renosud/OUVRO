@@ -20,6 +20,7 @@ import FichesScreen from "@/screens/FichesScreen";
 import TaskCaptureScreen from "@/screens/TaskCaptureScreen";
 import DQECaptureScreen from "@/screens/DQECaptureScreen";
 import DQECaptureReviewScreen from "@/screens/DQECaptureReviewScreen";
+import SnagDetailsScreen from "@/screens/SnagDetailsScreen";
 
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import type { FileCategory, ProjectFile, ProjectLink, DQEItem, DQEQualityTier } from "@/lib/archidoc-api";
@@ -50,6 +51,7 @@ export type RootStackParamList = {
   };
 
   ObservationDetails: { projectId: string; projectName?: string; mediaItems?: MediaItem[] };
+  SnagDetails: { projectId: string; projectName?: string; mediaItems: MediaItem[] };
   ProjectDetail: { projectId: string };
   ProjectAssetHub: { projectId: string };
   ShareModal: { observation: ShareObservation; projectName: string; contractorName?: string };
@@ -120,6 +122,11 @@ export default function RootStackNavigator() {
         name="ObservationDetails"
         component={ObservationDetailsScreen}
         options={{ presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="SnagDetails"
+        component={SnagDetailsScreen}
+        options={{ presentation: "modal", headerTitle: "Détails" }}
       />
       <Stack.Screen
         name="ProjectDetail"

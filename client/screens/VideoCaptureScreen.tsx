@@ -11,6 +11,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { useCaptureModeLock } from "@/hooks/useCaptureModeLock";
 
 export default function VideoCaptureScreen() {
   const { theme } = useTheme();
@@ -20,6 +21,7 @@ export default function VideoCaptureScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "VideoCapture">>();
   const { projectId, projectName } = route.params;
 
+  const { isSnagMode } = useCaptureModeLock();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const [isRecording, setIsRecording] = useState(false);
@@ -94,11 +96,14 @@ export default function VideoCaptureScreen() {
 
   const handleUseVideo = () => {
     if (capturedVideoUri) {
-      navigation.navigate("ObservationDetails", {
-        projectId,
-        projectName,
-        mediaItems: [{ type: "video", uri: capturedVideoUri, duration: finalDuration }],
-      });
+      const mediaItems = [
+        { type: "video" as const, uri: capturedVideoUri, duration: finalDuration },
+      ];
+      if (isSnagMode) {
+        navigation.navigate("SnagDetails", { projectId, projectName, mediaItems });
+      } else {
+        navigation.navigate("ObservationDetails", { projectId, projectName, mediaItems });
+      }
     }
   };
 

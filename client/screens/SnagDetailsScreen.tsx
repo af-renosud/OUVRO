@@ -1,0 +1,469 @@
+import React, { useMemo, useState } from "react";
+import {
+  View,
+  StyleSheet,
+  Pressable,
+  TextInput,
+  Alert,
+  ScrollView,
+  Modal,
+  FlatList,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Feather } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
+import { ThemedText } from "@/components/ThemedText";
+import { ThemedView } from "@/components/ThemedView";
+import { OuvroScreenHeader } from "@/components/OuvroScreenHeader";
+import { useTheme } from "@/hooks/useTheme";
+import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { useCaptureModeLock } from "@/hooks/useCaptureModeLock";
+import { useSnagSync } from "@/hooks/useSnagSync";
+import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
+import type { SnagSeverity } from "@/lib/archidoc-types";
+import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNavigator";
+
+const SEVERITY_OPTIONS: { value: SnagSeverity; label: string }[] = [
+  { value: "minor", label: "Mineur" },
+  { value: "major", label: "Majeur" },
+  { value: "critical", label: "Critique" },
+];
+
+function mediaToMime(item: MediaItem): string {
+  if (item.type === "photo") return "image/jpeg";
+  if (item.type === "video") return "video/mp4";
+  return "audio/m4a";
+}
+
+function fileNameForMedia(item: MediaItem): string {
+  const ts = Date.now();
+  const ext = item.uri.split(".").pop()?.toLowerCase() || "bin";
+  return `snag_${item.type}_${ts}.${ext}`;
+}
+
+export default function SnagDetailsScreen() {
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, "SnagDetails">>();
+  const { projectId, projectName, mediaItems } = route.params;
+
+  const { mode, unlockMode } = useCaptureModeLock();
+  const { addCapture } = useSnagSync();
+
+  const { data: projects = [] } = useQuery<MappedProject[]>({
+    queryKey: ["archidoc-projects"],
+    queryFn: fetchArchidocProjects,
+  });
+
+  const project = useMemo(
+    () => projects.find((p) => p.id === projectId) || null,
+    [projects, projectId]
+  );
+
+  const contractorEntries = useMemo(() => {
+    const map = project?.lotContractors || {};
+    const seen = new Set<string>();
+    const out: { lotCode: string; name: string }[] = [];
+    Object.entries(map).forEach(([lotCode, name]) => {
+      const key = `${lotCode}|${name}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push({ lotCode, name });
+      }
+    });
+    return out.sort((a, b) => a.lotCode.localeCompare(b.lotCode));
+  }, [project]);
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [severity, setSeverity] = useState<SnagSeverity | undefined>(undefined);
+  const [contractorId, setContractorId] = useState<string | undefined>(undefined);
+  const [contractorName, setContractorName] = useState("");
+  const [location, setLocation] = useState("");
+  const [showContractorPicker, setShowContractorPicker] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!mode) {
+    return (
+      <ThemedView style={styles.container}>
+        <OuvroScreenHeader onBack={() => navigation.goBack()} />
+        <View style={styles.emptyContainer}>
+          <ThemedText>No active capture mode</ThemedText>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  if (!mediaItems || mediaItems.length === 0) {
+    return (
+      <ThemedView style={styles.container}>
+        <OuvroScreenHeader onBack={() => navigation.goBack()} />
+        <View style={styles.emptyContainer}>
+          <ThemedText>No media captured</ThemedText>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  const modeLabel = mode === "defaut" ? "Défaut" : "Réserve";
+
+  const pickContractor = (entry: { lotCode: string; name: string } | null) => {
+    if (entry) {
+      setContractorId(entry.lotCode);
+      setContractorName(entry.name);
+    } else {
+      setContractorId(undefined);
+    }
+    setShowContractorPicker(false);
+  };
+
+  const handleSave = async () => {
+    if (!title.trim()) {
+      Alert.alert("Titre requis", "Merci de renseigner un titre.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const media = mediaItems.map((m) => ({
+        type: m.type,
+        uri: m.uri,
+        mimeType: mediaToMime(m),
+        durationSeconds: m.duration,
+      }));
+      const finalContractorName = contractorName.trim() || undefined;
+      await addCapture({
+        projectId,
+        projectName: projectName || "Unknown Project",
+        type: mode,
+        title: title.trim(),
+        description: description.trim() || undefined,
+        severity,
+        contractorId,
+        contractorName: finalContractorName,
+        location: location.trim() || undefined,
+        media,
+      });
+      navigation.popToTop();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not save snag";
+      Alert.alert("Erreur", msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleExitMode = () => {
+    Alert.alert(
+      "Quitter le mode capture",
+      `Désactiver le mode ${modeLabel} ?`,
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Quitter",
+          style: "destructive",
+          onPress: async () => {
+            await unlockMode();
+            navigation.popToTop();
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <ThemedView style={styles.container}>
+      <OuvroScreenHeader onBack={() => navigation.goBack()} />
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: Math.max(insets.bottom, 20) + Spacing.xl },
+        ]}
+      >
+        <View
+          style={[
+            styles.modeBanner,
+            { backgroundColor: mode === "defaut" ? "#FEE2E2" : "#FEF3C7" },
+          ]}
+        >
+          <Feather
+            name={mode === "defaut" ? "alert-triangle" : "flag"}
+            size={18}
+            color={mode === "defaut" ? "#B91C1C" : "#92400E"}
+          />
+          <ThemedText
+            style={[
+              styles.modeBannerText,
+              { color: mode === "defaut" ? "#B91C1C" : "#92400E" },
+            ]}
+          >
+            Mode {modeLabel} actif
+          </ThemedText>
+          <Pressable onPress={handleExitMode} style={styles.modeExitBtn}>
+            <ThemedText style={styles.modeExitText}>Quitter</ThemedText>
+          </Pressable>
+        </View>
+
+        <ThemedText style={styles.sectionTitle}>{mediaItems.length} média(s) capturé(s)</ThemedText>
+        <View style={styles.mediaList}>
+          {mediaItems.map((m, i) => (
+            <View key={`${m.uri}-${i}`} style={[styles.mediaPill, { backgroundColor: theme.backgroundSecondary }]}>
+              <Feather
+                name={m.type === "photo" ? "image" : m.type === "video" ? "video" : "mic"}
+                size={14}
+                color={theme.textSecondary}
+              />
+              <ThemedText style={styles.mediaPillText}>{fileNameForMedia(m)}</ThemedText>
+            </View>
+          ))}
+        </View>
+
+        <ThemedText style={styles.label}>Titre *</ThemedText>
+        <TextInput
+          style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+          placeholder="Ex: Fissure mur cuisine"
+          placeholderTextColor={theme.textTertiary}
+          value={title}
+          onChangeText={setTitle}
+        />
+
+        <ThemedText style={styles.label}>Description</ThemedText>
+        <TextInput
+          style={[
+            styles.input,
+            styles.textArea,
+            { color: theme.text, borderColor: theme.border },
+          ]}
+          placeholder="Contexte, détails…"
+          placeholderTextColor={theme.textTertiary}
+          value={description}
+          onChangeText={setDescription}
+          multiline
+        />
+
+        <ThemedText style={styles.label}>Localisation</ThemedText>
+        <TextInput
+          style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+          placeholder="Ex: RDC, salle de bain"
+          placeholderTextColor={theme.textTertiary}
+          value={location}
+          onChangeText={setLocation}
+        />
+
+        <ThemedText style={styles.label}>Sévérité</ThemedText>
+        <View style={styles.severityRow}>
+          {SEVERITY_OPTIONS.map((opt) => {
+            const active = severity === opt.value;
+            return (
+              <Pressable
+                key={opt.value}
+                onPress={() => setSeverity(active ? undefined : opt.value)}
+                style={[
+                  styles.severityChip,
+                  {
+                    borderColor: active ? BrandColors.accent : theme.border,
+                    backgroundColor: active ? "#E6FFFA" : "transparent",
+                  },
+                ]}
+              >
+                <ThemedText
+                  style={[
+                    styles.severityChipText,
+                    { color: active ? BrandColors.accent : theme.text },
+                  ]}
+                >
+                  {opt.label}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <ThemedText style={styles.label}>Entreprise / Lot</ThemedText>
+        <Pressable
+          onPress={() => setShowContractorPicker(true)}
+          style={[styles.input, styles.pickerInput, { borderColor: theme.border }]}
+        >
+          <ThemedText style={{ color: contractorId ? theme.text : theme.textTertiary }}>
+            {contractorId
+              ? `${contractorId} — ${contractorName}`
+              : "Choisir dans la liste du projet"}
+          </ThemedText>
+          <Feather name="chevron-down" size={18} color={theme.textSecondary} />
+        </Pressable>
+        <TextInput
+          style={[styles.input, { color: theme.text, borderColor: theme.border, marginTop: Spacing.sm }]}
+          placeholder="Ou saisir un nom libre"
+          placeholderTextColor={theme.textTertiary}
+          value={contractorName}
+          onChangeText={(t) => {
+            setContractorName(t);
+            if (contractorId) setContractorId(undefined);
+          }}
+        />
+
+        <Pressable
+          onPress={handleSave}
+          disabled={submitting}
+          style={({ pressed }) => [
+            styles.saveButton,
+            { backgroundColor: BrandColors.primary, opacity: pressed || submitting ? 0.7 : 1 },
+          ]}
+        >
+          <Feather name="save" size={18} color="#FFFFFF" />
+          <ThemedText style={styles.saveButtonText}>
+            {submitting ? "Enregistrement…" : `Enregistrer ${modeLabel}`}
+          </ThemedText>
+        </Pressable>
+      </ScrollView>
+
+      <Modal
+        visible={showContractorPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowContractorPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + Spacing.lg }]}>
+            <View style={styles.modalHeader}>
+              <ThemedText style={styles.modalTitle}>Entreprise du projet</ThemedText>
+              <Pressable onPress={() => setShowContractorPicker(false)}>
+                <Feather name="x" size={22} color={BrandColors.primary} />
+              </Pressable>
+            </View>
+            <FlatList
+              data={contractorEntries}
+              keyExtractor={(item) => `${item.lotCode}-${item.name}`}
+              ListEmptyComponent={
+                <ThemedText style={styles.emptyPicker}>
+                  Aucune entreprise listée pour ce projet
+                </ThemedText>
+              }
+              ListFooterComponent={
+                <Pressable
+                  onPress={() => pickContractor(null)}
+                  style={styles.contractorRow}
+                >
+                  <Feather name="edit-3" size={16} color={BrandColors.primary} />
+                  <ThemedText style={styles.contractorFreeText}>
+                    Saisir un nom libre
+                  </ThemedText>
+                </Pressable>
+              }
+              renderItem={({ item }) => (
+                <Pressable onPress={() => pickContractor(item)} style={styles.contractorRow}>
+                  <View style={styles.contractorTextWrap}>
+                    <ThemedText style={styles.contractorLot}>{item.lotCode}</ThemedText>
+                    <ThemedText style={styles.contractorName}>{item.name}</ThemedText>
+                  </View>
+                  <Feather name="chevron-right" size={18} color={BrandColors.primary} />
+                </Pressable>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  scroll: { padding: Spacing.lg, gap: Spacing.sm },
+  emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
+  modeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+  },
+  modeBannerText: { flex: 1, fontWeight: "600", fontSize: 14 },
+  modeExitBtn: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: "rgba(0,0,0,0.08)",
+  },
+  modeExitText: { fontSize: 12, fontWeight: "600" },
+  sectionTitle: { fontSize: 13, fontWeight: "600", marginTop: Spacing.sm, opacity: 0.7 },
+  mediaList: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.xs, marginBottom: Spacing.md },
+  mediaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  mediaPillText: { fontSize: 12 },
+  label: { fontSize: 13, fontWeight: "600", marginTop: Spacing.md, marginBottom: Spacing.xs },
+  input: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: 15,
+  },
+  textArea: { minHeight: 90, textAlignVertical: "top" },
+  pickerInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  severityRow: { flexDirection: "row", gap: Spacing.sm },
+  severityChip: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+  },
+  severityChipText: { fontSize: 14, fontWeight: "600" },
+  saveButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.xl,
+  },
+  saveButtonText: { color: "#FFFFFF", fontWeight: "600", fontSize: 16 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    maxHeight: "70%",
+    paddingTop: Spacing.lg,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  modalTitle: { fontSize: 18, fontWeight: "600", color: BrandColors.primary },
+  contractorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+    gap: Spacing.sm,
+  },
+  contractorTextWrap: { flex: 1 },
+  contractorLot: { fontSize: 12, color: "#6B7280", fontWeight: "600" },
+  contractorName: { fontSize: 15, color: "#1F2937", marginTop: 2 },
+  contractorFreeText: { fontSize: 15, fontWeight: "600", color: BrandColors.primary },
+  emptyPicker: { padding: Spacing.lg, textAlign: "center", color: "#6B7280" },
+});

@@ -23,6 +23,14 @@ export type {
   PendingDQECapture,
   DQECaptureSubmitParams,
   DQECaptureSubmitResult,
+  SnagType,
+  SnagSeverity,
+  SnagSyncState,
+  SnagMediaItem,
+  SnagSubmitParams,
+  SnagSubmitResponse,
+  PendingSnagMedia,
+  PendingSnagCapture,
 } from "./archidoc-types";
 
 export {
@@ -46,6 +54,8 @@ import {
   type ArchidocFileResponse,
   type DQECaptureSubmitParams,
   type DQECaptureSubmitResult,
+  type SnagSubmitParams,
+  type SnagSubmitResponse,
 } from "./archidoc-types";
 
 const ARCHIDOC_API_URL = process.env.EXPO_PUBLIC_ARCHIDOC_API_URL;
@@ -347,6 +357,53 @@ export async function submitDQECapture(
     throw new DQESubmitError(
       data.error || `DQE submit failed with status ${response.status}`,
       response.status
+    );
+  }
+  return data;
+}
+
+export class SnagSubmitError extends Error {
+  constructor(
+    message: string,
+    public readonly httpStatus: number,
+    public readonly code?: string
+  ) {
+    super(message);
+    this.name = "SnagSubmitError";
+  }
+
+  get isPermanent(): boolean {
+    if (this.httpStatus === 503) return false;
+    return this.httpStatus >= 400 && this.httpStatus < 500;
+  }
+
+  get isFeatureDisabled(): boolean {
+    return this.httpStatus === 503 || this.code === "FEATURE_DISABLED";
+  }
+}
+
+export async function submitSnagCapture(
+  apiBaseUrl: string,
+  params: SnagSubmitParams,
+  extraHeaders?: Record<string, string>
+): Promise<SnagSubmitResponse> {
+  const url = new URL("/api/snags/submit", apiBaseUrl).href;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(extraHeaders ?? {}),
+  };
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: JSON.stringify(params),
+  });
+  const data = (await response.json().catch(() => ({}))) as SnagSubmitResponse;
+  if (!response.ok) {
+    throw new SnagSubmitError(
+      data.error || `Snag submit failed with status ${response.status}`,
+      response.status,
+      data.code
     );
   }
   return data;
