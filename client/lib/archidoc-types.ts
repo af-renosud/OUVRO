@@ -327,6 +327,7 @@ export type SnagSyncState =
 export type SnagMediaItem = {
   type: "photo" | "video" | "audio";
   objectPath: string;
+  fileName: string;
   publicUrl?: string;
   mimeType: string;
   durationSeconds?: number;

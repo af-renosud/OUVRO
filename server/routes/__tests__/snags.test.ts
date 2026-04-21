@@ -28,6 +28,7 @@ const VALID_BODY = {
     {
       type: "photo",
       objectPath: "ouvro/snags/snag-001.jpg",
+      fileName: "snag-001.jpg",
       mimeType: "image/jpeg",
     },
   ],

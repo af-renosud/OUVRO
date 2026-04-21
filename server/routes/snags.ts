@@ -22,6 +22,7 @@ const CLIENT_VERSION_HEADER = "x-ouvro-client-version";
 type SnagMediaInput = {
   type?: string;
   objectPath?: string;
+  fileName?: string;
   publicUrl?: string;
   mimeType?: string;
   durationSeconds?: number;
@@ -145,6 +146,9 @@ function validateMediaItem(item: SnagMediaInput): string | null {
   }
   if (!item.mimeType || typeof item.mimeType !== "string") {
     return "media.mimeType is required";
+  }
+  if (!item.fileName || typeof item.fileName !== "string") {
+    return "media.fileName is required";
   }
   return null;
 }

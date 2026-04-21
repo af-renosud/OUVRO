@@ -169,6 +169,7 @@ async function scenario1NewDefautWithMedia(): Promise<string> {
       {
         type: "photo",
         objectPath: upload.objectPath,
+        fileName: `smoke-${Date.now()}.jpg`,
         mimeType: "image/jpeg",
       },
     ],
@@ -224,6 +225,7 @@ async function scenario2ReplaySameLocalId(localId: string): Promise<void> {
       {
         type: "photo",
         objectPath: upload.objectPath,
+        fileName: `smoke-replay-${Date.now()}.jpg`,
         mimeType: "image/jpeg",
       },
     ],
@@ -266,6 +268,7 @@ async function scenario3Reserve(): Promise<void> {
       {
         type: "photo",
         objectPath: upload.objectPath,
+        fileName: `smoke-reserve-${Date.now()}.jpg`,
         mimeType: "image/jpeg",
       },
     ],
@@ -366,15 +369,28 @@ async function scenario5BadProjectId(): Promise<void> {
   });
 }
 
-async function scenario6BlankTitle(): Promise<void> {
-  // Whitespace-only title bypasses our BFF "missing field" guard (truthy
-  // string), reaches Archidoc, which returns 400 VALIDATION_FAILED.
-  const body = buildBaseSnagBody({
-    localId: newLocalId("smoke-6-badtitle"),
-    title: "   ",
+async function scenario6UpstreamValidationPassthrough(): Promise<void> {
+  // S6 originally exercised whitespace-only title → 400 VALIDATION_FAILED, but
+  // staging (as redeployed 2026-04-21) accepts whitespace titles and persists
+  // them. To still exercise our BFF's pass-through of upstream Zod errors, we
+  // submit `description` as an object: our BFF treats it as truthy and forwards
+  // it untouched, and Archidoc's schema rejects with VALIDATION_FAILED.
+  const base = buildBaseSnagBody({
+    localId: newLocalId("smoke-6-baddesc"),
     media: [],
   });
-  const { status, data } = await postBffSnag(body);
+  const body: Record<string, unknown> = { ...base, description: { not: "a string" } };
+  const res = await fetch(`${BFF_URL}/api/snags/submit`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-OUVRO-Client-Version": CLIENT_VERSION,
+    },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => ({}))) as SnagSubmitResponse &
+    Record<string, unknown>;
+  const status = res.status;
   const notes: string[] = [];
   let pass = true;
 
@@ -390,7 +406,7 @@ async function scenario6BlankTitle(): Promise<void> {
 
   record({
     id: "S6",
-    name: "Whitespace title → 400 VALIDATION_FAILED",
+    name: "Upstream VALIDATION_FAILED passthrough (description: object)",
     pass,
     notes,
     status,
@@ -523,7 +539,7 @@ async function main(): Promise<void> {
   scenarios.push({ name: "S3 reserve", fn: scenario3Reserve });
   scenarios.push({ name: "S4 empty media", fn: scenario4EmptyMedia });
   scenarios.push({ name: "S5 bad projectId", fn: scenario5BadProjectId });
-  scenarios.push({ name: "S6 blank title", fn: scenario6BlankTitle });
+  scenarios.push({ name: "S6 upstream VALIDATION_FAILED passthrough", fn: scenario6UpstreamValidationPassthrough });
   scenarios.push({ name: "S7 bad bearer", fn: scenario7BadBearer });
   scenarios.push({ name: "S8 feature disabled", fn: scenario8FeatureDisabled });
 

@@ -314,6 +314,7 @@ class OfflineSnagService {
       const submitMedia: SnagMediaItem[] = capture.media.map((m) => ({
         type: m.type,
         objectPath: m.objectPath as string,
+        fileName: m.fileName,
         publicUrl: m.publicUrl,
         mimeType: m.mimeType,
         durationSeconds: m.durationSeconds,
