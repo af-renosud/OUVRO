@@ -345,14 +345,14 @@ describe("POST /api/dqe/submit — transient failures → 502", () => {
     });
   });
 
-  it("returns 502 when Archidoc DQE intake endpoint fails", async () => {
+  it("propagates Archidoc DQE intake endpoint status when it fails", async () => {
     state.dqePostOk = false;
     await withServer(async (port) => {
       const { status, data } = await post(port, {
         ...VALID_BODY,
         localId: "local-dqeFail",
       });
-      assert.equal(status, 502);
+      assert.equal(status, 503);
       assert.equal(data.success, false);
     });
   });

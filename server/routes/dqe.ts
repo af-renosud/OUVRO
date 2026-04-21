@@ -15,9 +15,9 @@ import {
   formatServerError,
 } from "./archidoc-helpers";
 
-if (!process.env.OUVRO_API_KEY) {
+if (!process.env.OUVRO_API_KEY && process.env.NODE_ENV !== "production") {
   console.warn(
-    "[DQE] WARNING: OUVRO_API_KEY is not set — requests to Archidoc DQE intake will be unauthenticated",
+    "[DQE] WARNING: OUVRO_API_KEY is not set — requests to Archidoc DQE intake will be unauthenticated (development mode)",
   );
 }
 
@@ -292,6 +292,12 @@ export async function defaultSubmitToArchidoc(
   const apiKey = process.env.OUVRO_API_KEY;
   if (apiKey) {
     headers["Authorization"] = `Bearer ${apiKey}`;
+  } else if (process.env.NODE_ENV === "production") {
+    return {
+      error:
+        "Server misconfigured: OUVRO_API_KEY is not set — refusing to forward unauthenticated request to Archidoc",
+      status: 500,
+    };
   }
   const response = await archidocFetch(
     `${archidocApiUrl}/api/ouvro/dqe/capture`,
@@ -548,7 +554,7 @@ export function createDQERouter(deps: DQERouterDeps = {}): Router {
             `[DQE Submit] localId=${localId} — ArchiDoc error: ${result.error} (${result.status ?? "?"})`,
           );
           return res
-            .status(502)
+            .status(result.status ?? 502)
             .json({ success: false, error: result.error, localId });
         }
 

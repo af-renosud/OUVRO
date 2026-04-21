@@ -10,9 +10,9 @@ import {
   formatServerError,
 } from "./archidoc-helpers";
 
-if (!process.env.OUVRO_API_KEY) {
+if (!process.env.OUVRO_API_KEY && process.env.NODE_ENV !== "production") {
   console.warn(
-    "[Snags] WARNING: OUVRO_API_KEY is not set — requests to Archidoc snag intake will be unauthenticated",
+    "[Snags] WARNING: OUVRO_API_KEY is not set — requests to Archidoc snag intake will be unauthenticated (development mode)",
   );
 }
 
@@ -78,6 +78,13 @@ async function defaultForwardToArchidoc(
   const apiKey = process.env.OUVRO_API_KEY;
   if (apiKey) {
     headers["Authorization"] = `Bearer ${apiKey}`;
+  } else if (process.env.NODE_ENV === "production") {
+    return {
+      error:
+        "Server misconfigured: OUVRO_API_KEY is not set — refusing to forward unauthenticated request to Archidoc",
+      status: 500,
+      code: "MISSING_API_KEY",
+    };
   }
   const response = await archidocFetch(`${archidocApiUrl}/api/ouvro/snags`, {
     method: "POST",

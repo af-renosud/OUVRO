@@ -260,7 +260,17 @@ function setupErrorHandler(app: express.Application) {
   });
 }
 
+function validateRequiredEnv() {
+  if (process.env.NODE_ENV === "production" && !process.env.OUVRO_API_KEY) {
+    throw new Error(
+      "OUVRO_API_KEY is required in production — refusing to start. " +
+        "Set OUVRO_API_KEY so requests forwarded to Archidoc are authenticated.",
+    );
+  }
+}
+
 (async () => {
+  validateRequiredEnv();
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
