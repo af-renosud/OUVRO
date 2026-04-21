@@ -1,0 +1,170 @@
+Re: New OUVRO mobile capture flow — Défaut & Réserve mapping
+Hi OUVRO team,
+
+Good news on the structural side: Défaut and Réserve already exist as first-class entities in Archidoc and they share a single table with a discriminator, so we won't need a schema migration. Here are the answers inline.
+
+1. Existing data model
+a. Yes, both already exist. They're stored in the pv_reception_items table and discriminated by a boolean.
+
+b. Schema (relevant columns):
+
+pv_reception_items {
+  id              serial PK            // numeric, no string prefix
+  projectId       varchar(255)         // Project foreign key (matches /api/ouvro/projects)
+  pvCaseId        integer NULL         // FK to pv_reception_cases (the PV header)
+  title           varchar(500) NOT NULL
+  description     text NULL
+  lotCode         varchar(50) NULL     // e.g. "GO", "EL", "PS"
+  contractorId    varchar(255) NULL    // matches contractors.id
+  contractorName  varchar(500) NULL    // denormalized for display
+  location        varchar(500) NULL    // free text
+  severity        varchar(20)  default 'minor'      // enum, see Q5
+  status          varchar(50)  default 'identified' // enum
+  inPvReception   boolean      default false        // <-- DISCRIMINATOR
+  source          varchar(50)  default 'inspection' // enum, see below
+  sourceId        varchar(255) NULL                 // free correlation id
+  photos          jsonb        default []           // array, see Q3
+  dueDate         varchar(50) NULL  // ISO date
+  legalDeadline   varchar(50) NULL
+  resolvedAt, resolvedNote, verifiedAt, verifiedBy
+  reopenCount     integer default 0
+  createdBy       varchar(255)
+  createdAt, updatedAt
+}
+
+c. Réserves are standalone items aggregated into a PV, not embedded inside a PV record. Setting inPvReception=true and (optionally) pvCaseId is what attaches them to a PV de Réception case. A Réserve can exist before its PV case is opened — pvCaseId may be null.
+
+d. Reuse pv_reception_items with the discriminator. No new entity needed.
+
+inPvReception: false → Défaut (live defect, contractor remediation flow)
+inPvReception: true → Réserve (snag inside a PV de Réception)
+The source field has its own enum (inspection | mobile | client | external). Set source: "mobile" for everything coming from OUVRO so we can filter and audit it.
+
+2. Endpoints
+a. Use a single discriminated endpoint, mirroring your DQE pattern:
+
+POST /api/ouvro/snags
+
+with type: "defaut" | "reserve" in the body. This keeps the BFF surface compact and matches /api/ouvro/dqe/capture. We will internally route to the existing pv_reception_items insert and set inPvReception from type.
+
+We will also expose two read helpers if you need them later (not required for capture):
+
+GET /api/ouvro/projects/:projectId/snags?type=defaut|reserve
+GET /api/ouvro/snags/:id (for deep-link rehydration)
+b. Use the existing signed-URL flow (POST /api/uploads/request-url → PUT to GCS → reference objectPath in the create payload). Same as DQE. Do not use the multipart /api/pv-reception/upload/:projectId endpoint — that's a server-side helper for the web UI and isn't authenticated for OUVRO.
+
+c. No new category is required for /api/archive/files. The signed-URL flow already places objects under private/uploads/<uuid> and we'll move them into pv-reception/<projectId>/... server-side when we accept the snag. If you want to land them directly in a dedicated bucket prefix later, we'll add a kind: "snag" hint to /api/uploads/request-url — flag it when needed.
+
+3. Payload contract
+Field naming convention: camelCase (the rest of /api/ouvro/* already mixes both, but new endpoints will be camelCase to match /api/pv-reception/* which is what we re-enter internally).
+
+POST /api/ouvro/snags
+Authorization: Bearer ${OUVRO_API_KEY}
+Content-Type: application/json
+{
+  // Required
+  "localId": "uuid-from-mobile",      // idempotency key, stored in sourceId
+  "projectId": "string",               // matches /api/ouvro/projects.project_id
+  "type": "defaut" | "reserve",        // sets inPvReception
+  "title": "string",                   // REQUIRED. If absent, derive from transcription
+                                       // or pass "Sans titre" — server will accept it.
+  "capturedAt": "ISO8601",
+  "capturedBy": "string",              // user id or display name from mobile
+  "media": [                           // 1+ items, all optional fields per item
+    {
+      "objectPath": "/objects/uploads/<uuid>",  // from request-url flow
+      "publicUrl": "https://...",               // optional, for offline-cache hint
+      "fileName": "string",
+      "mimeType": "string",
+      "mediaType": "photo" | "video" | "audio",
+      "durationSec": 12.4                       // video/audio only
+    }
+  ],
+  // Optional metadata-form fields
+  "contractorId": "string | null",     // see Q4 — accepts contractors.id
+  "contractorName": "string | null",   // optional fallback if you don't have an id
+  "lotCode": "string | null",          // see Q4
+  "severity": "minor" | "major" | "critical" | null,  // see Q5
+  "location": "string | null",         // free text — see Q6
+  // Optional / future
+  "description": "string | null",      // longer notes
+  "dueDate": "YYYY-MM-DD | null",
+  "gps": { "lat": 48.85, "lng": 2.35 } | null,
+  "clientVersion": "string | null"     // see Q10
+}
+
+Field rules:
+
+title is the only required content field. If you can't synthesize one on the device, send "Sans titre" and the architect will rename it in the web app.
+media may be empty for an audio-only quick note, but in practice every snag will have at least one entry.
+localId must be globally unique (uuid v4 is fine) and we'll dedupe on it. We store it in sourceId so retries from your DurableQueueStore are idempotent.
+All severity / status / source values are case-sensitive lowercase.
+4. Field mapping — Entrepreneur
+Send a contractorId from the project's lotContractors map whenever possible.
+
+lot_contractors returned by GET /api/ouvro/projects/:id maps { lotCode: contractorId }. Those contractorId values are real contractors.id strings (varchar, length up to 255, currently slug-style or uuid).
+If the user picks "no contractor" in the form, send contractorId: null and contractorName: null.
+Free-text fallback is supported: if the contractor isn't in lotContractors (e.g. handwritten name), send contractorId: null and contractorName: "AT Piscines". We'll display the string and a curator can later link it to the proper record.
+No need to call a separate /api/contractors endpoint from mobile — lotContractors is the authoritative map for a given project. We'll add GET /api/ouvro/projects/:id/contractors returning { id, name, lotCodes[] }[] if you want a richer picker; tell us if that's worth shipping.
+UX suggestion: prefill the contractor from lotContractors[lotCode] once the user picks a lot, so most snags require zero typing.
+
+5. Field mapping — Gravité
+Fixed enum, three values, lowercase keys:
+
+Wire value (send this)	French label (display)
+minor	Mineur
+major	Majeur
+critical	Critique
+If omitted, server defaults to minor. Do not send bloquante / moyenne — those will be rejected.
+
+(The web app uses these same three labels, so the OUVRO picker should match exactly.)
+
+6. Field mapping — Localisation
+Free text in v1, stored as location (varchar 500). Examples we already see: "Local technique", "RDC — couloir nord", "Salle de bain niveau +1".
+
+We do not currently have project zones modelled, so a structured { zone, freeText } shape isn't necessary yet. If you want to display a "common locations" picker on mobile, build it client-side from previously used location values for that project — we can add GET /api/ouvro/projects/:id/snag-locations if useful (returns string[], distinct, sorted by recency).
+
+7. Authentication
+Yes, keep Authorization: Bearer ${OUVRO_API_KEY}. The new POST /api/ouvro/snags endpoint will use the same requireOuvroApiKey middleware as /api/ouvro/dqe/capture.
+
+Rate limits: none today. A 50-item snagging session is fine — that's well under the implicit ~100 req/min we'd flag. If you can, batch background sync to ~5 concurrent in-flight requests from DurableQueueStore so you don't pile up uploads on a flaky site connection. We'll add explicit per-key rate limiting before scaling beyond pilot.
+
+8. Response shape
+// 201 Created
+{
+  "success": true,
+  "id": 1742,                          // numeric pv_reception_items.id
+  "projectId": "proj-uuid",
+  "type": "defaut",                    // echoed
+  "deepLink": "https://archidoc.../projects/proj-uuid/pv-reception?item=1742",
+  "createdAt": "2026-04-21T10:14:00.123Z"
+}
+// 200 OK if idempotent replay (same localId already accepted)
+{ "success": true, "id": 1742, "duplicate": true, ... }
+// 400 — validation error
+{ "error": "INVALID_SEVERITY", "message": "severity must be one of minor|major|critical" }
+// 401 — bad / missing bearer
+{ "error": "UNAUTHORIZED" }
+// 404 — projectId not found
+{ "error": "PROJECT_NOT_FOUND" }
+
+The deep-link pattern is …/projects/:projectId/pv-reception?item=:id&tab=defauts|reserves. It opens the right tab and auto-expands the item.
+
+9. PV de Réception integration
+A Réserve does NOT need an explicit pvId from mobile. Send type: "reserve" and we'll set inPvReception=true. The server will look up the project's open PV case and attach pvCaseId automatically. If no PV case is open yet, the Réserve sits unattached and gets attached as soon as a PV case is opened — this is the same behaviour as the web UI.
+Phase gating: today there's no hard "snagging phase" lifecycle on a project. Don't gate the OUVRO Réserve mode on phase — let users record Réserves whenever; the architect will reconcile. We'll expose project.pvReceptionPhase in GET /api/ouvro/projects/:id once we model it formally; until then, no mobile gate.
+10. Backwards compatibility / rollout
+Feature flag: yes. We'll gate the new endpoint on OUVRO_SNAGS_ENABLED=true server-side and set it on per environment. If you hit it while disabled you'll get 503 FEATURE_DISABLED.
+clientVersion header: please send X-OUVRO-Client-Version: <semver> on every request — we'll log it alongside snag creation events for telemetry/debugging. Same convention you use for DQE captures is fine.
+For the gradual rollout, we recommend you also send X-OUVRO-Build-Channel: dev|beta|prod so we can spot-debug pilot users.
+What we'll build on the Archidoc side
+To make this concrete, here's our plan:
+
+New file server/routes/ouvroSnags.ts exporting a single handler POST /api/ouvro/snags, registered in server.ts alongside /api/ouvro/dqe/capture, protected by requireOuvroApiKey.
+Handler validates payload with zod (mirrors the contract above), looks up the project, dedupes by (projectId, sourceId=localId), inserts into pv_reception_items, attaches an itemEvent of type created with actorRole: 'mobile', and (for Réserves) auto-resolves the open pvCaseId.
+Photos array on the item gets one entry per media[] item — for non-image media (video/audio) we still store objectPath/fileName/mimeType so the web UI can render an inline player. (You don't need to do anything different per media type from the wire.)
+Returns the response shape above with the deep link.
+Add OUVRO_SNAGS_ENABLED feature flag and clientVersion logging.
+Let us know which questions still need clarification and we'll start the implementation. Best time to align is the moment you've finalized the OUVRO-side metadata-form UX so we lock the wire contract once.
+
+Cheers, — Archidoc team
