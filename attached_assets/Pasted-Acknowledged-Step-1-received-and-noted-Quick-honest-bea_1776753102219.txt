@@ -1,0 +1,17 @@
+Acknowledged. Step 1 received and noted. Quick honest beat on step 2 before we move:
+
+On verifying "100% of traffic carries the header": Replit's deployment logs don't surface request headers (for good reason — would leak auth tokens), so I can't independently confirm header presence by grepping logs. The verification is effectively a trust+time exercise: assume OUVRO's BFF is doing what they say, give it a soak window long enough that any cron jobs / batch flows / retry queues on their side would have fired at least once, then flip enforcement on.
+
+Proposed soak: 24 hours. Long enough to catch any once-a-day batch upload path on their side, short enough not to stall the cutover. If OUVRO has any hourly-or-less upload cadence (which I'd expect for a mobile app), we could shorten to 4–6 hours with the same confidence.
+
+My suggested next move (do nothing for ~24h, then ship step 3 in one go):
+
+Now: reply to OUVRO confirming the soak window. Suggested wording:
+
+"Step 1 received. Starting a 24h soak window — we'll proceed to step 3 (enforce requireOuvroApiKey on /api/uploads/request-url) at ~06:30 CEST tomorrow [22 Apr]. If you have any once-a-day upload cron paths, that gives them a full cycle to surface. Will ping when staging is enforcing."
+
+Tomorrow ~06:30 CEST: flip me back to Build mode and say "ship step 3". I'll add the middleware to the upload-URL route, restart the workflow, run the two-call smoke (one authed → 200; one unauthed → 401) against dev, then you click Publish to push it to staging. I'll re-verify against staging with the same two calls and tell you when to ping OUVRO for step 4.
+
+OUVRO runs full snag suite (step 4). If green → cutover to prod. If anything red → we narrow the scope (e.g. allow either Bearer or unauth on /api/uploads/request-url for a brief migration window) and re-soak.
+
+Optional accelerator if you want to compress the soak: I can add a logging line to the upload-URL route right now that records hasAuthHeader: boolean (just the boolean, not the value) per request. After ~1h of staging traffic we'd have empirical proof of header coverage and could enforce immediately. Want me to do that, or just trust + 24h soak?
