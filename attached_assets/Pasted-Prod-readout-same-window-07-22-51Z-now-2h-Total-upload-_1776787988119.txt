@@ -1,0 +1,34 @@
+Prod readout — same window (07:22:51Z → now, ~2h+):
+
+Total [upload-url-soak] entries:   2  (both my probes)
+  ├─ hasAuthHeader: true:          1
+  └─ hasAuthHeader: false:         1
+OUVRO traffic in window:           0
+[Upload] Request received entries: 0 (beyond my probes)
+
+Zero real upload calls hit /api/uploads/request-url on prod in the last 2h+. Since you say mobile traffic is flowing, the most likely explanation is OUVRO uploads aren't going through this endpoint at all — they may be hitting a different upload path (e.g. PUT-direct to GCS via a previously-issued signed URL, or a different route like /api/ouvro/snags carries the file inline). Worth a quick check on your end whether /api/uploads/request-url is actually in the mobile client's hot path.
+
+Re: staging URL — you've flushed out the real gap.
+
+Honest answer: we don't have one. I was loosely calling archidoc-app-archidoc.replit.app "staging" in our prior comms, but it's our only published environment — i.e. prod. There's no separate staging deployment configured. Every "staging smoke" we ran (including the S8 OUVRO_SNAGS_ENABLED window and the bearer probes above) was actually exercising prod.
+
+Recommendation: go with your second option — dark-launch on prod.
+
+Concretely for step 3, I'll wire it as:
+
+OUVRO_UPLOAD_AUTH_ENFORCE = "false"  (default, in code)
+                          | "log"    (count violations, don't block)
+                          | "true"   (enforce, return 401)
+
+That gives us a 3-state rollout on prod itself:
+
+Ship middleware with default false → no behavior change, safe deploy.
+Flip to "log" → I add [upload-url-auth-violation] counter, watch for 24h.
+Flip to "true" → enforcement live, OUVRO re-runs full snag suite.
+This sidesteps the missing-staging problem entirely and matches the same pattern we used for OUVRO_SNAGS_ENABLED's S8 window.
+
+Standing by for your call:
+
+Want me to ship step 3 with the 3-state flag now (default false, you publish, then we hold)? Or
+Want to first chase down where OUVRO mobile uploads are actually going (since 0 calls in 2h on the route we instrumented is suspicious)?
+The second is probably the right order — no point enforcing auth on a route the real client doesn't use.
