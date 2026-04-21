@@ -117,7 +117,10 @@ async function requestUploadUrl(): Promise<UploadUrlResponse & { fileName: strin
   const fileName = `smoke-${Date.now()}.jpg`;
   const res = await fetch(`${STAGING_URL}/api/uploads/request-url`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${API_KEY}`,
+    },
     body: JSON.stringify({
       name: fileName,
       contentType: "image/jpeg",

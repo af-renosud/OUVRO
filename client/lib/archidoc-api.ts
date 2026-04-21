@@ -275,13 +275,22 @@ export async function requestUploadUrl(
   contentType: string,
   size: number
 ): Promise<UploadUrlResponse> {
-  const response = await archidocApiFetch("/api/uploads/request-url", {
+  const { getApiUrl } = await import("./query-client");
+  const baseUrl = getApiUrl();
+  const response = await fetch(new URL("/api/uploads/request-url", baseUrl).toString(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: fileName, contentType, size }),
+    credentials: "include",
   });
 
-  return response.json();
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "Unknown error");
+    if (response.status === 401) throw new Error("Session expired. Please re-authenticate.");
+    throw new Error(`Upload URL request failed (${response.status}): ${errorText}`);
+  }
+
+  return response.json() as Promise<UploadUrlResponse>;
 }
 
 export async function uploadFileToSignedUrl(

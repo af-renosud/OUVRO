@@ -5,6 +5,7 @@ import { archidocRouter } from "./routes/archidoc";
 import { syncRouter } from "./routes/sync";
 import { dqeRouter } from "./routes/dqe";
 import { snagsRouter } from "./routes/snags";
+import { uploadsRouter } from "./routes/uploads";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/health", (_req, res) => {
@@ -16,6 +17,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api", syncRouter);
   app.use("/api", dqeRouter);
   app.use("/api", snagsRouter);
+  app.use("/api", uploadsRouter);
 
   const httpServer = createServer(app);
   return httpServer;
