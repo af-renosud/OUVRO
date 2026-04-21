@@ -30,7 +30,6 @@ const VALID_BODY = {
       objectPath: "ouvro/snags/snag-001.jpg",
       fileName: "snag-001.jpg",
       mimeType: "image/jpeg",
-      fileName: "snag-001.jpg",
     },
   ],
 };
