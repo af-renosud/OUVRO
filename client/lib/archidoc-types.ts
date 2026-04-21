@@ -353,6 +353,7 @@ export type SnagSubmitResponse = {
   localId: string;
   archidocSnagId?: string;
   deepLink?: string;
+  duplicate?: boolean;
   error?: string;
   code?: string;
 };
@@ -386,6 +387,7 @@ export interface PendingSnagCapture {
   syncState: SnagSyncState;
   remoteId?: string;
   deepLink?: string;
+  duplicate?: boolean;
   createdAt: string;
   modifiedAt: string;
   lastSyncAttempt?: string;

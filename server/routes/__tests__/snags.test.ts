@@ -129,6 +129,41 @@ describe("POST /api/snags/submit — happy path forwards correctly", () => {
       assert.equal(receivedClientVersion, "unknown");
     });
   });
+
+  it("forwards Archidoc 'duplicate: true' flag back to the client", async () => {
+    const deps: SnagsRouterDeps = {
+      validateArchidocUrl: okValidate,
+      forwardToArchidoc: async () => ({
+        data: {
+          id: "snag-archidoc-xyz",
+          deepLink: "https://archidoc.test/projects/p/snags/xyz",
+          duplicate: true,
+        },
+      }),
+    };
+    await withServer(deps, async (port) => {
+      const { status, data } = await postSnag(port, VALID_BODY);
+      assert.equal(status, 200);
+      assert.equal(data.duplicate, true);
+      assert.equal(data.archidocSnagId, "snag-archidoc-xyz");
+    });
+  });
+
+  it("accepts an empty media array (contract allows media: [])", async () => {
+    const deps: SnagsRouterDeps = {
+      validateArchidocUrl: okValidate,
+      forwardToArchidoc: async (_url, payload) => {
+        assert.ok(Array.isArray(payload.media));
+        assert.equal((payload.media as unknown[]).length, 0);
+        return { data: { id: "snag-empty-media" } };
+      },
+    };
+    await withServer(deps, async (port) => {
+      const { status, data } = await postSnag(port, { ...VALID_BODY, media: [] });
+      assert.equal(status, 200, `expected 200, got ${status}: ${data.error}`);
+      assert.equal(data.archidocSnagId, "snag-empty-media");
+    });
+  });
 });
 
 describe("POST /api/snags/submit — 4xx permanent failure semantics", () => {
@@ -146,6 +181,24 @@ describe("POST /api/snags/submit — 4xx permanent failure semantics", () => {
       assert.equal(data.success, false);
       assert.equal(data.localId, VALID_BODY.localId);
       assert.ok((data.error as string).toLowerCase().includes("snag"));
+    });
+  });
+
+  it("propagates parsed Archidoc error code + message from upstream JSON body", async () => {
+    const deps: SnagsRouterDeps = {
+      validateArchidocUrl: okValidate,
+      forwardToArchidoc: async () => ({
+        error: "Project not found in ARCHIDOC",
+        status: 400,
+        code: "PROJECT_NOT_FOUND",
+      }),
+    };
+    await withServer(deps, async (port) => {
+      const { status, data } = await postSnag(port, VALID_BODY);
+      assert.equal(status, 400);
+      assert.equal(data.success, false);
+      assert.equal(data.code, "PROJECT_NOT_FOUND");
+      assert.equal(data.error, "Project not found in ARCHIDOC");
     });
   });
 
@@ -289,11 +342,14 @@ describe("defaultForwardToArchidoc — URL, headers, and retry semantics", () =>
     assert.ok("error" in result, "expected an error result");
     if ("error" in result) {
       assert.equal(result.status, 400);
-      assert.equal(result.code, undefined, "4xx must not be tagged FEATURE_DISABLED");
+      assert.notEqual(
+        result.code,
+        "FEATURE_DISABLED",
+        "4xx must not be tagged FEATURE_DISABLED",
+      );
       assert.ok(
-        result.error.toLowerCase().includes("snag") ||
-          result.error.toLowerCase().includes("failed"),
-        `unexpected message: ${result.error}`,
+        typeof result.error === "string" && result.error.length > 0,
+        `expected a non-empty error message, got: ${result.error}`,
       );
     }
   });

@@ -98,16 +98,37 @@ export async function defaultForwardToArchidoc(
       `[Snags Submit] ARCHIDOC error (${response.status}):`,
       errorText,
     );
+    let parsedCode: string | undefined;
+    let parsedMessage: string | undefined;
+    if (errorText) {
+      try {
+        const parsed = JSON.parse(errorText) as {
+          error?: string;
+          message?: string;
+        };
+        if (parsed && typeof parsed === "object") {
+          if (typeof parsed.error === "string") parsedCode = parsed.error;
+          if (typeof parsed.message === "string")
+            parsedMessage = parsed.message;
+        }
+      } catch {}
+    }
     if (response.status === 503) {
       return {
-        error: "Snag intake is not enabled on this Archidoc instance",
+        error:
+          parsedMessage ||
+          "Snag intake is not enabled on this Archidoc instance",
         status: 503,
-        code: "FEATURE_DISABLED",
+        code: parsedCode || "FEATURE_DISABLED",
       };
     }
     return {
-      error: "Failed to submit snag to ArchiDoc",
+      error:
+        parsedMessage ||
+        parsedCode ||
+        "Failed to submit snag to ArchiDoc",
       status: response.status,
+      code: parsedCode,
     };
   }
   const data = (await response.json()) as Record<string, unknown>;
@@ -184,10 +205,10 @@ export function createSnagsRouter(deps: SnagsRouterDeps = {}): Router {
             localId,
           });
         }
-        if (!Array.isArray(body.media) || body.media.length === 0) {
+        if (!Array.isArray(body.media)) {
           return res.status(400).json({
             success: false,
-            error: "At least one media item is required",
+            error: "media must be an array",
             localId,
           });
         }
@@ -249,10 +270,12 @@ export function createSnagsRouter(deps: SnagsRouterDeps = {}): Router {
           (result.data?.deepLink as string) ||
           (result.data?.deep_link as string) ||
           undefined;
+        const duplicate: boolean =
+          result.data?.duplicate === true;
 
         return res
           .status(200)
-          .json({ success: true, localId, archidocSnagId, deepLink });
+          .json({ success: true, localId, archidocSnagId, deepLink, duplicate });
       } catch (error: unknown) {
         const { status, message } = formatServerError(error, "Snag Submit");
         const responseStatus = status === 503 || status === 504 ? status : 502;

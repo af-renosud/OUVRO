@@ -1046,7 +1046,8 @@ export default function QueueScreen() {
             ) : null}
             {isComplete && item.syncCompletedAt ? (
               <ThemedText style={[styles.syncTimestamp, { color: BrandColors.success }]}>
-                Synced {new Date(item.syncCompletedAt).toLocaleString()}
+                {item.duplicate ? "Déjà synchronisé" : "Synchronisé"}{" "}
+                {new Date(item.syncCompletedAt).toLocaleString()}
               </ThemedText>
             ) : null}
           </View>
@@ -1085,6 +1086,7 @@ export default function QueueScreen() {
               numberOfLines={1}
             >
               ARCHIDOC: {item.remoteId}
+              {item.duplicate ? " (doublon)" : ""}
             </ThemedText>
           </View>
         ) : null}

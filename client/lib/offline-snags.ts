@@ -47,6 +47,28 @@ export type AddSnagParams = {
   capturedBy?: string;
 };
 
+function friendlySnagErrorMessage(err: SnagSubmitError): string {
+  switch (err.code) {
+    case "VALIDATION_FAILED":
+      return `Données invalides : ${err.message}`;
+    case "PROJECT_NOT_FOUND":
+      return "Projet introuvable dans ARCHIDOC.";
+    case "FEATURE_DISABLED":
+      return "L'envoi de snags n'est pas activé sur ARCHIDOC. Réessai automatique plus tard.";
+    case "MISSING_API_KEY":
+      return "Configuration serveur manquante (clé API). Contactez l'administrateur.";
+    default:
+      break;
+  }
+  if (err.httpStatus === 401 || err.httpStatus === 403) {
+    return "Authentification ARCHIDOC refusée.";
+  }
+  if (err.httpStatus >= 500) {
+    return "Erreur serveur ARCHIDOC. Nouvelle tentative automatique.";
+  }
+  return err.message || "Échec de l'envoi du snag";
+}
+
 class OfflineSnagService {
   private captures: Map<string, PendingSnagCapture> = new Map();
   private store = new DurableQueueStore<PendingSnagCapture>(
@@ -319,15 +341,21 @@ class OfflineSnagService {
       capture.syncState = "complete";
       capture.remoteId = result.archidocSnagId;
       capture.deepLink = result.deepLink;
+      capture.duplicate = result.duplicate === true;
       capture.syncCompletedAt = new Date().toISOString();
       capture.modifiedAt = new Date().toISOString();
       await this.persist();
       this.emit("captureSynced", { localId });
       this.emit("stateChanged");
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : "Snag submit failed";
       const isPermanent =
         err instanceof SnagSubmitError && err.isPermanent && !err.isFeatureDisabled;
+      const errMsg =
+        err instanceof SnagSubmitError
+          ? friendlySnagErrorMessage(err)
+          : err instanceof Error
+            ? err.message
+            : "Échec de l'envoi du snag";
       capture.syncState = isPermanent ? "failed" : "pending";
       capture.retryCount += 1;
       capture.lastSyncError = errMsg;
