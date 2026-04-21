@@ -427,3 +427,11 @@ function getFileIcon(contentType: string): FeatherIconName { ... }
 - [ ] Every `catch` block uses `catch (e: unknown)` with an explicit type-guard before `.message` access
 - [ ] Every new API mapper function declares a typed `Raw*` interface in `archidoc-types.ts`
 - [ ] No new component prop is typed as `any`
+
+---
+
+### Staging Validation Log
+
+| Date (UTC) | Event | Outcome |
+|---|---|---|
+| 2026-04-21 | Task #16 — first end-to-end snag smoke against Archidoc staging (`https://archidoc-app-ARCHIDOC.replit.app`) | **BLOCKED** — `POST /api/ouvro/snags` returns Express default `404 Cannot POST /api/ouvro/snags` (HTML body), confirming the snag intake route is not mounted on staging. Verified with the rotated `OUVRO_API_KEY` (a wrong bearer would surface 401, not the route-missing 404) and the real staging project ID `7e2ea927-9f2b-4322-a5ba-bea612b747cf` for `MASSEY (RUSSAN) 1339` (sanity-check `GET /api/ouvro/projects/{id}` returned 200 for the same bearer). The dev project ID `714f755d-…` shared earlier does **not** exist on staging — staging carries its own project list reachable via `GET /api/ouvro/projects`. Only `GET /api/ouvro/projects[/{id}]` and `POST /api/uploads/request-url` are currently reachable on staging. Smoke runner (`smoke-snags.ts`) and run log (`.local/smoke-logs/run-2026-04-21T05-23-34-958Z.json`) retained for replay once Archidoc deploys the intake route. Findings handoff in `.local/smoke-logs/findings-2026-04-21.md`. |

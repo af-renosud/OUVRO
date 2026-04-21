@@ -38,6 +38,9 @@ yarn-error.*
 
 app-example
 
+# smoke run logs (one-shot validation outputs)
+.local/smoke-logs/
+
 # generated native folders
 /ios
 /android
