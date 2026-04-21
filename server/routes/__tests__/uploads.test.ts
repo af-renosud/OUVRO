@@ -67,19 +67,21 @@ const okValidate = (
 };
 
 describe("POST /api/uploads/request-url — happy path forwards correctly", () => {
-  it("returns 200 with upload URL fields and forwards payload verbatim", async () => {
+  it("returns 200 with upload URL fields and forwards payload + clientVersion verbatim", async () => {
     let receivedUrl = "";
     let receivedPayload: { name: string; contentType: string; size: number } = {
       name: "",
       contentType: "",
       size: 0,
     };
+    let receivedClientVersion = "";
 
     const deps: UploadsRouterDeps = {
       validateArchidocUrl: okValidate,
-      forwardUploadUrl: async (url, payload) => {
+      forwardUploadUrl: async (url, payload, clientVersion) => {
         receivedUrl = url;
         receivedPayload = payload;
+        receivedClientVersion = clientVersion;
         return {
           data: {
             uploadURL: "https://signed-url.example/put",
@@ -90,12 +92,40 @@ describe("POST /api/uploads/request-url — happy path forwards correctly", () =
     };
 
     await withServer(deps, async (port) => {
-      const { status, data } = await postUploadUrl(port, VALID_BODY);
-      assert.equal(status, 200);
+      const res = await fetch(
+        `http://localhost:${port}/api/uploads/request-url`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-OUVRO-Client-Version": "2.5.1",
+          },
+          body: JSON.stringify(VALID_BODY),
+        },
+      );
+      const data = (await res.json()) as Record<string, unknown>;
+      assert.equal(res.status, 200);
       assert.equal(data.uploadURL, "https://signed-url.example/put");
       assert.equal(data.objectPath, "ouvro/uploads/abc123.jpg");
       assert.equal(receivedUrl, "https://archidoc.test");
       assert.deepEqual(receivedPayload, VALID_BODY);
+      assert.equal(receivedClientVersion, "2.5.1");
+    });
+  });
+
+  it("falls back to clientVersion='unknown' when header is absent", async () => {
+    let receivedClientVersion = "";
+    const deps: UploadsRouterDeps = {
+      validateArchidocUrl: okValidate,
+      forwardUploadUrl: async (_url, _payload, clientVersion) => {
+        receivedClientVersion = clientVersion;
+        return { data: { uploadURL: "x", objectPath: "y" } };
+      },
+    };
+    await withServer(deps, async (port) => {
+      const { status } = await postUploadUrl(port, VALID_BODY);
+      assert.equal(status, 200);
+      assert.equal(receivedClientVersion, "unknown");
     });
   });
 });
@@ -237,11 +267,12 @@ describe("defaultForwardUploadUrl — URL, headers, and bearer semantics", () =>
     delete process.env.NODE_ENV;
   });
 
-  it("POSTs to /api/uploads/request-url with Authorization Bearer when OUVRO_API_KEY is set", async () => {
+  it("POSTs to /api/uploads/request-url with Authorization Bearer + X-OUVRO-Client-Version when OUVRO_API_KEY is set", async () => {
     process.env.OUVRO_API_KEY = "secret-upload-key-abc";
     const result = await defaultForwardUploadUrl(
       `http://localhost:${capturePort}`,
       { name: "x.jpg", contentType: "image/jpeg", size: 99 },
+      "3.4.2",
     );
     assert.ok(
       !("error" in result),
@@ -254,6 +285,11 @@ describe("defaultForwardUploadUrl — URL, headers, and bearer semantics", () =>
       "Bearer secret-upload-key-abc",
       "Authorization must be Bearer {OUVRO_API_KEY}",
     );
+    assert.equal(
+      capturedHeaders["x-ouvro-client-version"],
+      "3.4.2",
+      "X-OUVRO-Client-Version header must be forwarded",
+    );
     assert.equal(capturedHeaders["content-type"], "application/json");
     const sent = JSON.parse(capturedBody) as Record<string, unknown>;
     assert.equal(sent.name, "x.jpg");
@@ -261,10 +297,11 @@ describe("defaultForwardUploadUrl — URL, headers, and bearer semantics", () =>
     assert.equal(sent.size, 99);
   });
 
-  it("omits Authorization header when OUVRO_API_KEY is unset (development mode)", async () => {
+  it("omits Authorization header when OUVRO_API_KEY is unset; still sends client version", async () => {
     const result = await defaultForwardUploadUrl(
       `http://localhost:${capturePort}`,
       { name: "x.jpg", contentType: "image/jpeg", size: 1 },
+      "1.0.0",
     );
     assert.ok(!("error" in result));
     assert.equal(
@@ -272,6 +309,7 @@ describe("defaultForwardUploadUrl — URL, headers, and bearer semantics", () =>
       undefined,
       "Authorization header must be absent when OUVRO_API_KEY is unset",
     );
+    assert.equal(capturedHeaders["x-ouvro-client-version"], "1.0.0");
   });
 
   it("refuses to forward in production when OUVRO_API_KEY is missing", async () => {
@@ -279,6 +317,7 @@ describe("defaultForwardUploadUrl — URL, headers, and bearer semantics", () =>
     const result = await defaultForwardUploadUrl(
       `http://localhost:${capturePort}`,
       { name: "x.jpg", contentType: "image/jpeg", size: 1 },
+      "unknown",
     );
     assert.ok("error" in result, "Expected refusal error");
     if ("error" in result) {
@@ -297,6 +336,7 @@ describe("defaultForwardUploadUrl — URL, headers, and bearer semantics", () =>
     const result = await defaultForwardUploadUrl(
       `http://localhost:${capturePort}`,
       { name: "x.jpg", contentType: "image/jpeg", size: 1 },
+      "unknown",
     );
     assert.ok("error" in result);
     if ("error" in result) {

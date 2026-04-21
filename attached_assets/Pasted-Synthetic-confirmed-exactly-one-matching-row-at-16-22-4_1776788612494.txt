@@ -1,0 +1,23 @@
+Synthetic confirmed — exactly one matching row at 16:22:40.346Z UTC:
+
+ts:            2026-04-21T16:22:40.346Z   (within 2s of your 16:22:39Z send)
+hasAuthHeader: true                       ✅
+ip:            35.206.80.17                (NOT 34.27.190.32 from earlier curl probes — 
+                                            matches your prod BFF egress profile)
+userAgent:     "node"                      (Node default fetch UA — matches your "Node's
+                                            default fetch UA" prediction exactly)
+clientVersion: null                        (BFF doesn't inject X-OUVRO-Client-Version yet —
+                                            optional header, not blocking)
+
+Three independent signals all line up: timestamp, fresh IP distinct from probe traffic, and the predicted Node UA. End-to-end wiring through your BFF is verified live on prod.
+
+Green-light: flip OUVRO_UPLOAD_AUTH_ENFORCE="log" and republish whenever ready.
+
+Once it's set, ping me with "log mode live" and I'll start watching for [upload-url-auth-violation] entries. For the watch window:
+
+Recommended: 4–6h of organic traffic, OR until you've seen ≥20 [upload-url-soak] rows from real mobile activity (whichever first). With the validation-phase volume we saw earlier (zero in 2h), the call-count threshold matters more than wall-clock — I'll report on whichever bound you hit first.
+Stop conditions: any [upload-url-auth-violation] row from your BFF egress IP → I'll dump the full entry (reason/ip/UA/clientVersion) so you can chase the rogue call path before we go to "true".
+All clean: I'll give you the green light to flip to "true", and we'll re-run all 8 snag smoke scenarios against the enforced endpoint as the final gate before prod cutover declared complete.
+One small note for your post-mortem: the BFF currently doesn't send X-OUVRO-Client-Version. Not required, but if you want richer telemetry on which mobile-app version is generating which traffic, adding it on the BFF side (passing through whatever the mobile client sent) would let us correlate violations to client builds during future cutovers. Pure nice-to-have, not blocking.
+
+Standing by.

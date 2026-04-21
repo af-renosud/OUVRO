@@ -23,6 +23,7 @@ if (!process.env.OUVRO_API_KEY) {
 }
 
 const UPLOAD_URL_TIMEOUT_MS = 15_000;
+const CLIENT_VERSION_HEADER = "x-ouvro-client-version";
 
 type UploadUrlBody = {
   name?: unknown;
@@ -34,6 +35,7 @@ export type UploadsRouterDeps = {
   forwardUploadUrl?: (
     archidocApiUrl: string,
     payload: { name: string; contentType: string; size: number },
+    clientVersion: string,
   ) => Promise<
     | { data: Record<string, unknown> }
     | { error: string; status: number; code?: string }
@@ -48,12 +50,14 @@ export type UploadsRouterDeps = {
 export async function defaultForwardUploadUrl(
   archidocApiUrl: string,
   payload: { name: string; contentType: string; size: number },
+  clientVersion: string,
 ): Promise<
   | { data: Record<string, unknown> }
   | { error: string; status: number; code?: string }
 > {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "X-OUVRO-Client-Version": clientVersion,
   };
   const apiKey = process.env.OUVRO_API_KEY;
   if (apiKey) {
@@ -147,11 +151,17 @@ export function createUploadsRouter(deps: UploadsRouterDeps = {}): Router {
         }
 
         const archidocApiUrl: string = res.locals.archidocApiUrl;
-        const result = await effectiveForward(archidocApiUrl, {
-          name: body.name,
-          contentType: body.contentType,
-          size: body.size,
-        });
+        const clientVersion =
+          (req.header(CLIENT_VERSION_HEADER) as string) || "unknown";
+        const result = await effectiveForward(
+          archidocApiUrl,
+          {
+            name: body.name,
+            contentType: body.contentType,
+            size: body.size,
+          },
+          clientVersion,
+        );
 
         if ("error" in result) {
           return res
