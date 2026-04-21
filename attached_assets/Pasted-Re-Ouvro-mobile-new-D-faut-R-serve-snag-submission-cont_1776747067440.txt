@@ -1,0 +1,147 @@
+Re: Ouvro mobile — new "Défaut & Réserve" snag submission contract
+Hi OUVRO team,
+
+The endpoint is live and matches your contract. You can start sending traffic against staging now. Confirmations and clarifications below, point by point.
+
+✅ 1. Endpoint, auth, headers
+Confirmed:
+
+POST /api/ouvro/snags — implemented and registered next to /api/ouvro/dqe/capture.
+Authorization: Bearer <OUVRO_API_KEY> — same shared key as DQE.
+X-OUVRO-Client-Version: <semver> — read on every request and logged with the snag creation event (we store it in the audit metadata so we can correlate per-version).
+Content-Type: application/json — required.
+If the key is missing or wrong → 401 { "error": "Unauthorized" } (same shape as DQE). If OUVRO_API_KEY is not configured server-side → 503 (matches your transient-retry rule).
+
+✅ 2. Request payload
+Implemented exactly as specified, with one harmless tolerance: if title is missing or whitespace-only, we substitute "Sans titre" (matches your default). Everything else is enforced via zod.
+
+The full accepted shape:
+
+{
+  localId: string,                              // required, used as idempotency key
+  projectId: string,                            // required
+  projectName: string,                          // required (logged)
+  type: "defaut" | "reserve",                   // required
+  title: string,                                // required (defaulted to "Sans titre" if blank)
+  description?: string,
+  severity?: "minor" | "major" | "critical",
+  contractorId?: string,                        // see §3 below
+  contractorName?: string,
+  location?: string,
+  media: SnagMediaItem[],                       // required (may be empty array)
+  capturedAt: string,                           // ISO 8601, required
+  capturedBy: string,                           // required
+}
+SnagMediaItem = {
+  type: "photo" | "video" | "audio",
+  remoteKey: string,
+  fileName: string,
+  mimeType: string,
+  durationSeconds?: number,
+}
+
+All five media[] fields are stored verbatim on the snag's photos[] array (we keep type/mimeType/durationSeconds so the web UI can render an inline player for video/audio items, not just images).
+
+Validation errors return:
+
+{ "error": "VALIDATION_FAILED", "message": "<human-readable issues>" }
+
+📎 3. Contractor field — please read
+Your contract says:
+
+contractorId — The lot code (e.g. LOT-03) when picked from project.lotContractors.
+
+That's actually a swap of what those names mean in our schema (lotContractors is { lotCode → contractorId }, so the value is a contractor id, not a lot code). We are accepting your convention as-is — no change needed on the mobile side.
+
+What we do server-side when we receive your contractorId:
+
+If the value matches a key in the project's lotContractors map → we treat it as a lot code and store it in our lotCode column, then look up the real contractor id from the map and store that in our contractorId column.
+If the value does not match a known lot code → we just store it as a free-form contractor id.
+contractorName is always stored as a free-text fallback.
+Net effect: the data lands in the right columns without you needing to learn our internal naming. If you'd prefer to send the actual lot code in a separate lotCode field later, we can add it without a breaking change.
+
+✅ 4. Media upload flow
+Confirmed: reuse the existing DQE signed-URL flow — no changes, no separate bucket.
+
+Mobile calls POST /api/uploads/request-url (same Bearer auth) with { name, size, contentType }.
+Mobile PUTs the binary to the returned uploadURL.
+Mobile sends the resulting object path back to us as media[i].remoteKey in the snag payload.
+Same auth, same quotas, same TTL.
+
+✅ 5. Expected response — exact shapes
+Created (new snag):
+
+HTTP 201
+{
+  "archidocSnagId": "1742",
+  "deepLink": "https://archidoc.example/projects/<projectId>/pv-reception?tab=defauts&item=1742"
+}
+
+For Réserves, tab=reserves. The deep link opens our PV de Réception view, switches to the right tab, and auto-expands the item.
+
+Idempotent replay (same localId retried):
+
+HTTP 200
+{
+  "archidocSnagId": "1742",
+  "deepLink": "...",
+  "duplicate": true
+}
+
+archidocSnagId is always the same for a given (projectId, localId) — guaranteed by a database-level unique index, so even concurrent retries from your DurableQueueStore cannot produce duplicates.
+
+✅ 6. Error semantics — confirmed and aligned
+Mapped to your retry rules:
+
+Code	Body shape	Mobile should
+400 VALIDATION_FAILED	{ "error": "VALIDATION_FAILED", "message": "..." }	mark as failed (permanent)
+400 PROJECT_NOT_FOUND	{ "error": "PROJECT_NOT_FOUND", "message": "..." }	mark as failed (permanent)
+401 Unauthorized	{ "error": "Unauthorized" }	mark as failed (permanent)
+503 FEATURE_DISABLED	{ "error": "FEATURE_DISABLED", "message": "Snag intake is not enabled for this tenant." }	keep queued, retry later
+503 (other, OUVRO_API_KEY missing)	{ "error": "Ouvro API not configured" }	retry later
+5xx INTERNAL_ERROR	{ "error": "INTERNAL_ERROR", "message": "Internal server error" }	retry with backoff
+The 503 = feature-disabled convention is in place via the OUVRO_SNAGS_ENABLED env var (default: enabled). We can flip it per environment for staged rollout.
+
+✅ 7. Idempotency — guaranteed at the database level
+We added a unique index on (project_id, source, source_id). Your localId is stored in source_id with source='mobile'. This means:
+
+The first insert succeeds → 201.
+Any concurrent or later retry with the same localId is a no-op insert; we then read the original row and return its archidocSnagId with duplicate: true.
+This is enforced by Postgres, not by application logic, so two parallel requests cannot create two rows.
+✅ Deep-link pattern
+Format: <base>/projects/:projectId/pv-reception?tab=defauts|reserves&item=:archidocSnagId
+
+In production, <base> is the tenant's Archidoc URL. In dev/preview, we fall back to a relative path (mobile can prefix it with the configured ARCHIDOC_API_URL).
+
+We do not currently expose a archidoc:// deep link scheme — we only have a web deep link. If you need a custom URL scheme for "Voir dans ARCHIDOC" to launch our PWA, let us know and we'll add archidoc://snag/:id as a metadata.alternateLinks[] field in the response.
+
+What's deployed / what to test
+Endpoint smoke test (you can run this with the staging key):
+
+# 1. New snag — should return 201 + new id
+curl -X POST "$ARCHIDOC_URL/api/ouvro/snags" \
+  -H "Authorization: Bearer $OUVRO_API_KEY" \
+  -H "X-OUVRO-Client-Version: 1.0.0" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "localId": "test-uuid-1",
+    "projectId": "<known-project-id>",
+    "projectName": "Test",
+    "type": "defaut",
+    "title": "Smoke test",
+    "media": [],
+    "capturedAt": "2026-04-21T10:00:00Z",
+    "capturedBy": "qa"
+  }'
+# 2. Same localId again — should return 200 + duplicate:true + SAME id
+# (re-run the same curl)
+# 3. Réserve — deepLink should contain tab=reserves
+# (change "type" to "reserve")
+
+We've already validated these four scenarios end-to-end against staging and they all pass.
+
+Open items / nice-to-haves (not blocking)
+If you want a per-project list endpoint (GET /api/ouvro/projects/:id/snags) for mobile to reconcile its offline queue against server state, just say the word — easy to add.
+Custom URL scheme (archidoc://) — flag it if needed for native deep linking.
+Per-key rate limiting — none today; we'll add it before broad rollout.
+Cheers, ship it! — Archidoc team
