@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   Image,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -1059,6 +1060,18 @@ export default function QueueScreen() {
           </ThemedText>
         ) : null}
 
+        {isComplete && item.remoteId ? (
+          <View style={styles.snagSuccessRow}>
+            <Feather name="hash" size={12} color={theme.textTertiary} />
+            <ThemedText
+              style={[styles.snagRemoteIdText, { color: theme.textSecondary }]}
+              numberOfLines={1}
+            >
+              ARCHIDOC: {item.remoteId}
+            </ThemedText>
+          </View>
+        ) : null}
+
         <View style={styles.actionButtons}>
           {!isComplete ? (
             <>
@@ -1094,6 +1107,20 @@ export default function QueueScreen() {
                 <Feather name="trash-2" size={18} color={BrandColors.error} />
               </Pressable>
             </>
+          ) : item.deepLink ? (
+            <Pressable
+              style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
+              onPress={() => {
+                if (item.deepLink) {
+                  Linking.openURL(item.deepLink).catch(() => {
+                    Alert.alert("Lien indisponible", "Impossible d'ouvrir le lien ARCHIDOC.");
+                  });
+                }
+              }}
+            >
+              <Feather name="external-link" size={16} color="#FFFFFF" />
+              <ThemedText style={styles.actionButtonText}>Voir dans ARCHIDOC</ThemedText>
+            </Pressable>
           ) : null}
         </View>
       </Card>
@@ -1478,6 +1505,17 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     ...Typography.h2,
+  },
+  snagSuccessRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: Spacing.xs,
+  },
+  snagRemoteIdText: {
+    fontSize: 12,
+    fontWeight: "500",
+    flex: 1,
   },
   emptyText: {
     ...Typography.body,

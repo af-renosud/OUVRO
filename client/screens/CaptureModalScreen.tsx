@@ -111,6 +111,49 @@ export default function CaptureModalScreen() {
         </View>
       </View>
       <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
+        <View style={styles.modePillsRow}>
+          {(["defaut", "reserve"] as const).map((m) => {
+            const active = captureMode === m;
+            const dim = captureMode !== null && !active;
+            const accent = m === "defaut" ? "#B91C1C" : "#92400E";
+            const accentBorder = m === "defaut" ? "#FCA5A5" : "#FCD34D";
+            const accentBg = m === "defaut" ? "#FEE2E2" : "#FEF3C7";
+            const label = m === "defaut" ? "Défaut" : "Réserve";
+            return (
+              <Pressable
+                key={m}
+                onPress={() => handleModePill(m)}
+                accessibilityRole="button"
+                accessibilityLabel={`Mode ${label}`}
+                accessibilityState={{ selected: active }}
+                hitSlop={8}
+                style={[
+                  styles.modePill,
+                  active && { borderColor: accentBorder, backgroundColor: accentBg },
+                  dim && styles.modePillDim,
+                ]}
+              >
+                <Feather
+                  name={m === "defaut" ? "alert-triangle" : "flag"}
+                  size={16}
+                  color={active ? accent : "#FFFFFF"}
+                />
+                <ThemedText
+                  style={[styles.modePillText, { color: active ? accent : "#FFFFFF" }]}
+                >
+                  {label}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </View>
+        {captureMode ? (
+          <ThemedText style={styles.modeHint}>
+            Les captures seront enregistrées comme{" "}
+            {captureMode === "defaut" ? "Défauts" : "Réserves"}.
+          </ThemedText>
+        ) : null}
+
         {isLocked ? (
           <View style={styles.lockedProjectSelector}>
             <View style={styles.lockIconContainer}>
@@ -143,52 +186,6 @@ export default function CaptureModalScreen() {
             )}
           </Pressable>
         )}
-
-        <View style={styles.modePillsRow}>
-          <Pressable
-            onPress={() => handleModePill("defaut")}
-            style={[
-              styles.modePill,
-              captureMode === "defaut" && { borderColor: "#FCA5A5", backgroundColor: "#FEE2E2" },
-            ]}
-          >
-            <Feather
-              name="alert-triangle"
-              size={14}
-              color={captureMode === "defaut" ? "#B91C1C" : "#FFFFFF"}
-            />
-            <ThemedText
-              style={[
-                styles.modePillText,
-                { color: captureMode === "defaut" ? "#B91C1C" : "#FFFFFF" },
-              ]}
-            >
-              Défaut
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => handleModePill("reserve")}
-            style={[
-              styles.modePill,
-              captureMode === "reserve" && { borderColor: "#FCD34D", backgroundColor: "#FEF3C7" },
-            ]}
-          >
-            <Feather
-              name="flag"
-              size={14}
-              color={captureMode === "reserve" ? "#92400E" : "#FFFFFF"}
-            />
-            <ThemedText
-              style={[
-                styles.modePillText,
-                { color: captureMode === "reserve" ? "#92400E" : "#FFFFFF" },
-              ]}
-            >
-              Réserve
-            </ThemedText>
-          </Pressable>
-        </View>
 
         <View style={styles.captureArea}>
           <View style={styles.captureGrid}>
@@ -413,22 +410,35 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     gap: Spacing.sm,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   modePill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
+    minHeight: 44,
+    minWidth: 110,
+    justifyContent: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 10,
     borderRadius: 999,
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.45)",
     backgroundColor: "rgba(255,255,255,0.08)",
   },
+  modePillDim: {
+    opacity: 0.4,
+  },
   modePillText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
+  },
+  modeHint: {
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "500",
+    color: "rgba(255,255,255,0.85)",
+    marginBottom: Spacing.md,
   },
   projectSelector: {
     flexDirection: "row",

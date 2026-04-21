@@ -8,6 +8,7 @@ import {
   ScrollView,
   Modal,
   FlatList,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -37,10 +38,11 @@ function mediaToMime(item: MediaItem): string {
   return "audio/m4a";
 }
 
-function fileNameForMedia(item: MediaItem): string {
-  const ts = Date.now();
-  const ext = item.uri.split(".").pop()?.toLowerCase() || "bin";
-  return `snag_${item.type}_${ts}.${ext}`;
+function formatDuration(seconds?: number): string {
+  if (!seconds || seconds <= 0) return "";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export default function SnagDetailsScreen() {
@@ -121,10 +123,6 @@ export default function SnagDetailsScreen() {
   };
 
   const handleSave = async () => {
-    if (!title.trim()) {
-      Alert.alert("Titre requis", "Merci de renseigner un titre.");
-      return;
-    }
     setSubmitting(true);
     try {
       const media = mediaItems.map((m) => ({
@@ -134,11 +132,12 @@ export default function SnagDetailsScreen() {
         durationSeconds: m.duration,
       }));
       const finalContractorName = contractorName.trim() || undefined;
+      const finalTitle = title.trim() || "Sans titre";
       await addCapture({
         projectId,
         projectName: projectName || "Unknown Project",
         type: mode,
-        title: title.trim(),
+        title: finalTitle,
         description: description.trim() || undefined,
         severity,
         contractorId,
@@ -206,24 +205,50 @@ export default function SnagDetailsScreen() {
           </Pressable>
         </View>
 
-        <ThemedText style={styles.sectionTitle}>{mediaItems.length} média(s) capturé(s)</ThemedText>
-        <View style={styles.mediaList}>
+        <ThemedText style={styles.sectionTitle}>
+          {mediaItems.length} média{mediaItems.length > 1 ? "s" : ""} capturé{mediaItems.length > 1 ? "s" : ""}
+        </ThemedText>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.mediaPreviewRow}
+        >
           {mediaItems.map((m, i) => (
-            <View key={`${m.uri}-${i}`} style={[styles.mediaPill, { backgroundColor: theme.backgroundSecondary }]}>
-              <Feather
-                name={m.type === "photo" ? "image" : m.type === "video" ? "video" : "mic"}
-                size={14}
-                color={theme.textSecondary}
-              />
-              <ThemedText style={styles.mediaPillText}>{fileNameForMedia(m)}</ThemedText>
+            <View
+              key={`${m.uri}-${i}`}
+              style={[
+                styles.mediaPreview,
+                { backgroundColor: theme.backgroundSecondary, borderColor: theme.border },
+              ]}
+            >
+              {m.type === "photo" || m.type === "video" ? (
+                <Image source={{ uri: m.uri }} style={styles.mediaPreviewImage} resizeMode="cover" />
+              ) : (
+                <View style={styles.audioPreviewBox}>
+                  <Feather name="mic" size={28} color={BrandColors.primary} />
+                </View>
+              )}
+              {m.type === "video" ? (
+                <View style={styles.mediaOverlay}>
+                  <Feather name="play-circle" size={22} color="#FFFFFF" />
+                  {m.duration ? (
+                    <ThemedText style={styles.mediaOverlayText}>{formatDuration(m.duration)}</ThemedText>
+                  ) : null}
+                </View>
+              ) : null}
+              {m.type === "audio" && m.duration ? (
+                <ThemedText style={[styles.audioDuration, { color: theme.textSecondary }]}>
+                  {formatDuration(m.duration)}
+                </ThemedText>
+              ) : null}
             </View>
           ))}
-        </View>
+        </ScrollView>
 
-        <ThemedText style={styles.label}>Titre *</ThemedText>
+        <ThemedText style={styles.label}>Titre</ThemedText>
         <TextInput
           style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-          placeholder="Ex: Fissure mur cuisine"
+          placeholder="Optionnel — défaut: Sans titre"
           placeholderTextColor={theme.textTertiary}
           value={title}
           onChangeText={setTitle}
@@ -391,16 +416,32 @@ const styles = StyleSheet.create({
   },
   modeExitText: { fontSize: 12, fontWeight: "600" },
   sectionTitle: { fontSize: 13, fontWeight: "600", marginTop: Spacing.sm, opacity: 0.7 },
-  mediaList: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.xs, marginBottom: Spacing.md },
-  mediaPill: {
+  mediaPreviewRow: { gap: Spacing.sm, paddingVertical: Spacing.xs, marginBottom: Spacing.sm },
+  mediaPreview: {
+    width: 110,
+    height: 110,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mediaPreviewImage: { width: "100%", height: "100%" },
+  audioPreviewBox: { flex: 1, alignItems: "center", justifyContent: "center" },
+  mediaOverlay: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: BorderRadius.sm,
+    backgroundColor: "rgba(0,0,0,0.55)",
   },
-  mediaPillText: { fontSize: 12 },
+  mediaOverlayText: { color: "#FFFFFF", fontSize: 11, fontWeight: "600" },
+  audioDuration: { position: "absolute", bottom: 6, fontSize: 11, fontWeight: "600" },
   label: { fontSize: 13, fontWeight: "600", marginTop: Spacing.md, marginBottom: Spacing.xs },
   input: {
     borderWidth: 1,
