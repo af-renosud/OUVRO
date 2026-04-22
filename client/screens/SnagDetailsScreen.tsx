@@ -10,6 +10,7 @@ import {
   FlatList,
   Image,
 } from "react-native";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -175,7 +176,8 @@ export default function SnagDetailsScreen() {
   return (
     <ThemedView style={styles.container}>
       <OuvroScreenHeader onBack={() => navigation.goBack()} />
-      <ScrollView
+      <KeyboardAwareScrollViewCompat
+        bottomOffset={Spacing.xl}
         contentContainerStyle={[
           styles.scroll,
           { paddingBottom: Math.max(insets.bottom, 20) + Spacing.xl },
@@ -342,7 +344,7 @@ export default function SnagDetailsScreen() {
             {submitting ? "Enregistrement…" : `Enregistrer ${modeLabel}`}
           </ThemedText>
         </Pressable>
-      </ScrollView>
+      </KeyboardAwareScrollViewCompat>
 
       <Modal
         visible={showContractorPicker}
