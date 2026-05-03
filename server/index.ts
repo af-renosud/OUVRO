@@ -178,6 +178,11 @@ function serveLandingPage({
     "Cache-Control",
     "public, max-age=300, stale-while-revalidate=2592000",
   );
+  // The same `/` URL also serves the Expo manifest when an `expo-platform`
+  // header is present (see serveExpoManifest). Without `Vary`, a shared
+  // intermediate cache could substitute this HTML for an Expo Go manifest
+  // request and break cold launch.
+  res.setHeader("Vary", "expo-platform, Accept");
   res.status(200).send(html);
 }
 
