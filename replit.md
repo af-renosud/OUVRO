@@ -65,6 +65,45 @@ OUVRO is a mobile companion app for architects and project managers, built with 
 - **`react-native-reanimated`:** For gesture handling in annotation system.
 - **`expo-clipboard`:** For copy-to-clipboard functionality in the audit prompts section.
 
+## Expo Go Persistence (Poor-Signal Field Use)
+
+OUVRO is distributed via Expo Go, not a standalone build. Expo Go always
+revalidates the project manifest on cold launch — there is no `expo-updates`
+`fallbackToCacheTimeout` available. To make field cold-launches survive poor
+signal we minimize the cold-start network dependency rather than eliminating
+it. The contract is:
+
+- **Manifest cache contract.** Both `serveExpoManifest` (the `expo-platform`
+  branch on `/` and `/manifest`) and the static-build `manifest.json` route in
+  `server/index.ts` MUST send `Cache-Control: public, max-age=300,
+  stale-while-revalidate=2592000`. Bundle URLs inside the manifest are
+  content-addressed by build timestamp, so a stale manifest is always safe —
+  it points at an immutable bundle the device may already have cached. Do NOT
+  re-introduce `no-cache, no-store, must-revalidate` here.
+- **Landing page cache contract.** `serveLandingPage` uses the same
+  short-fresh + long stale-while-revalidate header so the bookmarked page
+  renders instantly from the browser cache on weak signal.
+- **Service worker.** `server/templates/sw.js` uses three named caches
+  (`ouvro-shell`, `ouvro-manifest`, `ouvro-bundle`). Manifest endpoints use
+  stale-while-revalidate; content-addressed bundle URLs (`/<timestamp>/_expo/`)
+  use cache-first. Bump `CACHE_VERSION` when changing the SW.
+- **Build-time URL hygiene.** `scripts/build.js` rewrites any `127.0.0.1:*`,
+  `localhost:*`, or `*.replit.dev` URL Metro bakes into the manifest (e.g.
+  `iconUrl`, `*ImageUrl`) to the deployment host, then asserts the final
+  manifest contains none of those hosts. The build will exit with a clear
+  error if it does. This guard exists because a manifest containing a
+  `*.replit.dev` workspace URL points Expo Go at a host that dies whenever
+  the dev workspace sleeps — which is the original reason field users saw
+  the "downloading" screen on poor signal.
+- **Build environment.** `npm run expo:static:build` MUST run in the
+  deployment environment so `REPLIT_INTERNAL_APP_DOMAIN` resolves to the
+  production host, or with `EXPO_PUBLIC_DOMAIN` explicitly set to the
+  production host. The hygiene guard above will refuse to write a manifest
+  built with a dev-workspace domain.
+- **Limitation.** True install-once persistence (no manifest revalidation
+  on cold launch) requires a standalone EAS Build → TestFlight / signed APK.
+  That is intentionally out of scope while the team uses Expo Go.
+
 ## Pre-Deployment Audit System
 
 ### Overview

@@ -121,6 +121,17 @@ function serveExpoManifest(platform: string, res: Response) {
   res.setHeader("expo-protocol-version", "1");
   res.setHeader("expo-sfv-version", "0");
   res.setHeader("content-type", "application/json");
+  // Allow Expo Go's HTTP cache to reuse the manifest on cold launch when the
+  // device has poor or no signal. The bundle URL inside the manifest is
+  // content-addressed by build timestamp, so a stale manifest is always safe:
+  // it points at an immutable bundle that the device may already have cached.
+  // 5 min fresh window + 30 day stale-while-revalidate keeps cold launches
+  // network-free in the field while still picking up new builds quickly when
+  // signal returns.
+  res.setHeader(
+    "Cache-Control",
+    "public, max-age=300, stale-while-revalidate=2592000",
+  );
 
   const manifest = fs.readFileSync(manifestPath, "utf-8");
   res.send(manifest);
@@ -153,6 +164,14 @@ function serveLandingPage({
     .replace(/APP_NAME_PLACEHOLDER/g, appName);
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
+  // Make the bookmarked landing page survive poor signal: 5 min fresh window
+  // plus a 30 day stale-while-revalidate window so opening the page on a weak
+  // connection renders instantly from the browser cache while a fresh copy is
+  // fetched in the background.
+  res.setHeader(
+    "Cache-Control",
+    "public, max-age=300, stale-while-revalidate=2592000",
+  );
   res.status(200).send(html);
 }
 
@@ -217,10 +236,22 @@ function configureExpoAndLanding(app: express.Application) {
     express.static(path.resolve(process.cwd(), "static-build"), {
       setHeaders: (res, filePath) => {
         if (filePath.endsWith("manifest.json")) {
-          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          // Same cache contract as serveExpoManifest above: bundle URLs are
+          // content-addressed so a stale manifest is always safe.
+          res.setHeader(
+            "Cache-Control",
+            "public, max-age=300, stale-while-revalidate=2592000",
+          );
         } else if (
           filePath.endsWith(".bundle") ||
-          filePath.includes("/bundles/")
+          filePath.includes("/bundles/") ||
+          // Content-addressed Expo bundle paths: /<timestamp>/_expo/static/...
+          // (e.g. /<timestamp>/_expo/static/js/<platform>/bundle.js plus the
+          // hashed assets under that tree). The leading numeric timestamp is
+          // bumped on every build, so these URLs are immutable. Without this,
+          // bundle.js falls through to max-age=86400, which forces Expo Go to
+          // re-download the bundle far more often than necessary on poor signal.
+          /\/\d+(?:-\d+)?\/_expo\/static\//.test(filePath)
         ) {
           res.setHeader(
             "Cache-Control",

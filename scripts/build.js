@@ -452,6 +452,59 @@ function updateBundleUrls(timestamp, baseUrl) {
   console.log("Updated bundle URLs");
 }
 
+// Rewrite any asset URL that Metro emitted pointing at the local packager
+// (http://127.0.0.1:8081, http://localhost:8081, or the Replit dev workspace
+// host) so it points at the production deployment host instead. Metro bakes
+// these into iconUrl, *ImageUrl, and similar fields when running locally;
+// without rewriting them, Expo Go on a real device cannot resolve them.
+function rewriteAssetUrlsToBaseUrl(value, baseUrl) {
+  if (typeof value === "string") {
+    return value
+      .replace(/https?:\/\/127\.0\.0\.1:\d+/g, baseUrl)
+      .replace(/https?:\/\/localhost:\d+/g, baseUrl)
+      .replace(
+        /https?:\/\/[a-z0-9-]+\.(?:kirk\.|picard\.|sisko\.|janeway\.)?replit\.dev/gi,
+        baseUrl,
+      );
+  }
+  if (Array.isArray(value)) {
+    return value.map((v) => rewriteAssetUrlsToBaseUrl(v, baseUrl));
+  }
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = rewriteAssetUrlsToBaseUrl(v, baseUrl);
+    }
+    return out;
+  }
+  return value;
+}
+
+// Final hygiene check: refuse to write a manifest that still contains a
+// loopback or Replit-dev-workspace host. If this fires, the build was run
+// outside the deployment environment and would have produced a manifest that
+// breaks the moment the dev workspace sleeps.
+function assertManifestIsProductionSafe(platform, manifestText) {
+  const FORBIDDEN = [
+    { pattern: /127\.0\.0\.1/, name: "127.0.0.1" },
+    { pattern: /\blocalhost(?::\d+|\b)/, name: "localhost" },
+    { pattern: /\.replit\.dev/i, name: "*.replit.dev" },
+  ];
+  const found = FORBIDDEN.filter(({ pattern }) => pattern.test(manifestText));
+  if (found.length === 0) return;
+
+  const names = found.map((f) => f.name).join(", ");
+  exitWithError(
+    `Manifest hygiene check failed for ${platform}: forbidden host(s) ${names} ` +
+      `present in the produced manifest. The build must run inside the deployment ` +
+      `environment so REPLIT_INTERNAL_APP_DOMAIN resolves to the production host, ` +
+      `or with EXPO_PUBLIC_DOMAIN explicitly set to the production host (e.g. ` +
+      `site-scout--clivegpalmer.replit.app). A manifest containing these hosts ` +
+      `would point Expo Go at a workspace URL that dies the moment the dev ` +
+      `workspace sleeps, breaking field users on poor signal.`,
+  );
+}
+
 function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
   const updateForPlatform = (platform, manifest) => {
     if (!manifest.launchAsset || !manifest.extra) {
@@ -483,9 +536,22 @@ function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
       });
     }
 
+    // Rewrite iconUrl, *ImageUrl and any other Metro-baked asset URL on the
+    // expoClient block so they point at the production host instead of the
+    // local packager (e.g. http://127.0.0.1:8081/...).
+    if (manifest.extra && manifest.extra.expoClient) {
+      manifest.extra.expoClient = rewriteAssetUrlsToBaseUrl(
+        manifest.extra.expoClient,
+        baseUrl,
+      );
+    }
+
+    const serialized = JSON.stringify(manifest, null, 2);
+    assertManifestIsProductionSafe(platform, serialized);
+
     fs.writeFileSync(
       path.join("static-build", platform, "manifest.json"),
-      JSON.stringify(manifest, null, 2),
+      serialized,
     );
   };
 
