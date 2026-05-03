@@ -95,11 +95,15 @@ it. The contract is:
   `*.replit.dev` workspace URL points Expo Go at a host that dies whenever
   the dev workspace sleeps — which is the original reason field users saw
   the "downloading" screen on poor signal.
-- **Build environment.** `npm run expo:static:build` MUST run in the
-  deployment environment so `REPLIT_INTERNAL_APP_DOMAIN` resolves to the
-  production host, or with `EXPO_PUBLIC_DOMAIN` explicitly set to the
-  production host. The hygiene guard above will refuse to write a manifest
-  built with a dev-workspace domain.
+- **Build environment.** `npm run expo:static:build` resolves the deployment
+  domain via `getDeploymentDomain()` in `scripts/build.js`. Precedence is
+  `EXPO_PUBLIC_DOMAIN` → `REPLIT_INTERNAL_APP_DOMAIN` → `REPLIT_DEV_DOMAIN`.
+  Run inside the deployment environment (where `REPLIT_INTERNAL_APP_DOMAIN`
+  is set automatically) OR explicitly set `EXPO_PUBLIC_DOMAIN` to the
+  production host (e.g. `EXPO_PUBLIC_DOMAIN=site-scout--clivegpalmer.replit.app
+  npm run expo:static:build`) when building from a workspace. The hygiene
+  guard above will refuse to write a manifest built with a `*.replit.dev`
+  workspace domain.
 - **Limitation.** True install-once persistence (no manifest revalidation
   on cold launch) requires a standalone EAS Build → TestFlight / signed APK.
   That is intentionally out of scope while the team uses Expo Go.

@@ -21,13 +21,73 @@ const BUNDLE_CACHE = `ouvro-bundle-${CACHE_VERSION}`;
 const KNOWN_CACHES = new Set([SHELL_CACHE, MANIFEST_CACHE, BUNDLE_CACHE]);
 
 const SHELL_ASSETS = ["/", "/assets/images/ouvro-logo.png"];
+const PRECACHE_PLATFORMS = ["ios", "android"];
+
+// Pre-cache the Expo manifest for each platform at install time, then read the
+// launchAsset URL out of each manifest and pre-cache the current bundle as
+// well. This is the most important persistence step for poor-signal field use:
+// after the bookmarked landing page is opened once on good wifi, the SW has
+// already stored the manifest + bundle the device will need on its next cold
+// launch — even before the user taps "Open in Expo Go".
+async function precacheExpoManifestsAndBundles() {
+  const manifestCache = await caches.open(MANIFEST_CACHE);
+  const bundleCache = await caches.open(BUNDLE_CACHE);
+
+  await Promise.all(
+    PRECACHE_PLATFORMS.map(async (platform) => {
+      try {
+        const manifestRequest = new Request("/", {
+          headers: { "expo-platform": platform, accept: "application/json" },
+        });
+        const manifestResponse = await fetch(manifestRequest, {
+          cache: "no-cache",
+        });
+        if (!manifestResponse || !manifestResponse.ok) return;
+
+        // Store under both `/` and `/manifest` so subsequent fetches hit cache
+        // regardless of which endpoint Expo Go calls.
+        await manifestCache.put(manifestRequest, manifestResponse.clone());
+        await manifestCache.put(
+          new Request("/manifest", {
+            headers: { "expo-platform": platform, accept: "application/json" },
+          }),
+          manifestResponse.clone(),
+        );
+
+        const manifest = await manifestResponse.clone().json();
+        const bundleUrl =
+          manifest && manifest.launchAsset && manifest.launchAsset.url;
+        if (typeof bundleUrl !== "string") return;
+
+        // Only pre-cache same-origin bundle URLs. A correctly produced manifest
+        // always points at this origin; foreign hosts indicate a build hygiene
+        // failure and we should not silently cache them here.
+        const bundleParsed = new URL(bundleUrl, self.location.origin);
+        if (bundleParsed.origin !== self.location.origin) return;
+
+        const bundleResponse = await fetch(bundleParsed.toString(), {
+          cache: "no-cache",
+        });
+        if (bundleResponse && bundleResponse.ok) {
+          await bundleCache.put(bundleParsed.toString(), bundleResponse);
+        }
+      } catch (_err) {
+        // Pre-caching is best-effort. A failure (offline install, transient
+        // network error, etc.) must not block SW activation — the fetch
+        // handlers below will populate caches lazily on next visit.
+      }
+    }),
+  );
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(SHELL_CACHE)
-      .then((cache) => cache.addAll(SHELL_ASSETS))
-      .then(() => self.skipWaiting()),
+    (async () => {
+      const shell = await caches.open(SHELL_CACHE);
+      await shell.addAll(SHELL_ASSETS);
+      await precacheExpoManifestsAndBundles();
+      await self.skipWaiting();
+    })(),
   );
 });
 

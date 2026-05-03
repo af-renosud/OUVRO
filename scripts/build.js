@@ -39,7 +39,21 @@ function stripProtocol(domain) {
 }
 
 function getDeploymentDomain() {
-  // Check Replit deployment environment variables first
+  // Precedence (highest first):
+  //   1. EXPO_PUBLIC_DOMAIN — explicit operator override. Highest priority so
+  //      a developer can run `EXPO_PUBLIC_DOMAIN=site-scout--clivegpalmer.replit.app
+  //      npm run expo:static:build` from a dev workspace and still produce a
+  //      production-safe manifest.
+  //   2. REPLIT_INTERNAL_APP_DOMAIN — set automatically inside the deployment
+  //      build environment; this is the normal path for `npm run deploy`.
+  //   3. REPLIT_DEV_DOMAIN — only used as a last resort. A manifest built from
+  //      this host will be rejected by assertManifestIsProductionSafe (it is a
+  //      `*.replit.dev` workspace host that dies when the workspace sleeps),
+  //      but we still surface it so local smoke builds can run.
+  if (process.env.EXPO_PUBLIC_DOMAIN) {
+    return stripProtocol(process.env.EXPO_PUBLIC_DOMAIN);
+  }
+
   if (process.env.REPLIT_INTERNAL_APP_DOMAIN) {
     return stripProtocol(process.env.REPLIT_INTERNAL_APP_DOMAIN);
   }
@@ -48,12 +62,8 @@ function getDeploymentDomain() {
     return stripProtocol(process.env.REPLIT_DEV_DOMAIN);
   }
 
-  if (process.env.EXPO_PUBLIC_DOMAIN) {
-    return stripProtocol(process.env.EXPO_PUBLIC_DOMAIN);
-  }
-
   console.error(
-    "ERROR: No deployment domain found. Set REPLIT_INTERNAL_APP_DOMAIN, REPLIT_DEV_DOMAIN, or EXPO_PUBLIC_DOMAIN",
+    "ERROR: No deployment domain found. Set EXPO_PUBLIC_DOMAIN, REPLIT_INTERNAL_APP_DOMAIN, or REPLIT_DEV_DOMAIN",
   );
   process.exit(1);
 }
