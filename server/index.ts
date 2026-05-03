@@ -132,6 +132,12 @@ function serveExpoManifest(platform: string, res: Response) {
     "Cache-Control",
     "public, max-age=300, stale-while-revalidate=2592000",
   );
+  // The same URL serves a different payload per platform (selected by the
+  // `expo-platform` request header) and a different payload to non-Expo
+  // browsers (selected by `Accept`). Without `Vary`, an intermediate cache
+  // could legally hand an iOS manifest to an Android device or the landing
+  // page to Expo Go.
+  res.setHeader("Vary", "expo-platform, Accept");
 
   const manifest = fs.readFileSync(manifestPath, "utf-8");
   res.send(manifest);
@@ -242,6 +248,7 @@ function configureExpoAndLanding(app: express.Application) {
             "Cache-Control",
             "public, max-age=300, stale-while-revalidate=2592000",
           );
+          res.setHeader("Vary", "expo-platform, Accept");
         } else if (
           filePath.endsWith(".bundle") ||
           filePath.includes("/bundles/") ||
