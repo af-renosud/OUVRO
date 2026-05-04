@@ -1,6 +1,11 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import {
+  applyExpoStaticCacheHeaders,
+  MANIFEST_CACHE_CONTROL,
+  MANIFEST_VARY,
+} from "./cache-headers";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -128,16 +133,13 @@ function serveExpoManifest(platform: string, res: Response) {
   // 5 min fresh window + 30 day stale-while-revalidate keeps cold launches
   // network-free in the field while still picking up new builds quickly when
   // signal returns.
-  res.setHeader(
-    "Cache-Control",
-    "public, max-age=300, stale-while-revalidate=2592000",
-  );
+  res.setHeader("Cache-Control", MANIFEST_CACHE_CONTROL);
   // The same URL serves a different payload per platform (selected by the
   // `expo-platform` request header) and a different payload to non-Expo
   // browsers (selected by `Accept`). Without `Vary`, an intermediate cache
   // could legally hand an iOS manifest to an Android device or the landing
   // page to Expo Go.
-  res.setHeader("Vary", "expo-platform, Accept");
+  res.setHeader("Vary", MANIFEST_VARY);
 
   const manifest = fs.readFileSync(manifestPath, "utf-8");
   res.send(manifest);
@@ -245,39 +247,12 @@ function configureExpoAndLanding(app: express.Application) {
 
   app.use(
     express.static(path.resolve(process.cwd(), "static-build"), {
-      setHeaders: (res, filePath) => {
-        if (filePath.endsWith("manifest.json")) {
-          // Same cache contract as serveExpoManifest above: bundle URLs are
-          // content-addressed so a stale manifest is always safe.
-          res.setHeader(
-            "Cache-Control",
-            "public, max-age=300, stale-while-revalidate=2592000",
-          );
-          res.setHeader("Vary", "expo-platform, Accept");
-        } else if (
-          filePath.endsWith(".bundle") ||
-          filePath.includes("/bundles/") ||
-          // Content-addressed Expo bundle paths: /<timestamp>/_expo/static/...
-          // (e.g. /<timestamp>/_expo/static/js/<platform>/bundle.js plus the
-          // hashed assets under that tree). The leading numeric timestamp is
-          // bumped on every build, so these URLs are immutable. Without this,
-          // bundle.js falls through to max-age=86400, which forces Expo Go to
-          // re-download the bundle far more often than necessary on poor signal.
-          /\/\d+(?:-\d+)?\/_expo\/static\//.test(filePath)
-        ) {
-          res.setHeader(
-            "Cache-Control",
-            "public, max-age=31536000, immutable",
-          );
-        } else if (filePath.match(/\.[0-9a-f]{8,}\./)) {
-          res.setHeader(
-            "Cache-Control",
-            "public, max-age=31536000, immutable",
-          );
-        } else {
-          res.setHeader("Cache-Control", "public, max-age=86400");
-        }
-      },
+      // Cache contract enforced and unit-tested in
+      // server/__tests__/cache-headers.test.ts. Content-addressed Expo bundle
+      // paths (/<timestamp>/_expo/static/js/<platform>/bundle.js plus the
+      // hashed assets under that tree) MUST be served as immutable so Expo Go
+      // never re-downloads them on cold launch over poor signal.
+      setHeaders: applyExpoStaticCacheHeaders,
     }),
   );
 
