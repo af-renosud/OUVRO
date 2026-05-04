@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -11,6 +11,7 @@ import { queryClient } from "@/lib/query-client";
 
 import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ColdStartOverlay } from "@/components/ColdStartOverlay";
 import { OfflineSyncProvider } from "@/hooks/useOfflineSync";
 import { OfflineTasksProvider } from "@/hooks/useOfflineTasks";
 import { OfflineAnnotationsProvider } from "@/hooks/useOfflineAnnotations";
@@ -28,6 +29,8 @@ const defaultHandler = (ErrorUtils as any).getGlobalHandler?.();
 });
 
 export default function App() {
+  const [navReady, setNavReady] = useState(false);
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -41,10 +44,11 @@ export default function App() {
           <SafeAreaProvider>
             <GestureHandlerRootView style={styles.root}>
               <KeyboardProvider>
-                <NavigationContainer>
+                <NavigationContainer onReady={() => setNavReady(true)}>
                   <RootStackNavigator />
                 </NavigationContainer>
                 <StatusBar style="auto" />
+                <ColdStartOverlay ready={navReady} />
               </KeyboardProvider>
             </GestureHandlerRootView>
           </SafeAreaProvider>
