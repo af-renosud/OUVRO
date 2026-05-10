@@ -1,0 +1,36 @@
+Here's a prompt you can paste directly into Replit's AI chat to audit and tighten your `replit.md`:
+
+---
+
+**Prompt to paste into Replit:**
+
+> Please review and rewrite my `replit.md` file for maximum effectiveness. Follow these steps:
+>
+> 1. **Read the current file** — load the full contents of `replit.md`.
+>
+> 2. **Audit it against these quality criteria:**
+>    - Is any information duplicated or contradictory?
+>    - Are there sections that are outdated, vague, or no longer reflect how the project actually works?
+>    - Is the file longer than it needs to be? (Verbose explanations, commented-out blocks, old instructions?)
+>    - Are architectural decisions explained concisely, or buried in prose?
+>    - Is there anything missing that would help an AI agent understand the project faster?
+>
+> 3. **Rewrite it** using these principles:
+>    - **Be ruthlessly concise** — every line must earn its place. Cut anything redundant.
+>    - **Lead with the essentials** — project purpose, tech stack, and run/build commands at the top.
+>    - **Use short, scannable sections** with clear headings (e.g. Project Overview, Stack, Key Files, Dev Workflow, Environment Variables, Known Constraints).
+>    - **State facts, not history** — remove change logs, old reasoning, or "we used to do X" commentary.
+>    - **Prefer bullet points over paragraphs** for lists of facts.
+>    - **Include anything an AI agent needs to avoid mistakes** — gotchas, non-obvious dependencies, file naming conventions, API quirks.
+>
+> 4. **Show me the rewritten version** and briefly explain what you removed and why.
+>
+> Do not modify any files yet — show me the proposed `replit.md` first so I can approve it.
+
+---
+
+A few tips on using this prompt:
+
+- The final line ("show me first") keeps it safe — Replit won't overwrite your file until you confirm.
+- Once you're happy with the output, just follow up with *"Looks good, please apply it"*.
+- If your project has changed significantly, you can add context like *"We recently switched from X to Y"* before pasting the prompt, so the rewrite reflects current reality.

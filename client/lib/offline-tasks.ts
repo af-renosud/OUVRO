@@ -58,6 +58,15 @@ class OfflineTaskService {
   private autoRetryTimer: ReturnType<typeof setInterval> | null = null;
   private netInfoUnsubscribe: (() => void) | null = null;
 
+  // Sync tunables for queued voice tasks. Source of truth — these
+  // values are NOT mirrored in `replit.md`. If you change them, update
+  // the Data Persistence Audit prompt in `client/lib/audit-prompts.ts`.
+  //   AUTO_RETRY_INTERVAL — background sync timer (ms). Paired with a
+  //                         NetInfo reconnect listener so we sync
+  //                         immediately when signal returns.
+  //   MAX_AUTO_RETRIES    — stop auto-retrying after this many failed
+  //                         attempts per task. The task stays in the
+  //                         queue and the user can manually retry.
   private static AUTO_RETRY_INTERVAL = 120000;
   private static MAX_AUTO_RETRIES = 20;
 

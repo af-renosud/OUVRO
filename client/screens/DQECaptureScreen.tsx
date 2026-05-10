@@ -32,6 +32,17 @@ type QualityConfig = {
   ipadOnly: boolean;
 };
 
+// DQE video quality tiers. Source of truth — these specs are NOT
+// mirrored in `replit.md`. Codec / bitrate trade-offs:
+//   efficient — 720p H.264 @ 4 Mbps. Smallest files, widest device
+//               compatibility. Default on iPhone.
+//   standard  — 1080p HEVC @ 8 Mbps. Best balance of quality vs file
+//               size; HEVC needs iOS 11+ / modern Android.
+//   maximum   — 4K HEVC @ 16 Mbps. iPad-only — large sensor + sustained
+//               write bandwidth required to avoid frame drops.
+// If you change a bitrate or codec, double-check the corresponding
+// QUALITY_LABELS in `DQECaptureReviewScreen.tsx` so the user-visible
+// metadata stays in sync.
 const QUALITY_CONFIGS: QualityConfig[] = [
   {
     tier: "efficient",
@@ -62,6 +73,9 @@ const QUALITY_CONFIGS: QualityConfig[] = [
   },
 ];
 
+// Hard cap on a single DQE narration (3 minutes). Architects asked for
+// this — longer narrations should be split into multiple captures so
+// the upload queue can make progress on poor signal.
 const MAX_DURATION_SECONDS = 180;
 
 function formatDuration(seconds: number): string {

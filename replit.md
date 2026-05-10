@@ -1,127 +1,150 @@
-# OUVRO - Mobile Companion App
+# OUVRO — Mobile Companion App
 
-## Overview
-OUVRO is a mobile companion app for architects and project managers, built with Expo/React Native, designed for on-site documentation. It integrates with the ARCHIDOC construction management platform, enabling media capture, annotation, transcription, translation, and synchronization of field observations. The app supports dual branding (OUVRO + Architects-France) and aims to streamline on-site reporting workflows.
+On-site documentation companion for architects/PMs. Captures media,
+annotations, voice tasks, and DQE videos in the field, syncs into the
+ARCHIDOC construction-management platform when signal returns. Dual
+brand: OUVRO + Architects-France.
+
+## Stack
+- **Mobile:** Expo SDK 54, React Native, React Navigation 7+, TanStack Query.
+- **Backend:** Express + TypeScript, port 5000. Domain routers under
+  `server/routes/` (projects, observations, ai, archidoc, sync, dqe);
+  ARCHIDOC proxying via `server/routes/archidoc-helpers.ts`.
+- **DB:** PostgreSQL on Neon, Drizzle ORM. Schema in `shared/schema.ts`.
+- **AI:** Gemini (audio → English transcription, EN → FR translation).
+- **Distribution:** Expo Go (no standalone build).
+
+## Run / Build
+- Dev: workflow `Start App` → `npm run server:dev && npm run expo:dev`
+  (Express :5000, Expo :8081).
+- Static Expo build for deploy: `npm run expo:static:build`. Must run in
+  the deployment env or with `EXPO_PUBLIC_DOMAIN=<prod-host>` set —
+  otherwise the build's manifest hygiene guard refuses to write.
+- Tests: `npx tsx --test server/__tests__/cache-headers.test.ts`.
 
 ## User Preferences
-- Simple language and iterative development
-- Ask before making major changes
-- Detailed explanations preferred
+- Simple language, iterative changes, ask before major rewrites,
+  detailed explanations preferred.
 
-## System Architecture
+## Forbidden / careful
+- **Never edit `package.json` or anything under `scripts/`** (stack rule).
+- Never hard-code a domain on the client — use `getApiUrl()` /
+  `process.env.EXPO_PUBLIC_DOMAIN`.
+- Never re-introduce `no-cache` headers on `/`, `/manifest`, or
+  `manifest.json` (see Expo Go Persistence below).
+- Bundle identifiers in `app.json` are frozen unless the user asks.
 
-### UI/UX Decisions
-- **Color Palette:** Primary Dark Blue (`#0B2545`), Medium Blue (`#4299E1`), Accent Teal (`#319795`), Coral Red (`#EA526F` for FAB), Success Green (`#10B981`), Warning Orange (`#DD6B20`), Tab Icon Amber (`#F59E0B`).
-- **Typography Scale:** Defined hierarchy from `hero` (34px, 700) to `caption` (13px, 400).
-- **Touch Targets:** Minimum 48pt, preferred 56pt, with a 92px diameter Floating Action Button (FAB).
-- **Shadows:** Platform-specific implementations (`boxShadow` for web, native `shadow*` for iOS/Android) for cards, modals, and FAB.
-- **Dual Branding:** Custom header component `HeaderTitle.tsx` handles "OUVRO" and "Architects-France" logos.
+## Key Files
+- `client/App.tsx` — root, wraps `ErrorBoundary` + `ColdStartOverlay`.
+- `client/lib/durable-queue-store.ts` — generic offline queue used by
+  `offline-sync.ts` (observations), `offline-tasks.ts`, `offline-dqe.ts`,
+  `offline-annotations.ts`.
+- `client/hooks/useProjectLock.tsx` — sticky project selection.
+- `client/lib/audit-prompts.ts` — pre-deployment audit prompt text.
+- `server/cache-headers.ts` — single source of truth for Expo cache
+  headers (used by `server/index.ts` and the cache test).
+- `server/__tests__/cache-headers.test.ts` — guards the persistence
+  cache contract.
+- `shared/task-sync-types.ts` — `TaskSyncPayload` contract (see JSDoc
+  there for the wire-level rules).
+- `scripts/build.js` — static build, manifest URL rewriter, hygiene guard.
 
-### Technical Implementations
-- **Frontend:** Expo SDK 54 and React Native for cross-platform mobile development.
-- **Navigation:** React Navigation 7+ using native stack and bottom tabs.
-- **Data Fetching:** TanStack Query for efficient data management and caching.
-- **Backend:** Express.js server (TypeScript) serving an API on port 5000 and a static landing page. Routes split into domain routers under `server/routes/` (projects, observations, ai, archidoc, sync, dqe) with shared ARCHIDOC proxy helpers in `server/routes/archidoc-helpers.ts`.
-- **Database:** PostgreSQL with Drizzle ORM for local data persistence, hosted on Neon.
-- **Offline Sync (Store-and-Forward):** Observations and tasks stored locally via `DurableQueueStore<T>` (`client/lib/durable-queue-store.ts`) which wraps AsyncStorage persistence, FileSystem durable copying, and event emitter logic. Both `offline-sync.ts` and `offline-tasks.ts` compose this store. Items only dequeue when server returns 200 OK (ArchiDoc confirmed receipt). Observation sync states: pending, uploading_metadata, uploading_media, partial, complete, failed. Task sync states: pending, transcribing, review, accepted, uploading, complete, failed.
-- **Annotation System:** In-app annotation tools (pen, arrow, circle, rectangle, freehand, text, measurement) with construction-standard colors. Supports pinch-to-zoom and flattens annotations onto images. Offline-first save: captures are stored locally immediately (15s captureRef timeout, cancel button during save), then uploaded in background via `DurableQueueStore`. Auto-retry on reconnect (120s interval, max 10 retries). Interrupted uploads reset to pending on restart. Pending annotations visible in Queue screen with thumbnail, status, retry/delete actions. Key files: `client/lib/offline-annotations.ts`, `client/hooks/useOfflineAnnotations.tsx`.
-- **PDF Viewing:** PDFs rendered in `react-native-webview` with a "Capture for Annotation" feature. iOS uses native screenshot detection for clipping.
-- **API Field Mapping:** Types in `archidoc-types.ts`, runtime logic in `archidoc-api.ts`. Centralized `archidocApiFetch` base function handles URL construction, auth, and error checking. `mapRawProject` and `mapDQEItem` mappers normalize snake_case API responses to camelCase with resilience for multiple field name variants.
+## Features (current state)
+- **Capture FAB → CaptureModal** with Photo, Video, DQE, Audio, Action.
+- **Observation sync:** local-first, dequeues only on Archidoc 200 OK.
+  States: pending → uploading_metadata → uploading_media → partial →
+  complete / failed.
+- **Task capture (audio-first, offline-first):** "Accept & Save" stores
+  audio + `localId` UUID immediately; optional "Transcribe First"
+  invokes Gemini before review. Sync via `POST /api/tasks/sync`
+  (`TaskSyncPayload`); server auto-transcribes if only audio is
+  supplied. Auto-sync on NetInfo reconnect + interval retry. States:
+  pending → transcribing → review → accepted → uploading →
+  complete / failed. Priority: low/normal/high/urgent. Class:
+  defect/action/followup/general.
+- **Annotation system:** pen, arrow, circle, rectangle, freehand, text,
+  measurement; pinch-to-zoom; flattened to image. Local save first,
+  background upload, queued items visible in Queue screen.
+- **DQE Field Video Capture:** offline-first narrated video workflow,
+  three quality tiers (iPad gets the highest), lens + torch toggles,
+  auto stabilisation, landscape-adaptive review. Two-step sync:
+  presigned PUT → `POST /api/dqe/submit` → Archidoc
+  `/api/ouvro/dqe/capture`. Auth: `x-api-key: $OUVRO_API_KEY`.
+- **Project Lock:** sticky project selection, persists in AsyncStorage,
+  surfaces on cards, Settings, and CaptureModal.
+- **Project Asset Hub:** 2×3 grid (PLANS, DQE, DOCS, LINKS, FICHES,
+  DRIVE) with availability-driven enable state.
+- **DQE Browser:** filter by lot code or contractor (`/api/contractors`).
+- **PDF viewer:** `react-native-webview` + "Capture for Annotation" (iOS
+  uses native screenshot detection).
+- **Cold-start overlay (`client/components/ColdStartOverlay.tsx`):**
+  branded "Loading from your device — no signal needed" splash on every
+  cold launch, dismissed when `NavigationContainer.onReady` fires.
 
-### Feature Specifications
-- **Observation Capture:** Floating capture button (FAB) opens CaptureModal with 3-row layout: [Photo, Video] / [DQE centered] / [Audio, Action]. Includes observation details form, Gemini AI-powered transcription (audio to English) and translation (to French).
-- **Task Capture (Unified, Offline-First, Speed-Optimized):** Record audio -> Accept & Save immediately (transcription optional). Two paths after recording:
-  1. **Quick path (recommended):** "Accept & Save" — saves task with audio only, no internet required, syncs later with audioBase64
-  2. **Transcribe path (optional):** "Transcribe First" — calls Gemini AI for text review, then accept
-  Zero data loss guaranteed: tasks persist locally until ArchiDoc confirms receipt (200 OK). Idempotent sync via `localId` UUID. Auto-sync via NetInfo listener + 120s retry timer. `VoiceTaskScreen` (fire-and-forget flow) has been removed.
-  - Key files: `client/lib/offline-tasks.ts`, `client/hooks/useOfflineTasks.tsx`, `client/screens/TaskCaptureScreen.tsx`, `shared/task-sync-types.ts`
-  - Task states: pending -> transcribing -> review -> accepted -> uploading -> complete/failed
-  - Sync contract: `POST /api/tasks/sync` with `TaskSyncPayload` (see `shared/task-sync-types.ts`). Requires at least one of `transcription` or `audioBase64`. When `audioBase64` is present but `transcription` is empty, the server auto-transcribes via Gemini AI before forwarding to ArchiDoc. Returns 200 only when ArchiDoc confirms; 502/503 otherwise.
-  - Auto-sync: NetInfo network listener triggers sync on reconnect; 120s interval auto-retry; max 20 retries
-  - Priority: low/normal/high/urgent. Classification: defect/action/followup/general.
-- **Project Lock:** Users can lock a project from the Asset Hub so all media captures (photo, video, audio, task) automatically use that project — no re-selection needed. Lock persists across screens and app restarts (AsyncStorage). Lock badge shows on project cards, Settings shows active lock with unlock option, Capture Modal shows locked project as read-only. Key file: `client/hooks/useProjectLock.tsx`.
-- **Project Asset Hub:** A 2x3 grid of buttons (PLANS, DQE, DOCS, LINKS, FICHES, DRIVE) with dynamic enablement logic based on project data availability.
-- **DQE Browser:** Displays DQE items, filterable by lot code or contractor (data fetched from `/api/contractors`).
-- **DQE Field Video Capture (Task #1):** Offline-first video narration workflow for architects. Three quality tiers: Efficient (720p H.264 4Mbps), Standard (1080p HEVC 8Mbps), Maximum (4K HEVC 16Mbps, iPad only). Full-screen camera with amber (#D97706) DQE branding, iOS lens toggle (`getAvailableLensesAsync`), torch toggle, stabilisation (`videoStabilizationMode="auto"`), 3-minute max duration, no file size cap. After recording: review screen with video playback, architect notes (freetext, 800 chars), landscape-adaptive layout on iPad Pro. Offline queue: `DurableQueueStore`-backed `client/lib/offline-dqe.ts` → two-step sync (presigned upload PUT → `POST /api/dqe/submit` → Archidoc `/api/ouvro/dqe/capture`). Auto-retry on reconnect (120s interval, max 20 retries). Provider: `DQESyncProvider` / `useDQESync` hook. New routes: `DQECapture`, `DQECaptureReview`. Auth: all calls to Archidoc `/api/ouvro/dqe/capture` include `x-api-key: <OUVRO_API_KEY>` header (see secret below).
+## Design Tokens
+Colors, typography, spacing, shadows: `constants/theme.ts` (`Colors`
+object). Touch targets ≥48pt, FAB 92pt. Use `boxShadow` on web, native
+`shadow*` props on iOS/Android. Dual brand handled in
+`client/components/HeaderTitle.tsx`.
 
-### System Design Choices
-- **Modularity:** Clear separation of concerns with dedicated folders for components, hooks, libraries, navigation, screens, and server routes.
-- **Environment Management:** Utilizes Expo environment variables for API URLs and secrets for database credentials and AI keys.
-- **Error Handling:** App-wide `ErrorBoundary.tsx` with a `ErrorFallback.tsx` UI for graceful error management.
-- **Keyboard Avoidance:** `KeyboardAwareScrollViewCompat.tsx` for optimal input experience.
+## API Field Mapping
+- Types: `archidoc-types.ts`. Runtime: `archidoc-api.ts`. All requests
+  go through `archidocApiFetch` (URL building, auth, error checking).
+- `mapRawProject`, `mapDQEItem` normalise snake_case → camelCase and
+  tolerate field-name variants.
 
-## External Dependencies
+## Environment
+- `OUVRO_API_KEY` — shared secret for `POST /api/ouvro/dqe/capture`.
+  Must match Archidoc's value.
+- `EXPO_PUBLIC_DOMAIN` — explicit deployment host override (highest
+  precedence in `getDeploymentDomain()`).
+- `REPLIT_INTERNAL_APP_DOMAIN` — set automatically in deploy env.
+- DB connection + Gemini key via Replit secrets.
+- ARCHIDOC base URL: `https://archidoc-app-archidoc.replit.app`.
 
-- **ARCHIDOC API:** `https://archidoc-app-archidoc.replit.app` - Core construction management platform API for projects, files, uploads, and field observations.
-- **PostgreSQL (Neon):** Primary database for the Express.js backend, managed by Drizzle ORM.
-- **Gemini AI:** Used for audio transcription (audio to English text) and translation (to French text) services.
-- **OUVRO_API_KEY:** Shared secret for authenticating Ouvro → Archidoc DQE intake calls. Sent as `x-api-key` header on every `POST /api/ouvro/dqe/capture` request. Must match the value stored in Archidoc's environment.
-- **TanStack Query:** Client-side data fetching and state management.
-- **React Navigation:** Library for navigation in React Native applications.
-- **AsyncStorage:** For local persistence of observation queues and media references in the mobile app.
-- **`react-native-webview`:** For rendering PDFs and web content within the app.
-- **`expo-image`:** For cross-platform image handling.
-- **`expo-screen-capture` & `expo-media-library`:** Used on iOS for PDF clip-to-annotate functionality.
-- **`react-native-reanimated`:** For gesture handling in annotation system.
-- **`expo-clipboard`:** For copy-to-clipboard functionality in the audit prompts section.
+## Expo Go Persistence (poor-signal field use)
+Expo Go always revalidates the manifest on cold launch — there is no
+`expo-updates fallbackToCacheTimeout`. We minimise the cold-start
+network dependency:
 
-## Expo Go Persistence (Poor-Signal Field Use)
+- **Cache headers** (single source: `server/cache-headers.ts`).
+  Manifest endpoints (`/` + `expo-platform` header, `/manifest`, and
+  `static-build/*/manifest.json`): `Cache-Control: public, max-age=300,
+  stale-while-revalidate=2592000` plus `Vary: expo-platform, Accept`.
+  Landing page (`/` without `expo-platform`): same Cache-Control + Vary.
+  Content-addressed bundles (`/<timestamp>/_expo/static/...`):
+  `public, max-age=31536000, immutable`. Guarded by
+  `server/__tests__/cache-headers.test.ts` — do not regress.
+- **Service worker** (`server/templates/sw.js`, version `v2`). Three
+  caches: `ouvro-shell`, `ouvro-manifest`, `ouvro-bundle`. Install pre-
+  caches landing shell + iOS/Android manifest + their `launchAsset`
+  bundles. Runtime: SWR for manifests, cache-first for bundles. Bump
+  `CACHE_VERSION` on any SW change.
+- **Build URL hygiene** (`scripts/build.js`). Rewrites any
+  `127.0.0.1:*`, `localhost:*`, or `*.replit.dev` URL Metro bakes into
+  `manifest.extra.expoClient` (incl. `iconUrl`, `*ImageUrl`) to the
+  deployment host. `assertManifestIsProductionSafe` then fails the
+  build if any forbidden host remains. `static-build/*/manifest.json`
+  is a build artifact and is **not** committed.
+- **Limitation.** Install-once persistence (zero manifest revalidation)
+  needs a standalone EAS Build → TestFlight / signed APK. Out of scope
+  while the team uses Expo Go.
 
-OUVRO is distributed via Expo Go, not a standalone build. Expo Go always
-revalidates the project manifest on cold launch — there is no `expo-updates`
-`fallbackToCacheTimeout` available. To make field cold-launches survive poor
-signal we minimize the cold-start network dependency rather than eliminating
-it. The contract is:
+## Pre-Deployment Audits
+Settings screen exposes three copy-to-clipboard prompts
+(`client/lib/audit-prompts.ts`):
+1. **Database** — schema vs `shared/schema.ts`, FKs, cascades, orphans,
+   indexes.
+2. **Application** — every server route, env vars, timeouts, error
+   shapes.
+3. **Data Persistence** — offline state machines, AsyncStorage keys,
+   durable media, reconnect retry, interrupted-upload recovery.
 
-- **Manifest cache contract.** Both `serveExpoManifest` (the `expo-platform`
-  branch on `/` and `/manifest`) and the static-build `manifest.json` route in
-  `server/index.ts` MUST send `Cache-Control: public, max-age=300,
-  stale-while-revalidate=2592000`. Bundle URLs inside the manifest are
-  content-addressed by build timestamp, so a stale manifest is always safe —
-  it points at an immutable bundle the device may already have cached. Do NOT
-  re-introduce `no-cache, no-store, must-revalidate` here.
-- **Landing page cache contract.** `serveLandingPage` uses the same
-  short-fresh + long stale-while-revalidate header so the bookmarked page
-  renders instantly from the browser cache on weak signal.
-- **Service worker.** `server/templates/sw.js` uses three named caches
-  (`ouvro-shell`, `ouvro-manifest`, `ouvro-bundle`). Manifest endpoints use
-  stale-while-revalidate; content-addressed bundle URLs (`/<timestamp>/_expo/`)
-  use cache-first. Bump `CACHE_VERSION` when changing the SW.
-- **Build-time URL hygiene.** `scripts/build.js` rewrites any `127.0.0.1:*`,
-  `localhost:*`, or `*.replit.dev` URL Metro bakes into the manifest (e.g.
-  `iconUrl`, `*ImageUrl`) to the deployment host, then asserts the final
-  manifest contains none of those hosts. The build will exit with a clear
-  error if it does. This guard exists because a manifest containing a
-  `*.replit.dev` workspace URL points Expo Go at a host that dies whenever
-  the dev workspace sleeps — which is the original reason field users saw
-  the "downloading" screen on poor signal.
-- **Build environment.** `npm run expo:static:build` resolves the deployment
-  domain via `getDeploymentDomain()` in `scripts/build.js`. Precedence is
-  `EXPO_PUBLIC_DOMAIN` → `REPLIT_INTERNAL_APP_DOMAIN` → `REPLIT_DEV_DOMAIN`.
-  Run inside the deployment environment (where `REPLIT_INTERNAL_APP_DOMAIN`
-  is set automatically) OR explicitly set `EXPO_PUBLIC_DOMAIN` to the
-  production host (e.g. `EXPO_PUBLIC_DOMAIN=site-scout--clivegpalmer.replit.app
-  npm run expo:static:build`) when building from a workspace. The hygiene
-  guard above will refuse to write a manifest built with a `*.replit.dev`
-  workspace domain.
-- **Limitation.** True install-once persistence (no manifest revalidation
-  on cold launch) requires a standalone EAS Build → TestFlight / signed APK.
-  That is intentionally out of scope while the team uses Expo Go.
-
-## Pre-Deployment Audit System
-
-### Overview
-The Settings screen contains a "Pre-Deployment Audits" section with three expandable audit prompt cards. Each prompt is a detailed, OUVRO-specific instruction set that can be copied to clipboard and pasted into an AI assistant to run the audit.
-
-### Audit Types
-1. **Database Audit** (`client/lib/audit-prompts.ts`) - Validates PostgreSQL schema against `shared/schema.ts`, checks foreign keys, cascade rules, orphaned records, and indexes.
-2. **Application Audit** - Tests all 21 server routes (CRUD, ARCHIDOC proxy, Gemini AI), verifies environment variables, timeout handling, and error responses.
-3. **Data Persistence Audit** - Validates offline sync state machine, AsyncStorage keys, durable media storage, network resilience, and interrupted upload recovery.
-
-### Agent Commands
-- **"update pre-deployment audits"** = Update the audit prompt text in `client/lib/audit-prompts.ts` to reflect any schema, route, or sync logic changes made to the codebase. Re-read the source files (shared/schema.ts, server/routes.ts, client/lib/offline-sync.ts) and regenerate the prompts accordingly.
-- **"RUN REDEPLOYMENT AUDITS"** = Execute all three audit prompts sequentially:
-  1. Run the Database Audit: query the actual PostgreSQL database using the execute_sql tool, compare against shared/schema.ts, and report findings.
-  2. Run the Application Audit: curl each server route on localhost:5000, check env vars, and report status.
-  3. Run the Data Persistence Audit: read client/lib/offline-sync.ts, verify state machine transitions, check AsyncStorage key usage, and report findings.
-  Produce a consolidated report with pass/fail for each category and recommendations.
+Agent shortcuts:
+- **"update pre-deployment audits"** — re-read `shared/schema.ts`,
+  `server/routes/*`, `client/lib/offline-*.ts`, regenerate the prompt
+  text in `client/lib/audit-prompts.ts`.
+- **"RUN REDEPLOYMENT AUDITS"** — execute all three audits in order
+  (real SQL via `execute_sql`, real curl on :5000, real read of
+  `client/lib/offline-sync.ts`) and produce a consolidated pass/fail
+  report.

@@ -30,6 +30,18 @@ type AnnotationEventType =
 
 type AnnotationEventListener = (event: AnnotationEventType, data?: unknown) => void;
 
+// Sync tunables for queued annotations (uploaded to Archidoc).
+// These numbers are deliberately conservative for poor-signal field use
+// on construction sites; if you change them, update the Annotation
+// section of the Pre-Deployment Audits prompt in
+// `client/lib/audit-prompts.ts`. They are NOT mirrored in `replit.md`
+// any more — the source of truth is here.
+//   MAX_RETRIES          — give up after this many failed upload attempts
+//                          per annotation (user can manually retry from
+//                          the Queue screen after that).
+//   AUTO_RETRY_INTERVAL  — background timer cadence (ms); also paired
+//                          with a NetInfo "reconnected" listener.
+//   UPLOAD_TIMEOUT       — abort an in-flight upload after this many ms.
 const MAX_RETRIES = 10;
 const AUTO_RETRY_INTERVAL = 120_000;
 const UPLOAD_TIMEOUT = 60_000;
