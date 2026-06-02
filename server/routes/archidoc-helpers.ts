@@ -70,6 +70,19 @@ export async function archidocJsonPost<T = unknown>(
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`[${context}] ARCHIDOC error:`, errorText);
+    // ARCHIDOC's edge firewall returns a 403 Forbidden HTML page (not JSON)
+    // when a request trips a WAF rule. Surface a clear, actionable message
+    // instead of leaking the raw HTML so the field team understands this is an
+    // ARCHIDOC-side block, not an app bug.
+    const looksLikeFirewallBlock =
+      response.status === 403 && /<\s*(?:!doctype|html)/i.test(errorText);
+    if (looksLikeFirewallBlock) {
+      return {
+        error:
+          "Blocked by the ARCHIDOC firewall (403). The ARCHIDOC team must allow this request — see server logs for details.",
+        status: response.status,
+      };
+    }
     return { error: `Failed to ${context.toLowerCase()}`, status: response.status };
   }
 

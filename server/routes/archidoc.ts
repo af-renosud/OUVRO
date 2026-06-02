@@ -14,12 +14,17 @@ archidocRouter.use(requireArchidocUrl);
 
 archidocRouter.post("/archidoc/upload-url", async (req: Request, res: Response) => {
   try {
-    const { fileName, contentType, assetType } = req.body;
+    const { fileName, contentType } = req.body;
     const archidocApiUrl = res.locals.archidocApiUrl;
 
+    // NOTE: Do NOT forward `assetType` here. ARCHIDOC's upload-url endpoint
+    // does not need it (it derives the storage path itself), and ARCHIDOC's
+    // edge firewall blocks any request whose body contains the substring
+    // "assettype" (case-insensitive) with a 403 Forbidden HTML page. Sending
+    // it broke all observation + DQE media uploads from the field.
     const result = await archidocJsonPost(
       `${archidocApiUrl}/api/field-observations/upload-url`,
-      { fileName, contentType, assetType },
+      { fileName, contentType },
       "Upload URL request"
     );
 
