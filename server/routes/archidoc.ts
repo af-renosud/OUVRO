@@ -66,12 +66,19 @@ archidocRouter.post("/archidoc/download-url", async (req: Request, res: Response
 
 archidocRouter.post("/archidoc/register-asset", async (req: Request, res: Response) => {
   try {
-    const { observationId, assetType, objectPath, fileName, mimeType } = req.body;
+    const { observationId, assetType, mediaCategory, objectPath, fileName, mimeType } = req.body;
     const archidocApiUrl = res.locals.archidocApiUrl;
 
+    // ARCHIDOC's edge firewall blocks any request whose body contains the
+    // substring "assettype" (case-insensitive), so ARCHIDOC renamed the
+    // required field to `mediaCategory`. We accept either key from our own
+    // client (the client -> our-server hop has no such firewall) and ALWAYS
+    // forward `mediaCategory` so the outbound request to ARCHIDOC never carries
+    // the blocked token.
+    const category = mediaCategory ?? assetType;
     const result = await archidocJsonPost(
       `${archidocApiUrl}/api/field-observations/${observationId}/assets`,
-      { assetType, objectPath, fileName, mimeType },
+      { mediaCategory: category, objectPath, fileName, mimeType },
       "Register asset"
     );
 

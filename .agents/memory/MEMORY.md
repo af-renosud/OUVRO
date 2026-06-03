@@ -1,1 +1,1 @@
-- [ARCHIDOC WAF blocks "assettype"](archidoc-waf-assettype.md) — edge firewall 403s any request containing substring "assettype"; don't send it to ARCHIDOC.
+- [ARCHIDOC WAF blocks "assettype"](archidoc-waf-assettype.md) — edge firewall 403s any request containing "assettype"; asset-register field renamed to mediaCategory.
