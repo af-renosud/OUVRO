@@ -222,6 +222,10 @@ class OfflineAnnotationService {
         FileSystem.uploadAsync(uploadInfo.uploadURL, annotation.localUri, {
           httpMethod: "PUT",
           uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+          // Foreground session: the legacy BACKGROUND default uses a separate-
+          // process URLSession that is unreliable in Expo Go and gets cancelled
+          // mid-upload ("Upload cancelled").
+          sessionType: FileSystem.FileSystemSessionType.FOREGROUND,
           headers: { "Content-Type": "image/jpeg" },
         }),
         UPLOAD_TIMEOUT,

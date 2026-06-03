@@ -1,1 +1,2 @@
 - [ARCHIDOC WAF blocks "assettype"](archidoc-waf-assettype.md) — edge firewall 403s any request containing "assettype"; asset-register field renamed to mediaCategory.
+- [Expo Go uploads need FOREGROUND session](expo-upload-foreground-session.md) — legacy createUploadTask/uploadAsync default to BACKGROUND URLSession that gets "Upload cancelled" in Expo Go.

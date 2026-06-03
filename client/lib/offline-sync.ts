@@ -651,6 +651,11 @@ class OfflineSyncService {
         {
           httpMethod: "PUT",
           uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+          // Use a FOREGROUND session. The legacy default is BACKGROUND, whose
+          // separate-process URLSession is unreliable in Expo Go and gets
+          // cancelled mid-upload ("Upload cancelled"). The user is actively
+          // watching sync progress, so a foreground session is correct here.
+          sessionType: FileSystem.FileSystemSessionType.FOREGROUND,
           headers: { "Content-Type": media.contentType },
         },
         (progress) => {
