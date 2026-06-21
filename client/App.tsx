@@ -19,6 +19,7 @@ import { ProjectLockProvider } from "@/hooks/useProjectLock";
 import { CaptureModeLockProvider } from "@/hooks/useCaptureModeLock";
 import { DQESyncProvider } from "@/hooks/useDQESync";
 import { SnagSyncProvider } from "@/hooks/useSnagSync";
+import { SiteRemindersProvider } from "@/hooks/useSiteReminders";
 
 const defaultHandler = (ErrorUtils as any).getGlobalHandler?.();
 (ErrorUtils as any).setGlobalHandler?.((error: Error, isFatal?: boolean) => {
@@ -41,6 +42,7 @@ export default function App() {
           <OfflineAnnotationsProvider>
           <DQESyncProvider>
           <SnagSyncProvider>
+          <SiteRemindersProvider>
           <SafeAreaProvider>
             <GestureHandlerRootView style={styles.root}>
               <KeyboardProvider>
@@ -52,6 +54,7 @@ export default function App() {
               </KeyboardProvider>
             </GestureHandlerRootView>
           </SafeAreaProvider>
+          </SiteRemindersProvider>
           </SnagSyncProvider>
           </DQESyncProvider>
           </OfflineAnnotationsProvider>

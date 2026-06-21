@@ -397,6 +397,103 @@ export interface PendingSnagCapture {
   retryCount: number;
 }
 
+// ── Site Reminders (Points à vérifier) ───────────────────────────────────────
+//
+// Source of truth lives in ARCHIDOC. Wire format is snake_case (matching the
+// existing OUVRO GET convention). Attachment `url` is short-lived (~1h) and must
+// never be written to durable storage — re-fetch to refresh; cache object_path.
+
+export interface RawSiteReminderAttachment {
+  object_path?: string;
+  objectPath?: string;
+  file_name?: string;
+  fileName?: string;
+  content_type?: string;
+  contentType?: string;
+  url?: string;
+}
+
+export interface RawSiteReminder {
+  id: string;
+  project_id?: string;
+  projectId?: string;
+  body_html?: string;
+  bodyHtml?: string;
+  body_text?: string;
+  bodyText?: string;
+  is_done?: boolean;
+  isDone?: boolean;
+  sort_order?: number;
+  sortOrder?: number;
+  attachments?: RawSiteReminderAttachment[];
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
+}
+
+export interface SiteReminderListResponse {
+  site_reminders?: RawSiteReminder[];
+}
+
+/** Durable-safe attachment shape — `url` is intentionally optional/ephemeral. */
+export interface SiteReminderAttachment {
+  objectPath: string;
+  fileName: string;
+  contentType: string;
+  /** Short-lived display/download URL. Absent when restored from offline cache. */
+  url?: string;
+}
+
+export interface SiteReminder {
+  id: string;
+  projectId: string;
+  bodyHtml: string;
+  bodyText: string;
+  isDone: boolean;
+  sortOrder: number;
+  attachments: SiteReminderAttachment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ReminderToggleSyncState =
+  | "pending"
+  | "uploading"
+  | "complete"
+  | "failed";
+
+/** A queued is_done toggle awaiting reconciliation with ARCHIDOC. */
+export interface PendingReminderToggle {
+  localId: string;
+  projectId: string;
+  reminderId: string;
+  isDone: boolean;
+  syncState: ReminderToggleSyncState;
+  /**
+   * Monotonic per-toggle operation sequence. A fresh user toggle bumps this so
+   * an in-flight sync of an earlier op can detect it was superseded and avoid
+   * clobbering the newer intent.
+   */
+  opSeq: number;
+  createdAt: string;
+  modifiedAt: string;
+  lastSyncAttempt?: string;
+  lastSyncError?: string;
+  retryCount: number;
+}
+
+/**
+ * Durable offline cache of a project's reminder list. localId === projectId so
+ * it satisfies DurableQueueStore's key constraint. Attachment `url` is stripped
+ * before caching (ephemeral contract).
+ */
+export interface CachedReminderList {
+  localId: string;
+  reminders: SiteReminder[];
+  cachedAt: string;
+}
+
 export interface PendingDQECapture {
   localId: string;
   projectId: string;

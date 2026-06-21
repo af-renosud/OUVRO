@@ -8,8 +8,9 @@ brand: OUVRO + Architects-France.
 ## Stack
 - **Mobile:** Expo SDK 54, React Native, React Navigation 7+, TanStack Query.
 - **Backend:** Express + TypeScript, port 5000. Domain routers under
-  `server/routes/` (projects, observations, ai, archidoc, sync, dqe);
-  ARCHIDOC proxying via `server/routes/archidoc-helpers.ts`.
+  `server/routes/` (projects, observations, ai, archidoc, sync, dqe,
+  snags, site-reminders); ARCHIDOC proxying via
+  `server/routes/archidoc-helpers.ts`.
 - **DB:** PostgreSQL on Neon, Drizzle ORM. Schema in `shared/schema.ts`.
 - **AI:** Gemini (audio → English transcription, EN → FR translation).
 - **Distribution:** Expo Go (no standalone build).
@@ -47,6 +48,13 @@ brand: OUVRO + Architects-France.
   cache contract.
 - `shared/task-sync-types.ts` — `TaskSyncPayload` contract (see JSDoc
   there for the wire-level rules).
+- `server/routes/site-reminders.ts` — Site Reminders BFF proxy + mock
+  store (`createSiteRemindersRouter(deps)`); guarded by
+  `server/routes/__tests__/site-reminders.test.ts`.
+- `client/lib/offline-reminders.ts` — Site Reminders offline service
+  (list cache + toggle queue via DurableQueueStore); provider in
+  `client/hooks/useSiteReminders.tsx`; screen
+  `client/screens/SiteRemindersScreen.tsx`.
 - `scripts/build.js` — static build, manifest URL rewriter, hygiene guard.
 
 ## Features (current state)
@@ -70,10 +78,24 @@ brand: OUVRO + Architects-France.
   auto stabilisation, landscape-adaptive review. Two-step sync:
   presigned PUT → `POST /api/dqe/submit` → Archidoc
   `/api/ouvro/dqe/capture`. Auth: `x-api-key: $OUVRO_API_KEY`.
+- **Site Reminders ("Points à vérifier"):** per-project, ARCHIDOC-sourced
+  checklist, viewable + tickable in the field, offline-first. v1 is
+  READ + toggle-done only. Both GET and PATCH route through the BFF
+  proxy (`server/routes/site-reminders.ts`) because auth uses the
+  server-side `OUVRO_API_KEY` (Bearer) — the client never calls ARCHIDOC
+  directly. Defaults to an in-memory mock store
+  (`SITE_REMINDERS_MODE=live` to proxy ARCHIDOC). Two DurableQueueStores:
+  list cache (one entry per project, `localId === projectId`) for
+  signal-free reads, and a toggle queue (`localId =
+  toggle_<projectId>_<reminderId>` for dedup) for optimistic is_done
+  changes. Attachment `url` is ephemeral and stripped before caching.
+  Reconciles on NetInfo reconnect + 120s interval (MAX 20 retries).
+  Hub entry: POINTS button. French-first labels.
 - **Project Lock:** sticky project selection, persists in AsyncStorage,
   surfaces on cards, Settings, and CaptureModal.
-- **Project Asset Hub:** 2×3 grid (PLANS, DQE, DOCS, LINKS, FICHES,
-  DRIVE) with availability-driven enable state.
+- **Project Asset Hub:** grid (PLANS, DQE, DOCS, LINKS, FICHES, POINTS,
+  DRIVE) with availability-driven enable state. POINTS opens Site
+  Reminders.
 - **DQE Browser:** filter by lot code or contractor (`/api/contractors`).
 - **PDF viewer:** `react-native-webview` + "Capture for Annotation" (iOS
   uses native screenshot detection).

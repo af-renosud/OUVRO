@@ -21,6 +21,7 @@ import TaskCaptureScreen from "@/screens/TaskCaptureScreen";
 import DQECaptureScreen from "@/screens/DQECaptureScreen";
 import DQECaptureReviewScreen from "@/screens/DQECaptureReviewScreen";
 import SnagDetailsScreen from "@/screens/SnagDetailsScreen";
+import SiteRemindersScreen from "@/screens/SiteRemindersScreen";
 
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import type { FileCategory, ProjectFile, ProjectLink, DQEItem, DQEQualityTier } from "@/lib/archidoc-api";
@@ -59,6 +60,7 @@ export type RootStackParamList = {
   Annotation: { file: ProjectFile; signedUrl: string; projectId: string; projectName?: string };
   ProjectFiles: { projectId: string; projectName: string };
   DQEBrowser: { projectId: string; projectName: string };
+  SiteReminders: { projectId: string; projectName: string };
   ProjectLinks: { projectId: string; projectName: string; links: ProjectLink[] };
   PlansScreen: { projectId: string; projectName: string };
   DocsScreen: { projectId: string; projectName: string };
@@ -161,6 +163,11 @@ export default function RootStackNavigator() {
         name="DQEBrowser"
         component={DQEBrowserScreen}
         options={{ headerTitle: "DQE" }}
+      />
+      <Stack.Screen
+        name="SiteReminders"
+        component={SiteRemindersScreen}
+        options={{ headerTitle: "Points à vérifier" }}
       />
       <Stack.Screen
         name="ProjectLinks"

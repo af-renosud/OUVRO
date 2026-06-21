@@ -31,6 +31,14 @@ export type {
   SnagSubmitResponse,
   PendingSnagMedia,
   PendingSnagCapture,
+  RawSiteReminder,
+  RawSiteReminderAttachment,
+  SiteReminderListResponse,
+  SiteReminder,
+  SiteReminderAttachment,
+  ReminderToggleSyncState,
+  PendingReminderToggle,
+  CachedReminderList,
 } from "./archidoc-types";
 
 export {
@@ -416,4 +424,121 @@ export async function submitSnagCapture(
     );
   }
   return data;
+}
+
+// ── Site Reminders (Points à vérifier) ───────────────────────────────────────
+
+export class SiteReminderApiError extends Error {
+  constructor(
+    message: string,
+    public readonly httpStatus: number
+  ) {
+    super(message);
+    this.name = "SiteReminderApiError";
+  }
+
+  /** 4xx (except 408/429) are permanent — do not retry an offline toggle. */
+  get isPermanent(): boolean {
+    if (this.httpStatus === 408 || this.httpStatus === 429) return false;
+    return this.httpStatus >= 400 && this.httpStatus < 500;
+  }
+}
+
+function mapSiteReminderAttachment(
+  raw: RawSiteReminderAttachment
+): SiteReminderAttachment | null {
+  const objectPath = raw.object_path ?? raw.objectPath;
+  if (!objectPath) return null;
+  return {
+    objectPath,
+    fileName: raw.file_name ?? raw.fileName ?? objectPath.split("/").pop() ?? objectPath,
+    contentType: raw.content_type ?? raw.contentType ?? "application/octet-stream",
+    url: raw.url,
+  };
+}
+
+export function mapSiteReminder(raw: RawSiteReminder): SiteReminder {
+  const attachments = (raw.attachments ?? [])
+    .map(mapSiteReminderAttachment)
+    .filter((a): a is SiteReminderAttachment => a !== null);
+  return {
+    id: raw.id,
+    projectId: raw.project_id ?? raw.projectId ?? "",
+    bodyHtml: raw.body_html ?? raw.bodyHtml ?? "",
+    bodyText: raw.body_text ?? raw.bodyText ?? "",
+    isDone: raw.is_done ?? raw.isDone ?? false,
+    sortOrder: raw.sort_order ?? raw.sortOrder ?? 0,
+    attachments,
+    createdAt: raw.created_at ?? raw.createdAt ?? "",
+    updatedAt: raw.updated_at ?? raw.updatedAt ?? "",
+  };
+}
+
+/**
+ * Reads a project's site reminders through the BFF proxy (the OUVRO_API_KEY
+ * Bearer auth lives server-side, so we never call ARCHIDOC directly).
+ */
+export async function fetchSiteReminders(
+  projectId: string
+): Promise<SiteReminder[]> {
+  const { getApiUrl } = await import("./query-client");
+  const url = new URL(
+    `/api/site-reminders/${encodeURIComponent(projectId)}`,
+    getApiUrl()
+  ).toString();
+  let response: Response;
+  try {
+    response = await fetch(url, { method: "GET", credentials: "include" });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Network request failed";
+    throw new SiteReminderApiError(message, 0);
+  }
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new SiteReminderApiError(
+      body.error || `Failed to load site reminders (${response.status})`,
+      response.status
+    );
+  }
+  const data = (await response.json()) as SiteReminderListResponse;
+  return (data.site_reminders ?? [])
+    .map(mapSiteReminder)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+/**
+ * Toggles a reminder's is_done through the BFF proxy. Returns the canonical
+ * reminder echoed back by the server.
+ */
+export async function patchSiteReminderDone(
+  projectId: string,
+  reminderId: string,
+  isDone: boolean
+): Promise<SiteReminder> {
+  const { getApiUrl } = await import("./query-client");
+  const url = new URL(
+    `/api/site-reminders/${encodeURIComponent(projectId)}/${encodeURIComponent(reminderId)}`,
+    getApiUrl()
+  ).toString();
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ is_done: isDone }),
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Network request failed";
+    throw new SiteReminderApiError(message, 0);
+  }
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new SiteReminderApiError(
+      body.error || `Failed to update site reminder (${response.status})`,
+      response.status
+    );
+  }
+  const data = (await response.json()) as RawSiteReminder;
+  return mapSiteReminder(data);
 }

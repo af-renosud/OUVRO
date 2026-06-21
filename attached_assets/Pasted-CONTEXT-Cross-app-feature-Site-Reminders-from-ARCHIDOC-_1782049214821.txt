@@ -1,0 +1,62 @@
+CONTEXT — Cross-app feature: "Site Reminders" from ARCHIDOC into OUVRO
+You are working on OUVRO, the iPad field app for architects. Its sister app
+ARCHIDOC owns a per-project feature called "Site Reminders" (internally
+"site visit actions", FR: "points à vérifier") — a checklist an architect
+builds of things to inspect/verify on a construction site. We want these
+reminders visible (and tickable) on the OUVRO mobile interface during site
+visits.
+This is a coordinated, two-agent effort:
+- ARCHIDOC agent will expose new OUVRO-authenticated REST endpoints + publish
+  the wire types in shared/ouvroApiContract.ts.
+- You (OUVRO agent) will build the mobile UI + offline sync that consumes them.
+DATA MODEL (source of truth lives in ARCHIDOC)
+Each Site Reminder:
+- id (string)
+- project_id (string)
+- body_html (string)  — rich text; may contain inline <img>. Render sanitized,
+  or fall back to body_text.
+- body_text (string)  — plain-text fallback for mobile.
+- is_done (boolean)
+- sort_order (number)
+- attachments[]: { object_path, file_name, content_type, url }
+    • url = short-lived (≈1h) signed/proxied URL for display/download.
+    • Do NOT persist `url` long-term — re-fetch to refresh. Cache object_path.
+- created_at, updated_at (ISO 8601 strings)
+PROPOSED API CONTRACT v1 (CONFIRM with ARCHIDOC before relying on it)
+Base URL: ARCHIDOC public host (e.g. https://archiouvro.com).
+Auth: Authorization: Bearer <OUVRO_API_KEY>  (same key you already use).
+- GET /api/ouvro/projects
+    Already exists — use it to list projects (snake_case items).
+- GET /api/ouvro/projects/:projectId/site-reminders
+    → { site_reminders: SiteReminder[] }  (ordered by sort_order)
+- PATCH /api/ouvro/projects/:projectId/site-reminders/:reminderId
+    body { is_done: boolean } → updated SiteReminder
+- (Phase 2, optional) POST create from mobile; POST .../reorder.
+All responses snake_case (matches the existing OUVRO GET convention).
+Errors: { error: string } with appropriate HTTP status (401 on bad token).
+MOBILE UI REQUIREMENTS
+- Per-project "Site Reminders" list, ordered by sort_order, done items visually
+  distinct.
+- Render body_html (sanitized) or body_text; show attachment thumbnails, tap to
+  open/download via `url`.
+- Tap-to-toggle done with optimistic UI.
+- French-first labels ("Points à vérifier" / "Site reminders").
+- READ + toggle-done only for v1 (no create/delete from mobile unless we agree
+  to Phase 2).
+OFFLINE-FIRST (important — match OUVRO's existing patterns)
+- Cache the reminder list locally (Dexie).
+- Queue is_done toggles offline and reconcile on reconnect, same as the snags /
+  Revue de Chantier flows.
+- Treat `url` as ephemeral; never write it to durable storage.
+YOUR FIRST STEPS
+1. Review the proposed contract above against OUVRO's conventions and reply with
+   any changes/additions you need (field names, pagination, etc.). This is v1 —
+   negotiate before either side hard-codes it.
+2. Build the mobile UI + Dexie store + sync layer against a LOCAL MOCK that
+   implements the contract, so you are not blocked on ARCHIDOC.
+3. Integrate against the live endpoints once ARCHIDOC confirms they are deployed
+   and the OUVRO_API_KEY is provisioned.
+4. Do NOT change the meaning of any shared field unilaterally — anything that
+   touches the shared contract goes back to the ARCHIDOC agent first.
+Report back with: (a) your confirmed/edited contract, and (b) the mock you built
+against, so ARCHIDOC can implement endpoints that match exactly.

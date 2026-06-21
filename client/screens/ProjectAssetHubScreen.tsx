@@ -47,6 +47,7 @@ const assetButtons: AssetButtonConfig[] = [
   { id: "docs", label: "DOCS", icon: "file-text", color: BUTTON_ICON_COLOR, bgColor: BUTTON_BG_COLOR },
   { id: "links", label: "LINKS", icon: "link", color: BUTTON_ICON_COLOR, bgColor: BUTTON_BG_COLOR },
   { id: "fiches", label: "FICHES", icon: "paperclip", color: BUTTON_ICON_COLOR, bgColor: BUTTON_BG_COLOR },
+  { id: "reminders", label: "POINTS", icon: "check-square", color: BUTTON_ICON_COLOR, bgColor: BUTTON_BG_COLOR },
   { id: "drive", label: "DRIVE", icon: "hard-drive", color: BUTTON_ICON_COLOR, bgColor: BUTTON_BG_COLOR },
 ];
 
@@ -150,6 +151,12 @@ export default function ProjectAssetHubScreen() {
         break;
       case "dqe":
         navigation.navigate("DQEBrowser", {
+          projectId: project.id,
+          projectName: project.name,
+        });
+        break;
+      case "reminders":
+        navigation.navigate("SiteReminders", {
           projectId: project.id,
           projectName: project.name,
         });
