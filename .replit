@@ -81,6 +81,7 @@ isValidation = true
 EXPO_PUBLIC_ARCHIDOC_API_URL = "https://archidoc-app-archidoc.replit.app"
 ARCHIDOC_API_URL = "https://archidoc-app-ARCHIDOC.replit.app"
 OUVRO_TEST_PROJECT_ID = "7e2ea927-9f2b-4322-a5ba-bea612b747cf"
+SITE_REMINDERS_MODE = "mock"
 
 [postMerge]
 path = "post-merge.sh"
