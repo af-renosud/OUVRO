@@ -2,3 +2,4 @@
 - [Expo Go uploads need FOREGROUND session](expo-upload-foreground-session.md) — legacy createUploadTask/uploadAsync default to BACKGROUND URLSession that gets "Upload cancelled" in Expo Go.
 - [tsc too slow — validate via Metro bundle](tsc-too-slow-validate-via-metro.md) — full/scoped tsc never finishes; curl the client/index.bundle for import+syntax validation instead.
 - [Offline optimistic-write concurrency](offline-optimistic-write-concurrency.md) — offline-* services need per-op opSeq versioning + refresh-token sequencing or they lose latest intent / regress to stale GETs.
+- [ARCHIDOC proxy deploy check](archidoc-proxy-deploy-check.md) — proxied 404 with HTML "Cannot GET" = route not deployed on ARCHIDOC host; JSON-bodied 404 = route exists. Smoke live before trusting go-live.
