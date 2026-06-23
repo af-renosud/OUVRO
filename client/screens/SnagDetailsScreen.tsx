@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -23,8 +23,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useCaptureModeLock } from "@/hooks/useCaptureModeLock";
 import { useSnagSync } from "@/hooks/useSnagSync";
-import { fetchArchidocProjects, type MappedProject } from "@/lib/archidoc-api";
-import type { SnagSeverity } from "@/lib/archidoc-types";
+import { DictationButton } from "@/components/DictationButton";
+import { fetchContractors, type ProjectFile } from "@/lib/archidoc-api";
+import type { SnagSeverity, Contractor } from "@/lib/archidoc-types";
 import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNavigator";
 
 const SEVERITY_OPTIONS: { value: SnagSeverity; label: string }[] = [
@@ -56,30 +57,17 @@ export default function SnagDetailsScreen() {
   const { mode, unlockMode } = useCaptureModeLock();
   const { addCapture } = useSnagSync();
 
-  const { data: projects = [] } = useQuery<MappedProject[]>({
-    queryKey: ["archidoc-projects"],
-    queryFn: fetchArchidocProjects,
+  const { data: contractors = [] } = useQuery<Contractor[]>({
+    queryKey: ["archidoc-contractors"],
+    queryFn: fetchContractors,
   });
 
-  const project = useMemo(
-    () => projects.find((p) => p.id === projectId) || null,
-    [projects, projectId]
+  const sortedContractors = useMemo(
+    () => [...contractors].sort((a, b) => a.name.localeCompare(b.name)),
+    [contractors]
   );
 
-  const contractorEntries = useMemo(() => {
-    const map = project?.lotContractors || {};
-    const seen = new Set<string>();
-    const out: { lotCode: string; name: string }[] = [];
-    Object.entries(map).forEach(([lotCode, name]) => {
-      const key = `${lotCode}|${name}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push({ lotCode, name });
-      }
-    });
-    return out.sort((a, b) => a.lotCode.localeCompare(b.lotCode));
-  }, [project]);
-
+  const [media, setMedia] = useState<MediaItem[]>(mediaItems);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [severity, setSeverity] = useState<SnagSeverity | undefined>(undefined);
@@ -88,6 +76,41 @@ export default function SnagDetailsScreen() {
   const [location, setLocation] = useState("");
   const [showContractorPicker, setShowContractorPicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const annotatedMedia = route.params.annotatedMedia;
+  useEffect(() => {
+    if (!annotatedMedia) return;
+    setMedia((prev) =>
+      prev.map((m, i) =>
+        i === annotatedMedia.index ? { ...m, uri: annotatedMedia.uri } : m
+      )
+    );
+    navigation.setParams({ annotatedMedia: undefined });
+  }, [annotatedMedia, navigation]);
+
+  const handleAnnotatePhoto = useCallback(
+    (item: MediaItem, index: number) => {
+      const file: ProjectFile = {
+        objectId: `local-snag-photo-${index}`,
+        objectName: `snag-photo-${index}.jpg`,
+        originalName: `Photo ${index + 1}`,
+        contentType: "image/jpeg",
+        size: 0,
+        projectId,
+        category: "photos",
+        createdAt: new Date().toISOString(),
+      };
+      navigation.navigate("Annotation", {
+        file,
+        signedUrl: item.uri,
+        projectId,
+        projectName: projectName || "Unknown Project",
+        returnScreen: "SnagDetails",
+        mediaIndex: index,
+      });
+    },
+    [navigation, projectId, projectName]
+  );
 
   if (!mode) {
     return (
@@ -113,9 +136,9 @@ export default function SnagDetailsScreen() {
 
   const modeLabel = mode === "defaut" ? "Défaut" : "Réserve";
 
-  const pickContractor = (entry: { lotCode: string; name: string } | null) => {
+  const pickContractor = (entry: Contractor | null) => {
     if (entry) {
-      setContractorId(entry.lotCode);
+      setContractorId(entry.id);
       setContractorName(entry.name);
     } else {
       setContractorId(undefined);
@@ -126,7 +149,7 @@ export default function SnagDetailsScreen() {
   const handleSave = async () => {
     setSubmitting(true);
     try {
-      const media = mediaItems.map((m) => ({
+      const mediaPayload = media.map((m) => ({
         type: m.type,
         uri: m.uri,
         mimeType: mediaToMime(m),
@@ -144,7 +167,7 @@ export default function SnagDetailsScreen() {
         contractorId,
         contractorName: finalContractorName,
         location: location.trim() || undefined,
-        media,
+        media: mediaPayload,
       });
       navigation.popToTop();
     } catch (err) {
@@ -208,43 +231,63 @@ export default function SnagDetailsScreen() {
         </View>
 
         <ThemedText style={styles.sectionTitle}>
-          {mediaItems.length} média{mediaItems.length > 1 ? "s" : ""} capturé{mediaItems.length > 1 ? "s" : ""}
+          {media.length} média{media.length > 1 ? "s" : ""} capturé{media.length > 1 ? "s" : ""}
         </ThemedText>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.mediaPreviewRow}
         >
-          {mediaItems.map((m, i) => (
-            <View
-              key={`${m.uri}-${i}`}
-              style={[
-                styles.mediaPreview,
-                { backgroundColor: theme.backgroundSecondary, borderColor: theme.border },
-              ]}
-            >
-              {m.type === "photo" || m.type === "video" ? (
-                <Image source={{ uri: m.uri }} style={styles.mediaPreviewImage} resizeMode="cover" />
-              ) : (
-                <View style={styles.audioPreviewBox}>
-                  <Feather name="mic" size={28} color={BrandColors.primary} />
-                </View>
-              )}
-              {m.type === "video" ? (
-                <View style={styles.mediaOverlay}>
-                  <Feather name="play-circle" size={22} color="#FFFFFF" />
-                  {m.duration ? (
-                    <ThemedText style={styles.mediaOverlayText}>{formatDuration(m.duration)}</ThemedText>
-                  ) : null}
-                </View>
-              ) : null}
-              {m.type === "audio" && m.duration ? (
-                <ThemedText style={[styles.audioDuration, { color: theme.textSecondary }]}>
-                  {formatDuration(m.duration)}
-                </ThemedText>
-              ) : null}
-            </View>
-          ))}
+          {media.map((m, i) => {
+            const isPhoto = m.type === "photo";
+            const inner = (
+              <>
+                {m.type === "photo" || m.type === "video" ? (
+                  <Image source={{ uri: m.uri }} style={styles.mediaPreviewImage} resizeMode="cover" />
+                ) : (
+                  <View style={styles.audioPreviewBox}>
+                    <Feather name="mic" size={28} color={BrandColors.primary} />
+                  </View>
+                )}
+                {m.type === "video" ? (
+                  <View style={styles.mediaOverlay}>
+                    <Feather name="play-circle" size={22} color="#FFFFFF" />
+                    {m.duration ? (
+                      <ThemedText style={styles.mediaOverlayText}>{formatDuration(m.duration)}</ThemedText>
+                    ) : null}
+                  </View>
+                ) : null}
+                {m.type === "audio" && m.duration ? (
+                  <ThemedText style={[styles.audioDuration, { color: theme.textSecondary }]}>
+                    {formatDuration(m.duration)}
+                  </ThemedText>
+                ) : null}
+                {isPhoto ? (
+                  <View style={styles.annotateBadge}>
+                    <Feather name="edit-2" size={11} color="#FFFFFF" />
+                    <ThemedText style={styles.annotateBadgeText}>Annoter</ThemedText>
+                  </View>
+                ) : null}
+              </>
+            );
+            const previewStyle = [
+              styles.mediaPreview,
+              { backgroundColor: theme.backgroundSecondary, borderColor: theme.border },
+            ];
+            return isPhoto ? (
+              <Pressable
+                key={`${m.uri}-${i}`}
+                onPress={() => handleAnnotatePhoto(m, i)}
+                style={previewStyle}
+              >
+                {inner}
+              </Pressable>
+            ) : (
+              <View key={`${m.uri}-${i}`} style={previewStyle}>
+                {inner}
+              </View>
+            );
+          })}
         </ScrollView>
 
         <ThemedText style={styles.label}>Titre</ThemedText>
@@ -256,7 +299,14 @@ export default function SnagDetailsScreen() {
           onChangeText={setTitle}
         />
 
-        <ThemedText style={styles.label}>Description</ThemedText>
+        <View style={styles.labelRow}>
+          <ThemedText style={styles.labelInline}>Description</ThemedText>
+          <DictationButton
+            onTranscribed={(t) =>
+              setDescription((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))
+            }
+          />
+        </View>
         <TextInput
           style={[
             styles.input,
@@ -313,10 +363,8 @@ export default function SnagDetailsScreen() {
           onPress={() => setShowContractorPicker(true)}
           style={[styles.input, styles.pickerInput, { borderColor: theme.border }]}
         >
-          <ThemedText style={{ color: contractorId ? theme.text : theme.textTertiary }}>
-            {contractorId
-              ? `${contractorId} — ${contractorName}`
-              : "Choisir dans la liste du projet"}
+          <ThemedText style={{ color: contractorName ? theme.text : theme.textTertiary }}>
+            {contractorName || "Choisir dans la liste"}
           </ThemedText>
           <Feather name="chevron-down" size={18} color={theme.textSecondary} />
         </Pressable>
@@ -355,17 +403,17 @@ export default function SnagDetailsScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { paddingBottom: insets.bottom + Spacing.lg }]}>
             <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>Entreprise du projet</ThemedText>
+              <ThemedText style={styles.modalTitle}>Entreprises</ThemedText>
               <Pressable onPress={() => setShowContractorPicker(false)}>
                 <Feather name="x" size={22} color={BrandColors.primary} />
               </Pressable>
             </View>
             <FlatList
-              data={contractorEntries}
-              keyExtractor={(item) => `${item.lotCode}-${item.name}`}
+              data={sortedContractors}
+              keyExtractor={(item) => item.id}
               ListEmptyComponent={
                 <ThemedText style={styles.emptyPicker}>
-                  Aucune entreprise listée pour ce projet
+                  Aucune entreprise disponible
                 </ThemedText>
               }
               ListFooterComponent={
@@ -382,7 +430,6 @@ export default function SnagDetailsScreen() {
               renderItem={({ item }) => (
                 <Pressable onPress={() => pickContractor(item)} style={styles.contractorRow}>
                   <View style={styles.contractorTextWrap}>
-                    <ThemedText style={styles.contractorLot}>{item.lotCode}</ThemedText>
                     <ThemedText style={styles.contractorName}>{item.name}</ThemedText>
                   </View>
                   <Feather name="chevron-right" size={18} color={BrandColors.primary} />
@@ -445,6 +492,27 @@ const styles = StyleSheet.create({
   mediaOverlayText: { color: "#FFFFFF", fontSize: 11, fontWeight: "600" },
   audioDuration: { position: "absolute", bottom: 6, fontSize: 11, fontWeight: "600" },
   label: { fontSize: 13, fontWeight: "600", marginTop: Spacing.md, marginBottom: Spacing.xs },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  labelInline: { fontSize: 13, fontWeight: "600" },
+  annotateBadge: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
+  },
+  annotateBadgeText: { color: "#FFFFFF", fontSize: 10, fontWeight: "600" },
   input: {
     borderWidth: 1,
     borderRadius: BorderRadius.md,

@@ -22,7 +22,7 @@ interface UseAudioRecorderReturn {
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
   discardRecording: () => void;
-  requestPermission: () => Promise<void>;
+  requestPermission: () => Promise<boolean>;
   formatDuration: (seconds: number) => string;
 }
 
@@ -63,7 +63,7 @@ export function useAudioRecorder(
     }
   }, []);
 
-  const requestPermission = useCallback(async () => {
+  const requestPermission = useCallback(async (): Promise<boolean> => {
     if (Platform.OS === "web") {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -71,8 +71,10 @@ export function useAudioRecorder(
         });
         stream.getTracks().forEach((track) => track.stop());
         setPermissionStatus("granted");
+        return true;
       } catch {
         setPermissionStatus("denied");
+        return false;
       }
     } else {
       try {
@@ -85,8 +87,10 @@ export function useAudioRecorder(
         const permissionPromise = requestRecordingPermissionsAsync();
         const result = await Promise.race([permissionPromise, timeoutPromise]);
         setPermissionStatus(result.granted ? "granted" : "denied");
+        return result.granted;
       } catch {
         setPermissionStatus("denied");
+        return false;
       }
     }
   }, []);

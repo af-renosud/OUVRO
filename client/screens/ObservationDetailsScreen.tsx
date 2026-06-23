@@ -18,6 +18,7 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
+import { DictationButton } from "@/components/DictationButton";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
@@ -97,6 +98,14 @@ export default function ObservationDetailsScreen() {
     lastDescriptionRef.current = cleaned;
     setDescription(cleaned);
   }, [detectAndRemoveDuplication]);
+
+  const appendDescription = useCallback((text: string) => {
+    setDescription((prev) => {
+      const next = prev.trim() ? `${prev.trim()} ${text}` : text;
+      lastDescriptionRef.current = next;
+      return next;
+    });
+  }, []);
 
   const saveToOfflineQueue = async () => {
     setIsSaving(true);
@@ -274,7 +283,10 @@ export default function ObservationDetailsScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.label}>Description</ThemedText>
+          <View style={styles.labelRow}>
+            <ThemedText style={styles.label}>Description</ThemedText>
+            <DictationButton onTranscribed={appendDescription} />
+          </View>
           <TextInput
             style={[
               styles.input,
@@ -434,6 +446,12 @@ const styles = StyleSheet.create({
   label: {
     ...Typography.h3,
     marginBottom: Spacing.sm,
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.xs,
   },
   mediaHint: {
     ...Typography.caption,

@@ -7,12 +7,12 @@ export const aiRouter = Router();
 
 aiRouter.post("/transcribe", async (req: Request, res: Response) => {
   try {
-    const { audioBase64, mimeType = "audio/mp4" } = req.body;
+    const { audioBase64, mimeType = "audio/mp4", language } = req.body;
     if (!audioBase64) {
       return res.status(400).json({ error: "Audio data is required" });
     }
 
-    const transcription = await transcribeAudio(audioBase64, mimeType);
+    const transcription = await transcribeAudio(audioBase64, mimeType, language);
     return res.json({ transcription });
   } catch (error) {
     console.error("Error transcribing audio:", error);

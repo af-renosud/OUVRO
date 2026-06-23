@@ -52,12 +52,24 @@ export type RootStackParamList = {
   };
 
   ObservationDetails: { projectId: string; projectName?: string; mediaItems?: MediaItem[] };
-  SnagDetails: { projectId: string; projectName?: string; mediaItems: MediaItem[] };
+  SnagDetails: {
+    projectId: string;
+    projectName?: string;
+    mediaItems: MediaItem[];
+    annotatedMedia?: { index: number; uri: string };
+  };
   ProjectDetail: { projectId: string };
   ProjectAssetHub: { projectId: string };
   ShareModal: { observation: ShareObservation; projectName: string; contractorName?: string };
   FileViewer: { file: ProjectFile; signedUrl: string; projectId?: string };
-  Annotation: { file: ProjectFile; signedUrl: string; projectId: string; projectName?: string };
+  Annotation: {
+    file: ProjectFile;
+    signedUrl: string;
+    projectId: string;
+    projectName?: string;
+    returnScreen?: "SnagDetails";
+    mediaIndex?: number;
+  };
   ProjectFiles: { projectId: string; projectName: string };
   DQEBrowser: { projectId: string; projectName: string };
   SiteReminders: { projectId: string; projectName: string };

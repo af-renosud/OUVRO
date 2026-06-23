@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { View, StyleSheet, Pressable, Platform, Image, useWindowDimensions } from "react-native";
+import { View, StyleSheet, Pressable, Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -12,6 +12,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useCaptureModeLock } from "@/hooks/useCaptureModeLock";
+import { ZoomableImage } from "@/components/ZoomableImage";
 
 export default function PhotoCaptureScreen() {
   const { theme } = useTheme();
@@ -123,7 +124,7 @@ export default function PhotoCaptureScreen() {
           </View>
           
           <View style={styles.landscapeMain}>
-            <Image source={{ uri: capturedPhoto }} style={styles.previewImage} />
+            <ZoomableImage uri={capturedPhoto} style={styles.previewImage} />
           </View>
 
           <View style={[styles.landscapeSideControls, { paddingRight: insets.right + Spacing.md }]}>
@@ -146,7 +147,7 @@ export default function PhotoCaptureScreen() {
 
     return (
       <View style={styles.container}>
-        <Image source={{ uri: capturedPhoto }} style={styles.previewImage} />
+        <ZoomableImage uri={capturedPhoto} style={styles.previewImage} />
         <View style={[styles.previewOverlay, { paddingTop: insets.top + Spacing.md }]}>
           <Pressable style={styles.closeButton} onPress={handleClose}>
             <Feather name="x" size={28} color="#FFFFFF" />

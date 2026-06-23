@@ -70,7 +70,7 @@ export default function AnnotationScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "Annotation">>();
-  const { file, signedUrl, projectId, projectName } = route.params;
+  const { file, signedUrl, projectId, projectName, returnScreen, mediaIndex } = route.params;
   const { addAnnotation } = useOfflineAnnotations();
 
   const viewShotRef = useRef<ViewShot>(null);
@@ -341,6 +341,15 @@ export default function AnnotationScreen() {
         const uri = await Promise.race([capturePromise, timeoutPromise]);
 
         if (isCancelled()) return;
+
+        if (returnScreen === "SnagDetails" && typeof mediaIndex === "number") {
+          navigation.navigate({
+            name: "SnagDetails",
+            params: { annotatedMedia: { index: mediaIndex, uri } },
+            merge: true,
+          });
+          return;
+        }
 
         await addAnnotation({
           capturedUri: uri,
