@@ -103,7 +103,15 @@ class OfflineSnagService {
 
       this.netInfoUnsubscribe = NetInfo.addEventListener((state: NetInfoState) => {
         if (state.isConnected && this.getPendingCount() > 0 && !this.isSyncing) {
-          this.syncAllPending().catch(() => {});
+          // On reconnect, revive snags that exhausted their retries (or were
+          // marked failed) so they resume automatically. Media is never lost.
+          this.reviveIncomplete();
+          this.persist()
+            .then(() => {
+              this.emit("stateChanged");
+              return this.syncAllPending();
+            })
+            .catch(() => {});
         }
       });
 
@@ -223,6 +231,32 @@ class OfflineSnagService {
     capture.retryCount = 0;
     capture.lastSyncError = undefined;
     capture.modifiedAt = new Date().toISOString();
+    await this.persist();
+    this.emit("stateChanged");
+    this.syncAllPending().catch(() => {});
+  }
+
+  // Revive every unfinished capture: reset retry counter, flip failed back to
+  // pending, clear stale error. In-flight uploads are left untouched.
+  private reviveIncomplete(): void {
+    this.captures.forEach((capture) => {
+      if (
+        capture.syncState === "complete" ||
+        capture.syncState === "uploading_media" ||
+        capture.syncState === "uploading_metadata"
+      ) {
+        return;
+      }
+      capture.syncState = "pending";
+      capture.retryCount = 0;
+      capture.lastSyncError = undefined;
+      capture.modifiedAt = new Date().toISOString();
+    });
+  }
+
+  // Manual "retry everything" escape hatch for the Queue screen.
+  async retryAllFailed(): Promise<void> {
+    this.reviveIncomplete();
     await this.persist();
     this.emit("stateChanged");
     this.syncAllPending().catch(() => {});

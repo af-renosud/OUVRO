@@ -18,10 +18,12 @@ interface OfflineSyncContextValue {
   updateObservation: (localId: string, updates: Partial<Pick<OfflineObservation, "title" | "description" | "transcription" | "translatedText">>) => Promise<void>;
   removeObservation: (localId: string) => Promise<void>;
   retryObservation: (localId: string) => Promise<void>;
+  retryAllFailed: () => Promise<void>;
   startSync: () => Promise<void>;
   cancelSync: () => void;
   saveSettings: (settings: Partial<SyncSettings>) => Promise<void>;
   clearCompleted: () => Promise<void>;
+  failedCount: number;
 }
 
 const OfflineSyncContext = createContext<OfflineSyncContextValue | null>(null);
@@ -95,6 +97,10 @@ export function OfflineSyncProvider({ children }: OfflineSyncProviderProps) {
     return offlineSyncService.retryObservation(localId);
   }, []);
 
+  const retryAllFailed = useCallback(async () => {
+    return offlineSyncService.retryAllFailed();
+  }, []);
+
   const startSync = useCallback(async () => {
     return offlineSyncService.startSync();
   }, []);
@@ -112,6 +118,11 @@ export function OfflineSyncProvider({ children }: OfflineSyncProviderProps) {
   }, []);
 
   const pendingCount = observations.filter((obs) => obs.syncState !== "complete").length;
+  const failedCount = observations.filter(
+    (obs) =>
+      obs.syncState !== "complete" &&
+      (obs.syncState === "failed" || obs.syncState === "partial" || obs.retryCount > 0)
+  ).length;
 
   const value: OfflineSyncContextValue = {
     observations,
@@ -124,10 +135,12 @@ export function OfflineSyncProvider({ children }: OfflineSyncProviderProps) {
     updateObservation,
     removeObservation,
     retryObservation,
+    retryAllFailed,
     startSync,
     cancelSync,
     saveSettings,
     clearCompleted,
+    failedCount,
   };
 
   return (

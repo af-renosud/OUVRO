@@ -204,10 +204,30 @@ class OfflineSyncService {
 
         if (!wasConnected && state.isConnected) {
           this.autoRetryAttempts = 0;
-          if (this.settings.autoSync) {
-            this.startSync();
-          } else if (this.getPendingCount() > 0) {
-            this.scheduleAutoRetry();
+          // Connectivity just came back after being offline. Give every
+          // unfinished item a clean slate (reset retry counters, flip
+          // failed/partial back to pending) so items that previously
+          // exhausted their retries resume automatically instead of staying
+          // parked. Media is never discarded by this.
+          const resumeSync = () => {
+            if (this.settings.autoSync) {
+              this.startSync();
+            } else if (this.getPendingCount() > 0) {
+              this.scheduleAutoRetry();
+            }
+          };
+          if (this.reviveIncompleteInMemory()) {
+            // Persist the revived state BEFORE kicking off a sync so the revive
+            // snapshot can't race with (and overwrite) the uploading-state
+            // snapshot startSync writes.
+            this.persist()
+              .then(() => {
+                this.emit("stateChanged");
+                resumeSync();
+              })
+              .catch(resumeSync);
+          } else {
+            resumeSync();
           }
         }
       });
@@ -418,8 +438,13 @@ class OfflineSyncService {
       return;
     }
 
+    // Attempt every unfinished observation. We deliberately do NOT gate on
+    // retryCount here: the per-item counter only drives upload backoff timing,
+    // not permanent eligibility. Automatic hammering is bounded by the
+    // auto-retry scheduler (AUTO_RETRY_MAX_ATTEMPTS), which pauses — it never
+    // parks items in an unrecoverable state.
     const pendingObs = this.getObservations().filter(
-      (obs) => obs.syncState !== "complete" && obs.retryCount < this.settings.maxRetries
+      (obs) => obs.syncState !== "complete"
     );
 
     if (pendingObs.length === 0) {
@@ -517,6 +542,54 @@ class OfflineSyncService {
     this.autoRetryAttempts = 0;
     if (this.canSync()) {
       this.startSync();
+    }
+  }
+
+  // Revive every unfinished observation in memory: reset retry counters, flip
+  // failed/partial back to pending, and clear stale errors so they become
+  // eligible for sync again. In-flight uploads are left untouched. Returns
+  // true if anything changed. Caller is responsible for persisting/emitting.
+  private reviveIncompleteInMemory(): boolean {
+    let changed = false;
+    this.observations.forEach((obs) => {
+      if (
+        obs.syncState === "complete" ||
+        obs.syncState === "uploading_metadata" ||
+        obs.syncState === "uploading_media"
+      ) {
+        return;
+      }
+      obs.retryCount = 0;
+      obs.lastSyncError = undefined;
+      if (obs.syncState === "failed" || obs.syncState === "partial") {
+        obs.syncState = "pending";
+      }
+      obs.media.forEach((m) => {
+        if (m.syncState === "failed" || m.syncState === "pending") {
+          m.syncState = "pending";
+          m.retryCount = 0;
+          m.lastError = undefined;
+        }
+      });
+      changed = true;
+    });
+    return changed;
+  }
+
+  // Manual "retry everything" escape hatch for the Queue screen. Revives all
+  // stuck/failed observations and kicks off a sync. Safe to call offline — the
+  // revived items will sync on the next connection.
+  async retryAllFailed(): Promise<void> {
+    const changed = this.reviveIncompleteInMemory();
+    if (changed) {
+      await this.persist();
+      this.emit("stateChanged");
+    }
+    this.autoRetryAttempts = 0;
+    if (this.canSync()) {
+      this.startSync();
+    } else if (this.getPendingCount() > 0) {
+      this.scheduleAutoRetry();
     }
   }
 

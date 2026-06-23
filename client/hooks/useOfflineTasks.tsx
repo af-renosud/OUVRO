@@ -20,10 +20,12 @@ interface OfflineTasksContextValue {
   acceptTask: (localId: string, finalTranscription: string, options?: { priority?: TaskPriority; classification?: TaskClassification }) => Promise<void>;
   removeTask: (localId: string) => Promise<void>;
   retryTask: (localId: string) => Promise<void>;
+  retryAllFailed: () => Promise<void>;
   clearCompleted: () => Promise<void>;
   getTask: (localId: string) => OfflineTask | undefined;
   syncTask: (localId: string) => Promise<void>;
   syncAllPending: () => Promise<void>;
+  failedCount: number;
 }
 
 const OfflineTasksContext = createContext<OfflineTasksContextValue | null>(null);
@@ -79,6 +81,10 @@ export function OfflineTasksProvider({ children }: { children: ReactNode }) {
     return offlineTaskService.retryTask(localId);
   }, []);
 
+  const retryAllFailed = useCallback(async () => {
+    return offlineTaskService.retryAllFailed();
+  }, []);
+
   const clearCompleted = useCallback(async () => {
     return offlineTaskService.clearCompleted();
   }, []);
@@ -96,6 +102,9 @@ export function OfflineTasksProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const pendingCount = tasks.filter((t) => t.syncState !== "complete").length;
+  const failedCount = tasks.filter(
+    (t) => t.syncState !== "complete" && t.retryCount > 0
+  ).length;
 
   const value: OfflineTasksContextValue = {
     tasks,
@@ -106,10 +115,12 @@ export function OfflineTasksProvider({ children }: { children: ReactNode }) {
     acceptTask,
     removeTask,
     retryTask,
+    retryAllFailed,
     clearCompleted,
     getTask,
     syncTask,
     syncAllPending,
+    failedCount,
   };
 
   return (

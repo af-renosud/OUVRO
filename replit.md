@@ -62,6 +62,19 @@ brand: OUVRO + Architects-France.
 - **Observation sync:** local-first, dequeues only on Archidoc 200 OK.
   States: pending → uploading_metadata → uploading_media → partial →
   complete / failed.
+- **Sync recovery (pause-not-park):** retry ceilings only PAUSE automatic
+  retrying — they never permanently park an item. Across all offline queues
+  (observations, tasks, annotations, DQE, snags) each service has a private
+  `reviveIncomplete()` (reset retryCount, flip failed/partial→pending, clear
+  errors; skips in-flight `uploading*` states) and a public `retryAllFailed()`.
+  Items are revived automatically on NetInfo reconnect and manually via the
+  Queue screen "Retry all failed (N)" button (shown as "Re-queue failed" when
+  offline) and pull-to-refresh. `offline-sync.startSync` no longer gates on
+  per-item retryCount (the counter only drives upload backoff timing); the
+  auto-retry scheduler cap still bounds background hammering. Media/audio files
+  are deleted ONLY after a confirmed upload, so stuck media is always
+  recoverable. Hooks expose `retryAllFailed` + a `failedCount` (non-complete
+  items in a failure state or with retryCount > 0).
 - **Task capture (audio-first, offline-first):** "Accept & Save" stores
   audio + `localId` UUID immediately; optional "Transcribe First"
   invokes Gemini before review. Sync via `POST /api/tasks/sync`

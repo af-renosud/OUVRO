@@ -10,9 +10,11 @@ interface SnagSyncContextValue {
   addCapture: (params: AddSnagParams) => Promise<string>;
   removeCapture: (localId: string) => Promise<void>;
   retryCapture: (localId: string) => Promise<void>;
+  retryAllFailed: () => Promise<void>;
   clearCompleted: () => Promise<void>;
   syncNow: () => Promise<void>;
   refresh: () => void;
+  failedCount: number;
 }
 
 const SnagSyncContext = createContext<SnagSyncContextValue | null>(null);
@@ -57,6 +59,10 @@ export function SnagSyncProvider({ children }: { children: ReactNode }) {
     return offlineSnagService.retryCapture(localId);
   }, []);
 
+  const retryAllFailed = useCallback(async () => {
+    return offlineSnagService.retryAllFailed();
+  }, []);
+
   const clearCompleted = useCallback(async () => {
     return offlineSnagService.clearCompleted();
   }, []);
@@ -71,6 +77,9 @@ export function SnagSyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const pendingCount = captures.filter((c) => c.syncState !== "complete").length;
+  const failedCount = captures.filter(
+    (c) => c.syncState !== "complete" && (c.syncState === "failed" || c.retryCount > 0)
+  ).length;
 
   return (
     <SnagSyncContext.Provider
@@ -81,9 +90,11 @@ export function SnagSyncProvider({ children }: { children: ReactNode }) {
         addCapture,
         removeCapture,
         retryCapture,
+        retryAllFailed,
         clearCompleted,
         syncNow,
         refresh,
+        failedCount,
       }}
     >
       {children}

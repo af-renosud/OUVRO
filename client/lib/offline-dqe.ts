@@ -59,8 +59,17 @@ class OfflineDQEService {
 
       this.netInfoUnsubscribe = NetInfo.addEventListener((state: NetInfoState) => {
         if (state.isConnected && this.getPendingCount() > 0 && !this.isSyncing) {
-          if (__DEV__) console.log("[OfflineDQE] Network reconnected, auto-syncing DQE captures");
-          this.syncAllPending().catch(() => {});
+          if (__DEV__) console.log("[OfflineDQE] Network reconnected, reviving + auto-syncing DQE captures");
+          // Connectivity returned: revive any capture that previously exhausted
+          // its retries (or was marked failed) so it resumes automatically. The
+          // video file is never discarded.
+          this.reviveIncomplete();
+          this.persist()
+            .then(() => {
+              this.emit("stateChanged");
+              return this.syncAllPending();
+            })
+            .catch(() => {});
         }
       });
 
@@ -185,6 +194,28 @@ class OfflineDQEService {
     await this.persist();
     this.emit("stateChanged");
 
+    this.syncAllPending().catch(() => {});
+  }
+
+  // Revive every unfinished capture: reset retry counters, flip failed back to
+  // pending, clear stale errors. In-flight uploads are left untouched.
+  private reviveIncomplete(): void {
+    this.captures.forEach((capture) => {
+      if (capture.syncState === "complete" || capture.syncState === "uploading") {
+        return;
+      }
+      capture.syncState = "pending";
+      capture.retryCount = 0;
+      capture.lastSyncError = undefined;
+      capture.modifiedAt = new Date().toISOString();
+    });
+  }
+
+  // Manual "retry everything" escape hatch for the Queue screen.
+  async retryAllFailed(): Promise<void> {
+    this.reviveIncomplete();
+    await this.persist();
+    this.emit("stateChanged");
     this.syncAllPending().catch(() => {});
   }
 

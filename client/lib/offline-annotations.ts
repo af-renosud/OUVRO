@@ -82,7 +82,20 @@ class OfflineAnnotationService {
   private startNetworkListener(): void {
     this.netInfoUnsubscribe = NetInfo.addEventListener((state) => {
       if (state.isConnected && state.isInternetReachable !== false) {
-        this.syncAllPending();
+        // On reconnect, revive any annotation that exhausted its retries so it
+        // resumes automatically. The local image file is never discarded.
+        // Persist the revived state BEFORE syncing so the revive snapshot can't
+        // race with (and overwrite) the uploading-state snapshot the sync writes.
+        if (this.reviveIncomplete()) {
+          this.persist()
+            .then(() => {
+              this.emit("stateChanged");
+              this.syncAllPending();
+            })
+            .catch(() => this.syncAllPending());
+        } else {
+          this.syncAllPending();
+        }
       }
     });
   }
@@ -179,6 +192,31 @@ class OfflineAnnotationService {
     await this.persist();
     this.emit("stateChanged");
     this.syncAnnotation(localId);
+  }
+
+  // Revive every unfinished annotation: reset retry counter, flip failed back
+  // to pending, clear stale error. In-flight uploads are left untouched.
+  // Returns true if anything changed.
+  private reviveIncomplete(): boolean {
+    let changed = false;
+    this.annotations.forEach((ann) => {
+      if (ann.syncState === "complete" || ann.syncState === "uploading") return;
+      ann.syncState = "pending";
+      ann.retryCount = 0;
+      ann.lastSyncError = undefined;
+      ann.modifiedAt = new Date().toISOString();
+      changed = true;
+    });
+    return changed;
+  }
+
+  // Manual "retry everything" escape hatch for the Queue screen.
+  async retryAllFailed(): Promise<void> {
+    if (this.reviveIncomplete()) {
+      await this.persist();
+      this.emit("stateChanged");
+    }
+    this.syncAllPending();
   }
 
   async clearCompleted(): Promise<void> {

@@ -13,8 +13,10 @@ interface OfflineAnnotationsContextValue {
   }) => Promise<string>;
   removeAnnotation: (localId: string) => Promise<void>;
   retryAnnotation: (localId: string) => Promise<void>;
+  retryAllFailed: () => Promise<void>;
   clearCompleted: () => Promise<void>;
   syncAllPending: () => Promise<void>;
+  failedCount: number;
 }
 
 const OfflineAnnotationsContext = createContext<OfflineAnnotationsContextValue | null>(null);
@@ -58,6 +60,10 @@ export function OfflineAnnotationsProvider({ children }: { children: ReactNode }
     return offlineAnnotationService.retryAnnotation(localId);
   }, []);
 
+  const retryAllFailed = useCallback(async () => {
+    return offlineAnnotationService.retryAllFailed();
+  }, []);
+
   const clearCompleted = useCallback(async () => {
     return offlineAnnotationService.clearCompleted();
   }, []);
@@ -67,6 +73,9 @@ export function OfflineAnnotationsProvider({ children }: { children: ReactNode }
   }, []);
 
   const pendingCount = annotations.filter((a) => a.syncState !== "complete").length;
+  const failedCount = annotations.filter(
+    (a) => a.syncState !== "complete" && (a.syncState === "failed" || a.retryCount > 0)
+  ).length;
 
   const value: OfflineAnnotationsContextValue = {
     annotations,
@@ -75,8 +84,10 @@ export function OfflineAnnotationsProvider({ children }: { children: ReactNode }
     addAnnotation,
     removeAnnotation,
     retryAnnotation,
+    retryAllFailed,
     clearCompleted,
     syncAllPending,
+    failedCount,
   };
 
   return (

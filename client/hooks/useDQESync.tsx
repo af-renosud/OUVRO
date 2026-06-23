@@ -18,9 +18,11 @@ interface DQESyncContextValue {
   }) => Promise<string>;
   removeCapture: (localId: string) => Promise<void>;
   retryCapture: (localId: string) => Promise<void>;
+  retryAllFailed: () => Promise<void>;
   clearCompleted: () => Promise<void>;
   syncNow: () => Promise<void>;
   refresh: () => void;
+  failedCount: number;
 }
 
 const DQESyncContext = createContext<DQESyncContextValue | null>(null);
@@ -76,6 +78,10 @@ export function DQESyncProvider({ children }: { children: ReactNode }) {
     return offlineDQEService.retryCapture(localId);
   }, []);
 
+  const retryAllFailed = useCallback(async () => {
+    return offlineDQEService.retryAllFailed();
+  }, []);
+
   const clearCompleted = useCallback(async () => {
     return offlineDQEService.clearCompleted();
   }, []);
@@ -90,6 +96,9 @@ export function DQESyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const pendingCount = captures.filter((c) => c.syncState !== "complete").length;
+  const failedCount = captures.filter(
+    (c) => c.syncState !== "complete" && (c.syncState === "failed" || c.retryCount > 0)
+  ).length;
 
   return (
     <DQESyncContext.Provider
@@ -100,9 +109,11 @@ export function DQESyncProvider({ children }: { children: ReactNode }) {
         addCapture,
         removeCapture,
         retryCapture,
+        retryAllFailed,
         clearCompleted,
         syncNow,
         refresh,
+        failedCount,
       }}
     >
       {children}

@@ -143,8 +143,10 @@ export default function QueueScreen() {
     startSync,
     cancelSync,
     retryObservation,
+    retryAllFailed,
     removeObservation,
     clearCompleted,
+    failedCount: failedObsCount,
   } = useOfflineSync();
 
   const {
@@ -152,9 +154,11 @@ export default function QueueScreen() {
     pendingCount: taskPendingCount,
     removeTask,
     retryTask,
+    retryAllFailed: retryAllTasks,
     syncTask,
     syncAllPending: syncAllTasks,
     clearCompleted: clearCompletedTasks,
+    failedCount: failedTaskCount,
   } = useOfflineTasks();
 
   const {
@@ -162,8 +166,10 @@ export default function QueueScreen() {
     pendingCount: annotationPendingCount,
     removeAnnotation,
     retryAnnotation,
+    retryAllFailed: retryAllAnnotations,
     syncAllPending: syncAllAnnotations,
     clearCompleted: clearCompletedAnnotations,
+    failedCount: failedAnnotationCount,
   } = useOfflineAnnotations();
 
   const {
@@ -171,10 +177,12 @@ export default function QueueScreen() {
     pendingCount: dqePendingCount,
     isSyncing: isDQESyncing,
     retryCapture: retryDQECapture,
+    retryAllFailed: retryAllDQE,
     removeCapture: removeDQECapture,
     clearCompleted: clearCompletedDQE,
     syncNow: syncAllDQE,
     refresh: refreshDQECaptures,
+    failedCount: failedDQECount,
   } = useDQESync();
 
   const {
@@ -182,11 +190,15 @@ export default function QueueScreen() {
     pendingCount: snagPendingCount,
     isSyncing: isSnagSyncing,
     retryCapture: retrySnagCapture,
+    retryAllFailed: retryAllSnags,
     removeCapture: removeSnagCapture,
     clearCompleted: clearCompletedSnags,
     syncNow: syncAllSnags,
     refresh: refreshSnagCaptures,
+    failedCount: failedSnagCount,
   } = useSnagSync();
+
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -243,14 +255,42 @@ export default function QueueScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+    // Sync All must also include items whose retry ceiling was reached, so we go
+    // through retryAllFailed() (revive exhausted items, then sync everything
+    // pending). Several services gate syncAllPending by retryCount, which would
+    // otherwise leave capped items behind.
     await Promise.all([
-      startSync(),
-      syncAllTasks(),
-      syncAllAnnotations(),
-      syncAllDQE(),
-      syncAllSnags(),
+      retryAllFailed(),
+      retryAllTasks(),
+      retryAllAnnotations(),
+      retryAllDQE(),
+      retryAllSnags(),
     ]);
-  }, [isNetworkAvailable, startSync, syncAllTasks, syncAllAnnotations, syncAllDQE, syncAllSnags]);
+  }, [isNetworkAvailable, retryAllFailed, retryAllTasks, retryAllAnnotations, retryAllDQE, retryAllSnags]);
+
+  const handleRetryAllFailed = useCallback(async () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    // Revive + resync every stuck/failed item across all queues. Safe offline:
+    // revived items are simply re-queued and upload on the next connection.
+    await Promise.all([
+      retryAllFailed(),
+      retryAllTasks(),
+      retryAllAnnotations(),
+      retryAllDQE(),
+      retryAllSnags(),
+    ]);
+  }, [retryAllFailed, retryAllTasks, retryAllAnnotations, retryAllDQE, retryAllSnags]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await handleRetryAllFailed();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [handleRetryAllFailed]);
 
   const handleCancelSync = useCallback(() => {
     Alert.alert("Cancel Sync", "Are you sure you want to cancel the current sync?", [
@@ -1222,6 +1262,9 @@ export default function QueueScreen() {
     return renderObservation({ item: item.data });
   };
 
+  const totalFailed =
+    failedObsCount + failedTaskCount + failedAnnotationCount + failedDQECount + failedSnagCount;
+
   return (
     <BackgroundView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
@@ -1265,6 +1308,19 @@ export default function QueueScreen() {
                 </ThemedText>
               </Pressable>
             )}
+            {!isSyncing && totalFailed > 0 ? (
+              <Pressable
+                style={[styles.retryAllButton, { borderColor: BrandColors.warning }]}
+                onPress={handleRetryAllFailed}
+              >
+                <Feather name="refresh-cw" size={16} color={BrandColors.warning} />
+                <ThemedText style={[styles.retryAllText, { color: BrandColors.warning }]}>
+                  {isNetworkAvailable
+                    ? `Retry all failed (${totalFailed})`
+                    : `Re-queue failed (${totalFailed})`}
+                </ThemedText>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -1283,8 +1339,8 @@ export default function QueueScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl 
-            refreshing={false} 
-            onRefresh={() => {}} 
+            refreshing={refreshing} 
+            onRefresh={handleRefresh} 
           />
         }
         ListEmptyComponent={
@@ -1388,6 +1444,20 @@ const styles = StyleSheet.create({
   syncAllText: {
     ...Typography.label,
     color: "#FFFFFF",
+  },
+  retryAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+  },
+  retryAllText: {
+    ...Typography.label,
   },
   listContent: {
     paddingHorizontal: Spacing.lg,

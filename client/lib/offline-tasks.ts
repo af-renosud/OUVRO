@@ -105,8 +105,16 @@ class OfflineTaskService {
   private startNetworkListener(): void {
     this.netInfoUnsubscribe = NetInfo.addEventListener((state: NetInfoState) => {
       if (state.isConnected && this.getAcceptedCount() > 0 && !this.isSyncing) {
-        if (__DEV__) console.log("[OfflineTasks] Network reconnected, auto-syncing tasks");
-        this.syncAllPending().catch(() => {});
+        if (__DEV__) console.log("[OfflineTasks] Network reconnected, reviving + auto-syncing tasks");
+        // Revive accepted tasks that exhausted their retries so they resume
+        // automatically. Recorded audio is never discarded.
+        this.reviveIncomplete();
+        this.persist()
+          .then(() => {
+            this.emit("stateChanged");
+            return this.syncAllPending();
+          })
+          .catch(() => {});
       }
     });
   }
@@ -260,6 +268,26 @@ class OfflineTaskService {
 
     await this.persist();
     this.emit("stateChanged");
+  }
+
+  // Revive accepted tasks that exhausted their retries: reset the retry counter
+  // and clear stale errors so they become eligible for sync again. Tasks still
+  // awaiting review/transcription are left untouched.
+  private reviveIncomplete(): void {
+    this.tasks.forEach((task) => {
+      if (task.syncState === "accepted" && task.retryCount > 0) {
+        task.retryCount = 0;
+        task.lastSyncError = undefined;
+      }
+    });
+  }
+
+  // Manual "retry everything" escape hatch for the Queue screen.
+  async retryAllFailed(): Promise<void> {
+    this.reviveIncomplete();
+    await this.persist();
+    this.emit("stateChanged");
+    this.syncAllPending().catch(() => {});
   }
 
   async clearCompleted(): Promise<void> {
