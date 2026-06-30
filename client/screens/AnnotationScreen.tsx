@@ -1,11 +1,10 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { View, StyleSheet, Pressable, ActivityIndicator, Alert, Platform, useWindowDimensions, Modal, TextInput, KeyboardAvoidingView } from "react-native";
+import { View, StyleSheet, Pressable, ActivityIndicator, Alert, Platform, useWindowDimensions, Modal, TextInput, KeyboardAvoidingView, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import type { FeatherIconName } from "@/lib/types";
-import { CrossPlatformImage } from "@/components/CrossPlatformImage";
 import Svg, { Path, Circle, Rect, Line, G, Text as SvgText } from "react-native-svg";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
 import { runOnJS, useSharedValue } from "react-native-reanimated";
@@ -75,6 +74,11 @@ export default function AnnotationScreen() {
 
   const viewShotRef = useRef<ViewShot>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [imageReady, setImageReady] = useState(false);
+
+  useEffect(() => {
+    setImageReady(false);
+  }, [signedUrl]);
   const [elements, setElements] = useState<DrawingElement[]>([]);
   const [currentElement, setCurrentElement] = useState<DrawingElement | null>(null);
   const [selectedTool, setSelectedTool] = useState<AnnotationType>("freehand");
@@ -306,6 +310,11 @@ export default function AnnotationScreen() {
 
     if (canvasWidth <= 0 || canvasHeight <= 0) {
       Alert.alert("Error", "Canvas not ready. Please wait a moment and try again.");
+      return;
+    }
+
+    if (!imageReady) {
+      Alert.alert("Please wait", "The image is still loading. Try again in a moment.");
       return;
     }
 
@@ -576,11 +585,12 @@ export default function AnnotationScreen() {
               }}
             >
               <View style={{ width: canvasWidth, height: canvasHeight }}>
-                <CrossPlatformImage
+                <Image
                   source={{ uri: signedUrl }}
                   style={[styles.backgroundImage, { width: canvasWidth, height: canvasHeight }]}
-                  contentFit="contain"
-                  onLoad={() => {}}
+                  resizeMode="contain"
+                  fadeDuration={0}
+                  onLoad={() => setImageReady(true)}
                   onError={handleImageError}
                 />
                 <Svg style={StyleSheet.absoluteFill} width={canvasWidth} height={canvasHeight}>
