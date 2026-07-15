@@ -12,6 +12,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useCaptureModeLock } from "@/hooks/useCaptureModeLock";
+import { GestureDetector } from "react-native-gesture-handler";
+import { useCameraZoom } from "@/hooks/useCameraZoom";
 
 export default function VideoCaptureScreen() {
   const { theme } = useTheme();
@@ -32,6 +34,12 @@ export default function VideoCaptureScreen() {
   const cameraRef = useRef<CameraView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const durationRef = useRef(0);
+  const { zoom, pinchGesture, resetZoom } = useCameraZoom();
+
+  const flipFacing = () => {
+    resetZoom();
+    setFacing((f) => (f === "back" ? "front" : "back"));
+  };
 
   const isLandscape = width > height;
   const isPhone = width < 500;
@@ -270,13 +278,16 @@ export default function VideoCaptureScreen() {
               </ThemedText>
             </View>
           ) : (
-            <CameraView
-              ref={cameraRef}
-              style={styles.camera}
-              facing={facing}
-              mode="video"
-              videoQuality="480p"
-            />
+            <GestureDetector gesture={pinchGesture}>
+              <CameraView
+                ref={cameraRef}
+                style={styles.camera}
+                facing={facing}
+                mode="video"
+                videoQuality="480p"
+                zoom={zoom}
+              />
+            </GestureDetector>
           )}
         </View>
 
@@ -284,7 +295,7 @@ export default function VideoCaptureScreen() {
           {!isRecording ? (
             <Pressable
               style={styles.flipButton}
-              onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
+              onPress={flipFacing}
             >
               <Feather name="refresh-cw" size={24} color="#FFFFFF" />
             </Pressable>
@@ -326,13 +337,16 @@ export default function VideoCaptureScreen() {
           </Pressable>
         </View>
       ) : (
-        <CameraView
-          ref={cameraRef}
-          style={styles.camera}
-          facing={facing}
-          mode="video"
-          videoQuality="480p"
-        />
+        <GestureDetector gesture={pinchGesture}>
+          <CameraView
+            ref={cameraRef}
+            style={styles.camera}
+            facing={facing}
+            mode="video"
+            videoQuality="480p"
+            zoom={zoom}
+          />
+        </GestureDetector>
       )}
 
       <View style={[styles.topControls, { paddingTop: insets.top + Spacing.md }]}>
@@ -349,7 +363,7 @@ export default function VideoCaptureScreen() {
         ) : (
           <Pressable
             style={styles.flipButton}
-            onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
+            onPress={flipFacing}
           >
             <Feather name="refresh-cw" size={24} color="#FFFFFF" />
           </Pressable>

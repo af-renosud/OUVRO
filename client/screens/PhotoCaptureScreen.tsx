@@ -13,6 +13,8 @@ import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useCaptureModeLock } from "@/hooks/useCaptureModeLock";
 import { ZoomableImage } from "@/components/ZoomableImage";
+import { GestureDetector } from "react-native-gesture-handler";
+import { useCameraZoom } from "@/hooks/useCameraZoom";
 
 export default function PhotoCaptureScreen() {
   const { theme } = useTheme();
@@ -27,6 +29,12 @@ export default function PhotoCaptureScreen() {
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [facing, setFacing] = useState<"front" | "back">("back");
   const cameraRef = useRef<CameraView>(null);
+  const { zoom, pinchGesture, resetZoom } = useCameraZoom();
+
+  const flipFacing = () => {
+    resetZoom();
+    setFacing((f) => (f === "back" ? "front" : "back"));
+  };
 
   const isLandscape = width > height;
   const isPhone = width < 500;
@@ -199,18 +207,21 @@ export default function PhotoCaptureScreen() {
               </ThemedText>
             </View>
           ) : (
-            <CameraView
-              ref={cameraRef}
-              style={styles.camera}
-              facing={facing}
-            />
+            <GestureDetector gesture={pinchGesture}>
+              <CameraView
+                ref={cameraRef}
+                style={styles.camera}
+                facing={facing}
+                zoom={zoom}
+              />
+            </GestureDetector>
           )}
         </View>
 
         <View style={[styles.landscapeSideControls, { paddingRight: insets.right + Spacing.md }]}>
           <Pressable
             style={styles.flipButton}
-            onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
+            onPress={flipFacing}
           >
             <Feather name="refresh-cw" size={24} color="#FFFFFF" />
           </Pressable>
@@ -252,11 +263,14 @@ export default function PhotoCaptureScreen() {
           </Pressable>
         </View>
       ) : (
-        <CameraView
-          ref={cameraRef}
-          style={styles.camera}
-          facing={facing}
-        />
+        <GestureDetector gesture={pinchGesture}>
+          <CameraView
+            ref={cameraRef}
+            style={styles.camera}
+            facing={facing}
+            zoom={zoom}
+          />
+        </GestureDetector>
       )}
       
       <View style={[styles.topControls, { paddingTop: insets.top + Spacing.md }]}>
@@ -265,7 +279,7 @@ export default function PhotoCaptureScreen() {
         </Pressable>
         <Pressable
           style={styles.flipButton}
-          onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
+          onPress={flipFacing}
         >
           <Feather name="refresh-cw" size={24} color="#FFFFFF" />
         </Pressable>

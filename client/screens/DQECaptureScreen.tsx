@@ -17,6 +17,8 @@ import { Feather } from "@expo/vector-icons";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import type { DQEQualityTier } from "@/lib/archidoc-types";
+import { GestureDetector } from "react-native-gesture-handler";
+import { useCameraZoom } from "@/hooks/useCameraZoom";
 
 const DQE_QUALITY_STORAGE_KEY = "ouvro_dqe_quality_tier";
 
@@ -116,6 +118,7 @@ export default function DQECaptureScreen() {
   const cameraRef = useRef<CameraView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const durationRef = useRef(0);
+  const { zoom, pinchGesture, resetZoom } = useCameraZoom();
 
   const isPad = (Platform as { isPad?: boolean }).isPad === true;
   const availableConfigs = QUALITY_CONFIGS.filter(
@@ -161,6 +164,7 @@ export default function DQECaptureScreen() {
 
   const handleToggleLens = () => {
     if (!canToggleLens || isRecording) return;
+    resetZoom();
     setSelectedLens((cur) => (cur === wideLens ? ultraWideLens : wideLens));
   };
 
@@ -265,20 +269,23 @@ export default function DQECaptureScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      <CameraView
-        key={cameraKey}
-        ref={cameraRef}
-        style={StyleSheet.absoluteFill}
-        facing="back"
-        mode="video"
-        videoQuality={currentConfig.videoQuality}
-        videoBitrate={currentConfig.videoBitrate}
-        enableTorch={torchEnabled}
-        selectedLens={selectedLens}
-        videoStabilizationMode={Platform.OS === "ios" ? "auto" : undefined}
-        autofocus={Platform.OS === "ios" ? "on" : undefined}
-        onCameraReady={handleCameraReady}
-      />
+      <GestureDetector gesture={pinchGesture}>
+        <CameraView
+          key={cameraKey}
+          ref={cameraRef}
+          style={StyleSheet.absoluteFill}
+          facing="back"
+          mode="video"
+          videoQuality={currentConfig.videoQuality}
+          videoBitrate={currentConfig.videoBitrate}
+          enableTorch={torchEnabled}
+          selectedLens={selectedLens}
+          videoStabilizationMode={Platform.OS === "ios" ? "auto" : undefined}
+          autofocus={Platform.OS === "ios" ? "on" : undefined}
+          onCameraReady={handleCameraReady}
+          zoom={zoom}
+        />
+      </GestureDetector>
 
       {isRecording ? (
         <View style={[styles.progressBar, { top: 0 }]}>
