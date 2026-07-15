@@ -123,6 +123,83 @@ describe("Contractors BFF — live mode", () => {
     );
   });
 
+  it("injects Authorization: Bearer OUVRO_API_KEY on the outbound ARCHIDOC request", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalKey = process.env.OUVRO_API_KEY;
+    process.env.OUVRO_API_KEY = "test-secret-key";
+    let capturedUrl = "";
+    let capturedAuth: string | null = null;
+    let capturedContentType: string | null = null;
+    globalThis.fetch = (async (
+      input: string | URL | globalThis.Request,
+      init?: RequestInit,
+    ) => {
+      const url = String(input);
+      if (url.startsWith("http://localhost:")) {
+        return originalFetch(input as never, init);
+      }
+      capturedUrl = url;
+      const headers = new Headers(init?.headers);
+      capturedAuth = headers.get("authorization");
+      capturedContentType = headers.get("content-type");
+      return new Response(JSON.stringify({ contractors: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+    try {
+      await withServer(
+        { validateArchidocUrl: okValidate },
+        async (port) => {
+          const res = await fetch(`http://localhost:${port}/api/contractors`);
+          assert.equal(res.status, 200);
+          assert.equal(capturedUrl, "https://archidoc.test/api/ouvro/contractors");
+          assert.equal(capturedAuth, "Bearer test-secret-key");
+          assert.equal(capturedContentType, "application/json");
+        },
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalKey === undefined) delete process.env.OUVRO_API_KEY;
+      else process.env.OUVRO_API_KEY = originalKey;
+    }
+  });
+
+  it("returns 500 and never forwards when OUVRO_API_KEY is missing", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalKey = process.env.OUVRO_API_KEY;
+    delete process.env.OUVRO_API_KEY;
+    let outboundCalled = false;
+    globalThis.fetch = (async (
+      input: string | URL | globalThis.Request,
+      init?: RequestInit,
+    ) => {
+      const url = String(input);
+      if (url.startsWith("http://localhost:")) {
+        return originalFetch(input as never, init);
+      }
+      outboundCalled = true;
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    try {
+      await withServer(
+        { validateArchidocUrl: okValidate },
+        async (port) => {
+          const res = await originalFetch(`http://localhost:${port}/api/contractors`);
+          assert.equal(res.status, 500);
+          const data = (await res.json()) as { error: string };
+          assert.match(data.error, /misconfigured/i);
+          assert.match(data.error, /OUVRO_API_KEY/);
+          assert.equal(outboundCalled, false);
+        },
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalKey === undefined) delete process.env.OUVRO_API_KEY;
+      else process.env.OUVRO_API_KEY = originalKey;
+    }
+  });
+
   it("surfaces a thrown listLive failure as a formatted 5xx", async () => {
     await withServer(
       {
