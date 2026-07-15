@@ -57,6 +57,12 @@ brand: OUVRO + Architects-France.
   (route pending on ARCHIDOC side). Client `fetchContractors()` calls the
   local BFF via `getApiUrl()` and throws on failure (no silent `[]`).
   Guarded by `server/routes/__tests__/contractors.test.ts`.
+- `client/lib/offline-contractors.ts` — read-only offline cache for the
+  contractor list (single DurableQueueStore entry, `localId ===
+  "contractors"`). `getContractorsOfflineFirst()` tries the BFF, falls back
+  to the cache (`fromCache: true` drives a "hors ligne" stale hint in
+  SnagDetails picker + DQE Browser), refreshes on NetInfo reconnect, throws
+  only when fetch fails AND no cache exists.
 - `client/lib/offline-reminders.ts` — Site Reminders offline service
   (list cache + toggle queue via DurableQueueStore); provider in
   `client/hooks/useSiteReminders.tsx`; screen

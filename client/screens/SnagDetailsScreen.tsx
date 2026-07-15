@@ -24,7 +24,11 @@ import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useCaptureModeLock } from "@/hooks/useCaptureModeLock";
 import { useSnagSync } from "@/hooks/useSnagSync";
 import { DictationButton } from "@/components/DictationButton";
-import { fetchContractors, type ProjectFile } from "@/lib/archidoc-api";
+import { type ProjectFile } from "@/lib/archidoc-api";
+import {
+  getContractorsOfflineFirst,
+  type ContractorListResult,
+} from "@/lib/offline-contractors";
 import type { SnagSeverity, Contractor } from "@/lib/archidoc-types";
 import type { RootStackParamList, MediaItem } from "@/navigation/RootStackNavigator";
 
@@ -58,14 +62,17 @@ export default function SnagDetailsScreen() {
   const { addCapture } = useSnagSync();
 
   const {
-    data: contractors = [],
+    data: contractorsResult,
     isLoading: contractorsLoading,
     isError: contractorsError,
-  } = useQuery<Contractor[]>({
+  } = useQuery<ContractorListResult>({
     queryKey: ["archidoc-contractors"],
-    queryFn: fetchContractors,
+    queryFn: getContractorsOfflineFirst,
     staleTime: 1000 * 60 * 10,
   });
+
+  const contractors = contractorsResult?.contractors ?? [];
+  const contractorsFromCache = contractorsResult?.fromCache ?? false;
 
   const sortedContractors = useMemo(
     () => [...contractors].sort((a, b) => a.name.localeCompare(b.name)),
@@ -413,6 +420,14 @@ export default function SnagDetailsScreen() {
                 <Feather name="x" size={22} color={BrandColors.primary} />
               </Pressable>
             </View>
+            {contractorsFromCache ? (
+              <View style={styles.staleHintRow}>
+                <Feather name="wifi-off" size={13} color={theme.textTertiary} />
+                <ThemedText style={[styles.staleHintText, { color: theme.textTertiary }]}>
+                  Liste hors ligne (dernière synchro connue)
+                </ThemedText>
+              </View>
+            ) : null}
             <FlatList
               data={sortedContractors}
               keyExtractor={(item) => item.id}
@@ -586,4 +601,12 @@ const styles = StyleSheet.create({
   contractorName: { fontSize: 15, color: "#1F2937", marginTop: 2 },
   contractorFreeText: { fontSize: 15, fontWeight: "600", color: BrandColors.primary },
   emptyPicker: { padding: Spacing.lg, textAlign: "center", color: "#6B7280" },
+  staleHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+  staleHintText: { fontSize: 12, fontStyle: "italic" },
 });

@@ -11,14 +11,16 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography, BrandColors } from "@/constants/theme";
 import {
   fetchProjectById,
-  fetchContractors,
   getUniqueLotCodes,
   getFileDownloadUrl,
   type DQEItem,
   type DQEAttachment,
-  type Contractor,
   type ProjectFile,
 } from "@/lib/archidoc-api";
+import {
+  getContractorsOfflineFirst,
+  type ContractorListResult,
+} from "@/lib/offline-contractors";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useHeaderHeight } from "@react-navigation/elements";
 
@@ -43,11 +45,15 @@ export default function DQEBrowserScreen() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const { data: contractors = [], isError: contractorsError } = useQuery({
-    queryKey: ["archidoc-contractors"],
-    queryFn: fetchContractors,
-    staleTime: 1000 * 60 * 10,
-  });
+  const { data: contractorsResult, isError: contractorsError } =
+    useQuery<ContractorListResult>({
+      queryKey: ["archidoc-contractors"],
+      queryFn: getContractorsOfflineFirst,
+      staleTime: 1000 * 60 * 10,
+    });
+
+  const contractors = contractorsResult?.contractors ?? [];
+  const contractorsFromCache = contractorsResult?.fromCache ?? false;
 
   const contractorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -438,6 +444,14 @@ export default function DQEBrowserScreen() {
           <View style={styles.noFilterData}>
             <ThemedText style={[styles.noFilterText, { color: theme.textSecondary }]}>
               Aucune entreprise assignée
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {activeFilter === "contractor" && contractorsFromCache ? (
+          <View style={styles.noFilterData}>
+            <ThemedText style={[styles.noFilterText, { color: theme.textSecondary }]}>
+              Noms d'entreprises hors ligne (dernière synchro connue).
             </ThemedText>
           </View>
         ) : null}

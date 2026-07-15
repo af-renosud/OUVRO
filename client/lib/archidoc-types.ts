@@ -200,6 +200,16 @@ export type Contractor = {
   contactMobile?: string;
 };
 
+/**
+ * Durable cache entry for the global contractor list (single entry,
+ * localId === "contractors"). Enables signal-free reads in the field.
+ */
+export interface CachedContractorList {
+  localId: string;
+  contractors: Contractor[];
+  cachedAt: string;
+}
+
 export type FileCategory =
   | "00"
   | "01"
