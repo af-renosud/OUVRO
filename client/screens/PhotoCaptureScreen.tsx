@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { View, StyleSheet, Pressable, Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -75,6 +75,33 @@ export default function PhotoCaptureScreen() {
     setCapturedPhoto(null);
   };
 
+  const annotatedPhoto = route.params.annotatedPhoto;
+  useEffect(() => {
+    if (!annotatedPhoto) return;
+    setCapturedPhoto(annotatedPhoto);
+    navigation.setParams({ annotatedPhoto: undefined });
+  }, [annotatedPhoto, navigation]);
+
+  const handleAnnotate = () => {
+    if (!capturedPhoto) return;
+    navigation.navigate("Annotation", {
+      file: {
+        objectId: "local-capture-photo",
+        objectName: "capture-photo.jpg",
+        originalName: "Photo",
+        contentType: "image/jpeg",
+        size: 0,
+        projectId,
+        category: "photos",
+        createdAt: new Date().toISOString(),
+      },
+      signedUrl: capturedPhoto,
+      projectId,
+      projectName: projectName || "Unknown Project",
+      returnScreen: "PhotoCapture",
+    });
+  };
+
   const handleClose = () => {
     navigation.goBack();
   };
@@ -143,6 +170,12 @@ export default function PhotoCaptureScreen() {
               <Feather name="refresh-cw" size={22} color="#FFFFFF" />
             </Pressable>
             <Pressable
+              style={[styles.actionButton, { backgroundColor: "rgba(255,255,255,0.2)" }]}
+              onPress={handleAnnotate}
+            >
+              <Feather name="edit-2" size={22} color="#FFFFFF" />
+            </Pressable>
+            <Pressable
               style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}
               onPress={handleDone}
             >
@@ -176,6 +209,13 @@ export default function PhotoCaptureScreen() {
           >
             <Feather name="refresh-cw" size={22} color="#FFFFFF" />
             <ThemedText style={styles.actionButtonText}>Retake</ThemedText>
+          </Pressable>
+          <Pressable
+            style={[styles.actionButton, { backgroundColor: "rgba(255,255,255,0.2)" }]}
+            onPress={handleAnnotate}
+          >
+            <Feather name="edit-2" size={22} color="#FFFFFF" />
+            <ThemedText style={styles.actionButtonText}>Annotate</ThemedText>
           </Pressable>
           <Pressable
             style={[styles.actionButton, { backgroundColor: BrandColors.primary }]}

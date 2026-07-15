@@ -52,6 +52,32 @@ function buildSmoothFreehandPath(points: number[][]): string {
   return d;
 }
 
+/**
+ * Minimum distance (px) between consecutive freehand samples. High-frequency
+ * touch digitizers (iPad ~120 Hz) emit sub-pixel moves that read as sensor
+ * jitter; skipping points closer than this removes the wobble without
+ * losing real hand movement.
+ */
+const MIN_POINT_DISTANCE = 2;
+
+/**
+ * Weighted 3-point moving average applied once when the stroke ends.
+ * Removes residual digitizer noise while keeping endpoints anchored, so
+ * finished lines look like a steady pen stroke instead of raw samples.
+ */
+function smoothStrokePoints(points: number[][]): number[][] {
+  if (points.length < 3) return points;
+  const out: number[][] = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    out.push([
+      points[i - 1][0] * 0.25 + points[i][0] * 0.5 + points[i + 1][0] * 0.25,
+      points[i - 1][1] * 0.25 + points[i][1] * 0.5 + points[i + 1][1] * 0.25,
+    ]);
+  }
+  out.push(points[points.length - 1]);
+  return out;
+}
+
 const TOOLS: { type: AnnotationType; icon: FeatherIconName; label: string }[] = [
   { type: "freehand", icon: "edit-3", label: "Pen" },
   { type: "arrow", icon: "arrow-up-right", label: "Arrow" },
@@ -151,12 +177,21 @@ export default function AnnotationScreen() {
     
     // Add point to ref immediately (no React state delay)
     if (tool === "freehand") {
-      currentPointsRef.current.push([x, y]);
+      // Skip sub-pixel jitter: only record points that moved a meaningful
+      // distance from the previous sample.
+      const pts = currentPointsRef.current;
+      const last = pts[pts.length - 1];
+      const dx = x - last[0];
+      const dy = y - last[1];
+      if (dx * dx + dy * dy < MIN_POINT_DISTANCE * MIN_POINT_DISTANCE) {
+        return;
+      }
+      pts.push([x, y]);
       renderBatchCountRef.current += 1;
-      // Batch SVG re-renders: only update React state every 4 points for freehand.
-      // The first 4 points always render so the stroke appears immediately.
+      // Batch SVG re-renders: only update React state every 2 points for freehand.
+      // The first points always render so the stroke appears immediately.
       // All points are still captured in currentPointsRef — none are lost.
-      if (renderBatchCountRef.current % 4 !== 0 && currentPointsRef.current.length > 4) {
+      if (renderBatchCountRef.current % 2 !== 0 && currentPointsRef.current.length > 4) {
         return;
       }
     } else {
@@ -175,8 +210,13 @@ export default function AnnotationScreen() {
     isDrawingRef.current = false;
     setCurrentElement((prev) => {
       if (prev && currentPointsRef.current.length > 0) {
-        // Use the complete points from ref
-        const finalElement = { ...prev, points: [...currentPointsRef.current] };
+        // Use the complete points from ref; apply a final smoothing pass to
+        // freehand strokes so the committed line is free of touch jitter.
+        const finalPoints =
+          prev.type === "freehand"
+            ? smoothStrokePoints(currentPointsRef.current)
+            : [...currentPointsRef.current];
+        const finalElement = { ...prev, points: finalPoints };
         setElements((els) => [...els, finalElement]);
       }
       currentPointsRef.current = [];
@@ -355,6 +395,15 @@ export default function AnnotationScreen() {
           navigation.navigate({
             name: "SnagDetails",
             params: { annotatedMedia: { index: mediaIndex, uri } },
+            merge: true,
+          });
+          return;
+        }
+
+        if (returnScreen === "PhotoCapture") {
+          navigation.navigate({
+            name: "PhotoCapture",
+            params: { annotatedPhoto: uri },
             merge: true,
           });
           return;

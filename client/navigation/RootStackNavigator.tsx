@@ -38,7 +38,11 @@ export type ShareObservation = {
 export type RootStackParamList = {
   Main: undefined;
   CaptureModal: undefined;
-  PhotoCapture: { projectId: string; projectName?: string };
+  PhotoCapture: {
+    projectId: string;
+    projectName?: string;
+    annotatedPhoto?: string;
+  };
   VideoCapture: { projectId: string; projectName?: string };
   AudioCapture: { projectId: string; projectName?: string };
   TaskCapture: { projectId: string; projectName: string };
@@ -67,7 +71,7 @@ export type RootStackParamList = {
     signedUrl: string;
     projectId: string;
     projectName?: string;
-    returnScreen?: "SnagDetails";
+    returnScreen?: "SnagDetails" | "PhotoCapture";
     mediaIndex?: number;
   };
   ProjectFiles: { projectId: string; projectName: string };
