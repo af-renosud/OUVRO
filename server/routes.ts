@@ -6,6 +6,7 @@ import { syncRouter } from "./routes/sync";
 import { dqeRouter } from "./routes/dqe";
 import { snagsRouter } from "./routes/snags";
 import { siteRemindersRouter } from "./routes/site-reminders";
+import { contractorsRouter } from "./routes/contractors";
 import { uploadsRouter } from "./routes/uploads";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -20,6 +21,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api", snagsRouter);
   app.use("/api", siteRemindersRouter);
   app.use("/api", uploadsRouter);
+  app.use("/api", contractorsRouter);
 
   const httpServer = createServer(app);
   return httpServer;

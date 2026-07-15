@@ -9,6 +9,8 @@ export type {
   MappedProject,
   DQEItem,
   ProjectLink,
+  RawContractor,
+  ContractorListResponse,
   Contractor,
   FileCategory,
   ProjectFile,
@@ -54,6 +56,8 @@ import {
   type DQEAttachment,
   type MappedProject,
   type DQEItem,
+  type RawContractor,
+  type ContractorListResponse,
   type Contractor,
   type FileCategory,
   type ProjectFile,
@@ -200,14 +204,38 @@ export function getCategoryLabel(category: FileCategory): string {
   return found ? found.label : category;
 }
 
+function mapRawContractor(raw: RawContractor): Contractor {
+  return {
+    id: raw.id,
+    name: raw.name,
+    address1: raw.address1,
+    town: raw.town,
+    postcode: raw.postcode,
+    siret: raw.siret,
+    contactName: raw.contact_name ?? raw.contactName,
+    contactEmail: raw.contact_email ?? raw.contactEmail,
+    contactMobile: raw.contact_mobile ?? raw.contactMobile,
+  };
+}
+
+/**
+ * Reads the global contractor list through the BFF proxy — ARCHIDOC's
+ * contractors endpoint is key-authenticated server-side (OUVRO_API_KEY), so
+ * the client must never call ARCHIDOC directly for it. Throws on failure so
+ * callers can surface an explicit error state (no silent empty list).
+ */
 export async function fetchContractors(): Promise<Contractor[]> {
-  try {
-    const response = await archidocApiFetch("/api/contractors");
-    return await response.json();
-  } catch (error) {
-    console.warn("Error fetching contractors:", error);
-    return [];
+  const { getApiUrl } = await import("./query-client");
+  const url = new URL("/api/contractors", getApiUrl()).toString();
+  const response = await fetch(url, { method: "GET", credentials: "include" });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      body.error || `Failed to load contractors (${response.status})`
+    );
   }
+  const data = (await response.json()) as ContractorListResponse;
+  return (data.contractors ?? []).map(mapRawContractor);
 }
 
 export async function fetchArchidocProjects(): Promise<MappedProject[]> {

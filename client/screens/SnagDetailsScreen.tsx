@@ -57,9 +57,14 @@ export default function SnagDetailsScreen() {
   const { mode, unlockMode } = useCaptureModeLock();
   const { addCapture } = useSnagSync();
 
-  const { data: contractors = [] } = useQuery<Contractor[]>({
+  const {
+    data: contractors = [],
+    isLoading: contractorsLoading,
+    isError: contractorsError,
+  } = useQuery<Contractor[]>({
     queryKey: ["archidoc-contractors"],
     queryFn: fetchContractors,
+    staleTime: 1000 * 60 * 10,
   });
 
   const sortedContractors = useMemo(
@@ -413,7 +418,11 @@ export default function SnagDetailsScreen() {
               keyExtractor={(item) => item.id}
               ListEmptyComponent={
                 <ThemedText style={styles.emptyPicker}>
-                  Aucune entreprise disponible
+                  {contractorsLoading
+                    ? "Chargement des entreprises…"
+                    : contractorsError
+                      ? "Impossible de charger la liste des entreprises. Vérifiez la connexion, ou saisissez un nom libre."
+                      : "Aucune entreprise disponible"}
                 </ThemedText>
               }
               ListFooterComponent={

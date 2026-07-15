@@ -168,6 +168,26 @@ export type ProjectLink = {
   type?: string;
 };
 
+/** Wire shape from the BFF contractors proxy (snake_case with camelCase tolerance). */
+export type RawContractor = {
+  id: string;
+  name: string;
+  address1?: string;
+  town?: string;
+  postcode?: string;
+  siret?: string;
+  contact_name?: string;
+  contactName?: string;
+  contact_email?: string;
+  contactEmail?: string;
+  contact_mobile?: string;
+  contactMobile?: string;
+};
+
+export type ContractorListResponse = {
+  contractors?: RawContractor[];
+};
+
 export type Contractor = {
   id: string;
   name: string;

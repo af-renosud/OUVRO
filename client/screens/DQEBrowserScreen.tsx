@@ -43,8 +43,8 @@ export default function DQEBrowserScreen() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const { data: contractors = [] } = useQuery({
-    queryKey: ["/api/contractors"],
+  const { data: contractors = [], isError: contractorsError } = useQuery({
+    queryKey: ["archidoc-contractors"],
     queryFn: fetchContractors,
     staleTime: 1000 * 60 * 10,
   });
@@ -438,6 +438,14 @@ export default function DQEBrowserScreen() {
           <View style={styles.noFilterData}>
             <ThemedText style={[styles.noFilterText, { color: theme.textSecondary }]}>
               Aucune entreprise assignée
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {activeFilter === "contractor" && contractorsError ? (
+          <View style={styles.noFilterData}>
+            <ThemedText style={[styles.noFilterText, { color: theme.textSecondary }]}>
+              Impossible de charger les noms des entreprises — vérifiez la connexion.
             </ThemedText>
           </View>
         ) : null}

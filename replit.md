@@ -51,6 +51,12 @@ brand: OUVRO + Architects-France.
 - `server/routes/site-reminders.ts` — Site Reminders BFF proxy + mock
   store (`createSiteRemindersRouter(deps)`); guarded by
   `server/routes/__tests__/site-reminders.test.ts`.
+- `server/routes/contractors.ts` — Contractors BFF proxy + mock store
+  (`createContractorsRouter(deps)`); mock default, `CONTRACTORS_MODE=live`
+  proxies ARCHIDOC `/api/ouvro/contractors` with Bearer `OUVRO_API_KEY`
+  (route pending on ARCHIDOC side). Client `fetchContractors()` calls the
+  local BFF via `getApiUrl()` and throws on failure (no silent `[]`).
+  Guarded by `server/routes/__tests__/contractors.test.ts`.
 - `client/lib/offline-reminders.ts` — Site Reminders offline service
   (list cache + toggle queue via DurableQueueStore); provider in
   `client/hooks/useSiteReminders.tsx`; screen
