@@ -52,9 +52,12 @@ brand: OUVRO + Architects-France.
   store (`createSiteRemindersRouter(deps)`); guarded by
   `server/routes/__tests__/site-reminders.test.ts`.
 - `server/routes/contractors.ts` — Contractors BFF proxy + mock store
-  (`createContractorsRouter(deps)`); mock default, `CONTRACTORS_MODE=live`
-  proxies ARCHIDOC `/api/ouvro/contractors` with Bearer `OUVRO_API_KEY`
-  (route pending on ARCHIDOC side). Client `fetchContractors()` calls the
+  (`createContractorsRouter(deps)`); default mode is `auto` — proxies ARCHIDOC
+  `/api/ouvro/contractors` with Bearer `OUVRO_API_KEY`, falls back to the
+  seeded mock list ONLY on 404 (route still not deployed on ARCHIDOC as of
+  2026-07-15; real data flows automatically once it exists). Other upstream
+  errors surface explicitly. `CONTRACTORS_MODE=live|mock` forces a mode.
+  Client `fetchContractors()` calls the
   local BFF via `getApiUrl()` and throws on failure (no silent `[]`).
   Guarded by `server/routes/__tests__/contractors.test.ts`.
 - `client/lib/offline-contractors.ts` — read-only offline cache for the

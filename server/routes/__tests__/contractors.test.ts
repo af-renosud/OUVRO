@@ -42,8 +42,12 @@ const okValidate = (_req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
-describe("Contractors BFF — mock mode (default)", () => {
+describe("Contractors BFF — mock mode (explicit)", () => {
   beforeEach(() => {
+    process.env.CONTRACTORS_MODE = "mock";
+  });
+
+  afterEach(() => {
     delete process.env.CONTRACTORS_MODE;
   });
 
@@ -60,6 +64,103 @@ describe("Contractors BFF — mock mode (default)", () => {
         assert.ok(c.name.length > 0);
       }
     });
+  });
+});
+
+describe("Contractors BFF — auto mode (default, env unset)", () => {
+  beforeEach(() => {
+    delete process.env.CONTRACTORS_MODE;
+  });
+
+  it("forwards live ARCHIDOC data when the route exists", async () => {
+    const wire: ContractorWire[] = [
+      { id: "real-1", name: "Vraie Entreprise SARL", town: "Nîmes" },
+    ];
+    await withServer(
+      {
+        validateArchidocUrl: okValidate,
+        listLive: async () => ({ data: { contractors: wire } }),
+      },
+      async (port) => {
+        const res = await fetch(`http://localhost:${port}/api/contractors`);
+        assert.equal(res.status, 200);
+        const data = (await res.json()) as { contractors: ContractorWire[] };
+        assert.deepEqual(data.contractors, wire);
+      },
+    );
+  });
+
+  it("falls back to the seeded list when ARCHIDOC returns 404 (route not deployed)", async () => {
+    await withServer(
+      {
+        validateArchidocUrl: okValidate,
+        listLive: async () => ({ error: "Failed to load contractors", status: 404 }),
+      },
+      async (port) => {
+        const res = await fetch(`http://localhost:${port}/api/contractors`);
+        assert.equal(res.status, 200);
+        const data = (await res.json()) as { contractors: ContractorWire[] };
+        assert.ok(data.contractors.length >= 3);
+        assert.equal(typeof data.contractors[0].name, "string");
+      },
+    );
+  });
+
+  it("returns 503 (no mock fallback) when ARCHIDOC URL is not configured", async () => {
+    const noUrlValidate = (_req: Request, res: Response, _next: NextFunction) => {
+      res
+        .status(503)
+        .json({ success: false, error: "ARCHIDOC API URL not configured. Service unavailable." });
+    };
+    await withServer(
+      { validateArchidocUrl: noUrlValidate },
+      async (port) => {
+        const res = await fetch(`http://localhost:${port}/api/contractors`);
+        assert.equal(res.status, 503);
+      },
+    );
+  });
+
+  it("invokes the ARCHIDOC URL guard in auto mode but skips it in mock mode", async () => {
+    let guardCalls = 0;
+    const countingValidate = (_req: Request, res: Response, next: NextFunction) => {
+      guardCalls += 1;
+      res.locals.archidocApiUrl = "https://archidoc.test";
+      next();
+    };
+    await withServer(
+      {
+        validateArchidocUrl: countingValidate,
+        listLive: async () => ({ data: { contractors: [] } }),
+      },
+      async (port) => {
+        await fetch(`http://localhost:${port}/api/contractors`);
+        assert.equal(guardCalls, 1);
+        process.env.CONTRACTORS_MODE = "mock";
+        try {
+          const res = await fetch(`http://localhost:${port}/api/contractors`);
+          assert.equal(res.status, 200);
+          assert.equal(guardCalls, 1);
+        } finally {
+          delete process.env.CONTRACTORS_MODE;
+        }
+      },
+    );
+  });
+
+  it("surfaces non-404 upstream errors explicitly (no silent mock)", async () => {
+    await withServer(
+      {
+        validateArchidocUrl: okValidate,
+        listLive: async () => ({ error: "Failed to load contractors", status: 502 }),
+      },
+      async (port) => {
+        const res = await fetch(`http://localhost:${port}/api/contractors`);
+        assert.equal(res.status, 502);
+        const data = (await res.json()) as { error: string };
+        assert.equal(data.error, "Failed to load contractors");
+      },
+    );
   });
 });
 

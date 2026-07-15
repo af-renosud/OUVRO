@@ -20,16 +20,26 @@ import {
  * Reminders proxy.
  *
  * Modes:
- *   CONTRACTORS_MODE=live  → proxy to ARCHIDOC `GET /api/ouvro/contractors`
- *                            with Bearer OUVRO_API_KEY (route pending ARCHIDOC
- *                            deployment — verified missing on 2026-07-15)
- *   CONTRACTORS_MODE=mock  → in-memory seeded store (default)
+ *   CONTRACTORS_MODE=auto  → (default) try ARCHIDOC `GET /api/ouvro/contractors`
+ *                            with Bearer OUVRO_API_KEY. If ARCHIDOC responds
+ *                            404 (route not deployed yet — verified missing on
+ *                            2026-07-15), fall back to the seeded mock list so
+ *                            the field UI never goes empty. As soon as ARCHIDOC
+ *                            deploys the route, real data flows with no
+ *                            redeploy needed. Any other upstream failure is
+ *                            surfaced as an explicit error (no silent mock).
+ *   CONTRACTORS_MODE=live  → proxy only; ARCHIDOC errors (incl. 404) surface.
+ *   CONTRACTORS_MODE=mock  → in-memory seeded store only.
  */
 
 const CONTRACTORS_TIMEOUT_MS = 15_000;
 
-function getMode(): "mock" | "live" {
-  return process.env.CONTRACTORS_MODE === "live" ? "live" : "mock";
+export type ContractorsMode = "mock" | "live" | "auto";
+
+function getMode(): ContractorsMode {
+  const mode = process.env.CONTRACTORS_MODE;
+  if (mode === "live" || mode === "mock") return mode;
+  return "auto";
 }
 
 export type ContractorWire = {
@@ -159,19 +169,37 @@ export function createContractorsRouter(
   const effectiveList = deps.listLive ?? defaultListLive;
 
   const router = Router();
-  const liveGuards = getMode() === "live" ? [effectiveValidate] : [];
+  const guardUnlessMock = (
+    req: Request,
+    res: ExpressResponse,
+    next: NextFunction,
+  ) => {
+    if (getMode() === "mock") return next();
+    return effectiveValidate(req, res, next);
+  };
 
   router.get(
     "/contractors",
-    ...liveGuards,
+    guardUnlessMock,
     async (_req: Request, res: ExpressResponse) => {
       try {
-        if (getMode() === "mock") {
+        const mode = getMode();
+        if (mode === "mock") {
           return res.status(200).json({ contractors: mockList() });
         }
         const archidocApiUrl: string = res.locals.archidocApiUrl;
         const result = await effectiveList(archidocApiUrl);
         if ("error" in result) {
+          if (mode === "auto" && result.status === 404) {
+            // ARCHIDOC hasn't deployed /api/ouvro/contractors yet — serve the
+            // seeded list so the field UI keeps working. Logged loudly so the
+            // gap stays visible; flips to live data automatically once the
+            // route exists.
+            console.warn(
+              "[Contractors] ARCHIDOC route missing (404) — serving seeded fallback list (mode=auto)",
+            );
+            return res.status(200).json({ contractors: mockList() });
+          }
           return res.status(result.status).json({ error: result.error });
         }
         return res.status(200).json(result.data);
